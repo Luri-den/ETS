@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "canvas": { "width": 900, "height": 600, "background": "#f4f4f4" },
+  "objects": [
+    {
+      "id": "walls-outer",
+      "type": "rect",
+      "x": 60, "y": 60, "width": 780, "height": 480,
+      "rotation": 0,
+      "fill": "none",
+      "stroke": "#000000",
+      "strokeWidth": 6,
+      "locked": true,
+      "selectable": false,
+      "z": 0,
+      "label": ""
+    },
+    {
+      "id": "wall-1",
+      "type": "line",
+      "x1": 320, "y1": 60, "x2": 320, "y2": 360,
+      "stroke": "#000000",
+      "strokeWidth": 6,
+      "locked": true,
+      "selectable": false,
+      "z": 1,
+      "label": ""
+    },
+    {
+      "id": "wall-2",
+      "type": "line",
+      "x1": 320, "y1": 360, "x2": 840, "y2": 360,
+      "stroke": "#000000",
+      "strokeWidth": 6,
+      "locked": true,
+      "selectable": false,
+      "z": 1,
+      "label": ""
+    },
+    {
+      "id": "dept-yellow",
+      "type": "rect",
+      "x": 120, "y": 120, "width": 160, "height": 120,
+      "rotation": 0,
+      "fill": "#ffd92f",
+      "stroke": "#c9a300",
+      "strokeWidth": 2,
+      "locked": false,
+      "selectable": true,
+      "z": 10,
+      "label": "Yellow Department",
+      "interactive": true,
+      "clickAction": { "kind": "panel", "target": "dept-yellow" }
+    },
+    {
+      "id": "icon-info",
+      "type": "icon",
+      "icon": "info",
+      "x": 500, "y": 450, "size": 40,
+      "rotation": 0,
+      "fill": "#2b6cb0",
+      "locked": false,
+      "selectable": true,
+      "z": 12,
+      "label": "Information",
+      "interactive": true,
+      "clickAction": { "kind": "panel", "target": "info-desk" }
+    }
+  ],
+  "panels": {
+    "dept-yellow": {
+      "title": "Yellow Department",
+      "body": "Open Monday–Friday, 9:00–17:00. Ask at the front desk for assistance.",
+      "images": [],
+      "links": []
+    },
+    "info-desk": {
+      "title": "Information",
+      "body": "Visitor information and wayfinding.",
+      "images": [],
+      "links": []
+    }
+  }
+}
