@@ -2120,8 +2120,10 @@ document.addEventListener("keydown", e => {
   };
 
   window.passportEvent = (type, context = {}) => {
-    console.log("[passportEvent]", type, context, "stamps:", STAMPS.length, "tasks:", TASKS.length);
-    if (!STAMPS.length || !TASKS.length) return;
+  console.log("[passportEvent]", type, context);
+  console.log("  STAMPS:", STAMPS.length, STAMPS.map(s => s.row.STAMP_ID));
+  console.log("  TASKS:",  TASKS.length,  TASKS.map(t => t.row.TASK_ID));
+  if (!STAMPS.length || !TASKS.length) { console.log("  → early return, no data"); return; }
 
     const progress = loadProgress();
     const advanced = [];
@@ -2130,10 +2132,12 @@ document.addEventListener("keydown", e => {
       const sid = String(stamp.row.STAMP_ID).trim();
       const bucket = progress[sid] || (progress[sid] = {});
       let changed = false;
+          console.log("  checking stamp", stamp.row.STAMP_ID, "tasks:", stamp.tasks);
 
       for (const taskId of stamp.tasks){
         const task = TASKS.find(t => key(t.row.TASK_ID) === key(taskId));
         if (!task) continue;
+              console.log("    task", taskId, "→", task.row.SCOPE, task.row.TARGET, "match?", taskMatches(task.row, type, context));
         if (!taskMatches(task.row, type, context)) continue;
         if (bucket[taskId]) continue;
         bucket[taskId] = true;
@@ -2156,7 +2160,7 @@ document.addEventListener("keydown", e => {
       window.__lastStars = window.__lastStars || {};
       window.__lastStars[sid] = stars;
     }
-
+    console.log("  → progress now:", JSON.stringify(progress));
     renderStampCards();
   };
 
