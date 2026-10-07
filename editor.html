@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Blocks Building — Editor</title>
+<style>
+  :root { --bg:#eceff3; --panel:#fff; --line:#cfd6df; --accent:#2b6cb0; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px system-ui, sans-serif; background:var(--bg); color:#1a202c; }
+  header { display:flex; align-items:center; gap:12px; padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
+  header h1 { font-size:15px; margin:0; font-weight:600; }
+  header .grow { flex:1; }
+  button { padding:6px 12px; border:1px solid var(--line); background:#fff; border-radius:6px; cursor:pointer; font:inherit; }
+  button:hover { background:#f7f9fc; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button.primary:hover { background:#245a94; }
+  .layout { display:grid; grid-template-columns: 220px 1fr 260px; height: calc(100vh - 52px); }
+  .side { background:var(--panel); border-right:1px solid var(--line); overflow:auto; }
+  .side.right { border-right:none; border-left:1px solid var(--line); }
+  .side h2 { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280; margin:12px 12px 6px; }
+  .stage { overflow:auto; padding:20px; display:flex; justify-content:center; align-items:flex-start; }
+  svg.canvas { background:#fff; box-shadow:0 4px 16px rgba(0,0,0,.08); }
+  .obj-row { display:flex; align-items:center; gap:6px; padding:6px 10px; border-bottom:1px solid #eef1f5; cursor:pointer; font-size:13px; }
+  .obj-row:hover { background:#f7f9fc; }
+  .obj-row.sel { background:#e6effa; }
+  .obj-row .name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .obj-row .mini { border:none; background:transparent; padding:2px 4px; font-size:12px; cursor:pointer; color:#4a5568; }
+  .obj-row .mini:hover { color:#000; }
+  .prop { padding:8px 12px; border-bottom:1px solid #eef1f5; }
+  .prop label { display:block; font-size:11px; color:#6b7280; margin-bottom:3px; }
+  .prop input[type=text], .prop input[type=number], .prop select, .prop textarea {
+    width:100%; padding:5px 7px; border:1px solid var(--line); border-radius:5px; font:inherit; }
+  .prop textarea { min-height:60px; resize:vertical; }
+  .prop input[type=color] { width:100%; height:30px; padding:0; border:1px solid var(--line); border-radius:5px; }
+  .row2 { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .empty { padding:16px; color:#9aa3ad; font-size:12px; }
+  .hint { padding:8px 12px; font-size:11px; color:#6b7280; line-height:1.4; }
+  .handle { fill:#fff; stroke:var(--accent); stroke-width:1.5; cursor:pointer; }
+  .rot { fill:var(--accent); cursor:grab; }
+  .modal { position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; align-items:center; justify-content:center; z-index:100; }
+  .modal.on { display:flex; }
+  .modal .box { background:#fff; padding:16px; border-radius:8px; width:520px; max-width:90vw; }
+  .modal textarea { width:100%; height:280px; font:12px ui-monospace, monospace; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Blocks Building — Editor</h1>
+  <button id="loadBtn">Load layout.json…</button>
+  <input id="fileInput" type="file" accept=".json" hidden>
+  <div class="grow"></div>
+  <span id="status" style="font-size:12px;color:#6b7280;"></span>
+  <button id="addRect">+ Rectangle</button>
+  <button id="addText">+ Text</button>
+  <button id="addIcon">+ Icon</button>
+  <button id="publishBtn" class="primary">Publish (Download JSON)</button>
+</header>
+
+<div class="layout">
+  <aside class="side">
+    <h2>Objects</h2>
+    <div id="objList"></div>
+  </aside>
+
+  <main class="stage">
+    <svg id="canvas" class="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
+  </main>
+
+  <aside class="side right">
+    <h2>Properties</h2>
+    <div id="props"><div class="empty">Nothing selected.</div></div>
+    <h2>Panel Content</h2>
+    <div id="panelEdit"><div class="empty">Select an object with a panel.</div></div>
+    <div class="hint">Drag to move. Drag corner handles to resize. Drag the blue dot above to rotate. Locked objects can't be edited.</div>
+  </aside>
+</div>
+
+<div class="modal" id="publishModal">
+  <div class="box">
+    <h3 style="margin:0 0 8px;">Published JSON</h3>
+    <p style="margin:0 0 8px;font-size:12px;color:#6b7280;">Copy this into <code>layout.json</code>, or use the download that just started.</p>
+    <textarea id="publishOut" readonly></textarea>
+    <div style="text-align:right;margin-top:8px;"><button id="closeModal">Close</button></div>
+  </div>
+</div>
+
+<script>
+/* ---------- State ---------- */
+let scene = null;      // the whole layout object
+let selectedId = null;
+let drag = null;       // { mode, startX, startY, orig, handle }
+
+const SVGNS = "http://www.w3.org/2000/svg";
+const canvas = document.getElementById("canvas");
+
+/* ---------- Load / default ---------- */
+document.getElementById("loadBtn").onclick = () => document.getElementById("fileInput").click();
+document.getElementById("fileInput").onchange = (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { try { scene = JSON.parse(r.result); selectedId = null; render(); } catch(err) { alert("Bad JSON"); } };
+  r.readAsText(f);
+};
+
+/* Try to auto-load layout.json if served over http */
+(async () => {
+  try {
+    const res = await fetch("layout.json", { cache: "no-store" });
+    if (res.ok) { scene = await res.json(); render(); setStatus("Loaded layout.json"); return; }
+  } catch(e) {}
+  setStatus("Click 'Load layout.json…' to begin");
+  renderEmpty();
+})();
+
+function setStatus(s) { document.getElementById("status").textContent = s; }
+
+/* ---------- Rendering ---------- */
+function renderEmpty() {
+  scene = { version:1, canvas:{width:900,height:600,background:"#fff"}, objects:[], panels:{} };
+  render();
+}
+
+function render() {
+  const c = scene.canvas;
+  canvas.setAttribute("width", c.width);
+  canvas.setAttribute("height", c.height);
+  canvas.setAttribute("viewBox", `0 0 ${c.width} ${c.height}`);
+  canvas.innerHTML = "";
+
+  const bg = document.createElementNS(SVGNS, "rect");
+  bg.setAttribute("width", c.width); bg.setAttribute("height", c.height);
+  bg.setAttribute("fill", c.background);
+  canvas.appendChild(bg);
+
+  const sorted = [...scene.objects].sort((a,b) => (a.z||0) - (b.z||0));
+  for (const obj of sorted) {
+    if (obj.hidden) continue;
+    const g = drawObject(obj);
+    g.dataset.id = obj.id;
+    g.style.cursor = obj.locked ? "default" : "move";
+    canvas.appendChild(g);
+    if (obj.id === selectedId && !obj.locked) drawHandles(obj);
+  }
+
+  drawObjList();
+  drawProps();
+  drawPanelEditor();
+}
+
+function drawObject(o) {
+  const g = document.createElementNS(SVGNS, "g");
+  g.setAttribute("transform", `rotate(${o.rotation||0} ${centerX(o)} ${centerY(o)})`);
+
+  let shape;
+  if (o.type === "rect") {
+    shape = document.createElementNS(SVGNS, "rect");
+    shape.setAttribute("x", o.x); shape.setAttribute("y", o.y);
+    shape.setAttribute("width", o.width); shape.setAttribute("height", o.height);
+    shape.setAttribute("fill", o.fill || "#ccc");
+    shape.setAttribute("stroke", o.stroke || "none");
+    shape.setAttribute("stroke-width", o.strokeWidth || 0);
+  } else if (o.type === "line") {
+    shape = document.createElementNS(SVGNS, "line");
+    shape.setAttribute("x1", o.x1); shape.setAttribute("y1", o.y1);
+    shape.setAttribute("x2", o.x2); shape.setAttribute("y2", o.y2);
+    shape.setAttribute("stroke", o.stroke || "#000");
+    shape.setAttribute("stroke-width", o.strokeWidth || 2);
+    shape.setAttribute("stroke-linecap", "round");
+  } else if (o.type === "text") {
+    shape = document.createElementNS(SVGNS, "text");
+    shape.setAttribute("x", o.x); shape.setAttribute("y", o.y);
+    shape.setAttribute("fill", o.fill || "#000");
+    shape.setAttribute("font-size", o.fontSize || 16);
+    shape.setAttribute("font-family", "system-ui, sans-serif");
+    shape.textContent = o.label || "Text";
+  } else if (o.type === "icon") {
+    shape = iconNode(o.icon || "info", o.x, o.y, o.size || 32, o.fill || "#2b6cb0");
+  }
+
+  shape.dataset.role = "shape";
+  g.appendChild(shape);
+
+  if (o.type === "rect" && o.label) {
+    const t = document.createElementNS(SVGNS, "text");
+    t.setAttribute("x", o.x + o.width/2);
+    t.setAttribute("y", o.y + o.height/2);
+    t.setAttribute("text-anchor", "middle");
+    t.setAttribute("dominant-baseline", "middle");
+    t.setAttribute("font-family", "system-ui, sans-serif");
+    t.setAttribute("font-size", "13");
+    t.setAttribute("fill", "#222");
+    t.setAttribute("pointer-events", "none");
+    t.textContent = o.label;
+    g.appendChild(t);
+  }
+  return g;
+}
+
+function centerX(o) {
+  if (o.type === "rect") return o.x + o.width/2;
+  if (o.type === "text") return o.x;
+  if (o.type === "line") return (o.x1 + o.x2)/2;
+  return o.x + (o.size||0)/2;
+}
+function centerY(o) {
+  if (o.type === "rect") return o.y + o.height/2;
+  if (o.type === "text") return o.y - 6;
+  if (o.type === "line") return (o.y1 + o.y2)/2;
+  return o.y + (o.size||0)/2;
+}
+
+function iconNode(name, x, y, size, fill) {
+  const g = document.createElementNS(SVGNS, "g");
+  g.setAttribute("transform", `translate(${x} ${y}) scale(${size/24})`);
+  const p = document.createElementNS(SVGNS, "path");
+  p.setAttribute("fill", fill);
+  if (name === "info") p.setAttribute("d", "M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z");
+  else if (name === "star") p.setAttribute("d", "M12 2l3 6.5 7 .9-5 4.8 1.2 7L12 17.8 5.8 21.2 7 14.2 2 9.4l7-.9z");
+  else if (name === "door") p.setAttribute("d", "M5 3h12a2 2 0 012 2v16H5V3zm11 9a1 1 0 100-2 1 1 0 000 2z");
+  else if (name === "wc") p.setAttribute("d", "M8 2a2 2 0 110 4 2 2 0 010-4zm8 0a2 2 0 110 4 2 2 0 010-4zM6 8h4l1 6H9v7H7v-7H5zm8 0h4l1 6h-2v7h-2v-7h-2z");
+  else p.setAttribute("d", "M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z");
+  g.appendChild(p);
+  return g;
+}
+
+function drawHandles(o) {
+  // rotate handle above
+  const cx = centerX(o), cy = centerY(o);
+  const top = handleTop(o);
+  const line = document.createElementNS(SVGNS, "line");
+  line.setAttribute("x1", cx); line.setAttribute("y1", top.y);
+  line.setAttribute("x2", cx); line.setAttribute("y2", top.y - 28);
+  line.setAttribute("stroke", "#2b6cb0"); line.setAttribute("stroke-dasharray", "3 3");
+  canvas.appendChild(line);
+  const rot = document.createElementNS(SVGNS, "circle");
+  rot.setAttribute("cx", cx); rot.setAttribute("cy", top.y - 34); rot.setAttribute("r", 7);
+  rot.setAttribute("class", "rot"); rot.dataset.role = "rotate";
+  canvas.appendChild(rot);
+
+  // corner handles for rect
+  if (o.type === "rect") {
+    const corners = [
+      ["nw", o.x, o.y], ["ne", o.x+o.width, o.y],
+      ["sw", o.x, o.y+o.height], ["se", o.x+o.width, o.y+o.height]
+    ];
+    for (const [h, x, y] of corners) {
+      const r = document.createElementNS(SVGNS, "rect");
+      r.setAttribute("x", x-5); r.setAttribute("y", y-5);
+      r.setAttribute("width", 10); r.setAttribute("height", 10);
+      r.setAttribute("class", "handle"); r.dataset.role = "handle"; r.dataset.handle = h;
+      canvas.appendChild(r);
+    }
+  }
+}
+function handleTop(o) {
+  if (o.type === "rect") return { y: o.y };
+  if (o.type === "text") return { y: o.y - 20 };
+  if (o.type === "icon") return { y: o.y };
+  if (o.type === "line") return { y: Math.min(o.y1, o.y2) };
+  return { y: 0 };
+}
+
+/* ---------- Pointer interaction ---------- */
+canvas.addEventListener("mousedown", (e) => {
+  const role = e.target.dataset?.role;
+  const id = e.target.closest("[data-id]")?.dataset.id || e.target.dataset?.id;
+  if (role === "rotate" && selectedId) {
+    const o = getObj(selectedId);
+    const cx = centerX(o), cy = centerY(o);
+    const pt = toSvg(e);
+    drag = { mode:"rotate", id:selectedId, cx, cy, startAngle: angle(pt, cx, cy), origRotation: o.rotation||0 };
+    e.preventDefault();
+    return;
+  }
+  if (role === "handle" && selectedId) {
+    const o = getObj(selectedId);
+    const pt = toSvg(e);
+    drag = { mode:"resize", id:selectedId, handle: e.target.dataset.handle, startX: pt.x, startY: pt.y,
+             orig: { x:o.x, y:o.y, width:o.width, height:o.height } };
+    e.preventDefault();
+    return;
+  }
+  if (id) {
+    const o = getObj(id);
+    if (o.locked) { selectedId = null; render(); return; }
+    selectedId = id;
+    const pt = toSvg(e);
+    drag = { mode:"move", id, startX: pt.x, startY: pt.y, orig: JSON.parse(JSON.stringify(o)) };
+    render();
+    e.preventDefault();
+    return;
+  }
+  // click background
+  selectedId = null;
+  render();
+});
+
+window.addEventListener("mousemove", (e) => {
+  if (!drag) return;
+  const o = getObj(drag.id);
+  if (!o) return;
+  const pt = toSvg(e);
+
+  if (drag.mode === "move") {
+    const dx = pt.x - drag.startX, dy = pt.y - drag.startY;
+    applyOffset(o, drag.orig, dx, dy);
+  } else if (drag.mode === "resize") {
+    const dx = pt.x - drag.startX, dy = pt.y - drag.startY;
+    const or = drag.orig;
+    let { x, y, width, height } = or;
+    if (drag.handle.includes("e")) width = Math.max(10, or.width + dx);
+    if (drag.handle.includes("s")) height = Math.max(10, or.height + dy);
+    if (drag.handle.includes("w")) { width = Math.max(10, or.width - dx); x = or.x + (or.width - width); }
+    if (drag.handle.includes("n")) { height = Math.max(10, or.height - dy); y = or.y + (or.height - height); }
+    Object.assign(o, { x, y, width, height });
+  } else if (drag.mode === "rotate") {
+    const a = angle(pt, drag.cx, drag.cy);
+    o.rotation = drag.origRotation + (a - drag.startAngle) * 180 / Math.PI;
+  }
+  render();
+});
+
+window.addEventListener("mouseup", () => { drag = null; });
+
+function applyOffset(o, orig, dx, dy) {
+  if (o.type === "rect") { o.x = orig.x + dx; o.y = orig.y + dy; }
+  else if (o.type === "text" || o.type === "icon") { o.x = orig.x + dx; o.y = orig.y + dy; }
+  else if (o.type === "line") { o.x1 = orig.x1+dx; o.y1 = orig.y1+dy; o.x2 = orig.x2+dx; o.y2 = orig.y2+dy; }
+}
+
+function toSvg(e) {
+  const r = canvas.getBoundingClientRect();
+  const vb = canvas.viewBox.baseVal;
+  return { x: (e.clientX - r.left) * (vb.width / r.width), y: (e.clientY - r.top) * (vb.height / r.height) };
+}
+function angle(pt, cx, cy) { return Math.atan2(pt.y - cy, pt.x - cx); }
+
+/* ---------- Object list ---------- */
+function drawObjList() {
+  const list = document.getElementById("objList");
+  list.innerHTML = "";
+  const sorted = [...scene.objects].sort((a,b) => (b.z||0) - (a.z||0));
+  for (const o of sorted) {
+    const row = document.createElement("div");
+    row.className = "obj-row" + (o.id === selectedId ? " sel" : "");
+    row.innerHTML = `<span class="name">${escapeHtml(o.label || o.id)}</span>`;
+    const mk = (label, title, fn) => {
+      const b = document.createElement("button");
+      b.className = "mini"; b.textContent = label; b.title = title;
+      b.onclick = (e) => { e.stopPropagation(); fn(); };
+      return b;
+    };
+    row.appendChild(mk(o.locked ? "🔒" : "🔓", "Lock/unlock", () => { o.locked = !o.locked; render(); }));
+    row.appendChild(mk(o.hidden ? "🙈" : "👁", "Hide/show", () => { o.hidden = !o.hidden; render(); }));
+    row.appendChild(mk("⧉", "Duplicate", () => duplicate(o)));
+    row.appendChild(mk("✕", "Delete", () => { scene.objects = scene.objects.filter(x => x !== o); if (selectedId === o.id) selectedId = null; render(); }));
+    row.onclick = () => { selectedId = o.id; render(); };
+    list.appendChild(row);
+  }
+}
+
+function duplicate(o) {
+  const copy = JSON.parse(JSON.stringify(o));
+  copy.id = o.id + "-copy-" + Math.random().toString(36).slice(2,6);
+  copy.x = (copy.x||0) + 20; copy.y = (copy.y||0) + 20;
+  copy.z = (o.z||0) + 1;
+  scene.objects.push(copy);
+  selectedId = copy.id;
+  render();
+}
+
+/* ---------- Properties ---------- */
+function drawProps() {
+  const box = document.getElementById("props");
+  const o = getObj(selectedId);
+  if (!o) { box.innerHTML = '<div class="empty">Nothing selected.</div>'; return; }
+  box.innerHTML = "";
+
+  const field = (label, node) => {
+    const d = document.createElement("div"); d.className = "prop";
+    const l = document.createElement("label"); l.textContent = label;
+    d.appendChild(l); d.appendChild(node); box.appendChild(d);
+  };
+  const num = (val, onChange) => {
+    const i = document.createElement("input"); i.type = "number"; i.value = Math.round(val||0);
+    i.oninput = () => { onChange(parseFloat(i.value)||0); render(); };
+    return i;
+  };
+  const color = (val, onChange) => {
+    const i = document.createElement("input"); i.type = "color"; i.value = toHex(val||"#cccccc");
+    i.oninput = () => { onChange(i.value); render(); };
+    return i;
+  };
+
+  // ID (read-only display)
+  const idEl = document.createElement("div"); idEl.className = "prop";
+  idEl.innerHTML = `<label>ID</label><div style="font:12px ui-monospace,monospace;color:#4a5568;">${escapeHtml(o.id)}</div>`;
+  box.appendChild(idEl);
+
+  // Label
+  const labelIn = document.createElement("input"); labelIn.type = "text"; labelIn.value = o.label||"";
+  labelIn.oninput = () => { o.label = labelIn.value; render(); };
+  field("Label", labelIn);
+
+  // Type-specific geometry
+  if (o.type === "rect") {
+    const r2 = document.createElement("div"); r2.className = "row2";
+    r2.appendChild(num(o.x, v => o.x = v)); r2.appendChild(num(o.y, v => o.y = v));
+    const d = document.createElement("div"); d.className = "prop";
+    d.innerHTML = "<label>X / Y</label>"; d.appendChild(r2); box.appendChild(d);
+    const r3 = document.createElement("div"); r3.className = "row2";
+    r3.appendChild(num(o.width, v => o.width = Math.max(10,v)));
+    r3.appendChild(num(o.height, v => o.height = Math.max(10,v)));
+    const d2 = document.createElement("div"); d2.className = "prop";
+    d2.innerHTML = "<label>W / H</label>"; d2.appendChild(r3); box.appendChild(d2);
+    field("Fill", color(o.fill, v => o.fill = v));
+    field("Stroke", color(o.stroke, v => o.stroke = v));
+    field("Stroke width", num(o.strokeWidth||0, v => o.strokeWidth = v));
+  } else if (o.type === "text") {
+    const r2 = document.createElement("div"); r2.className = "row2";
+    r2.appendChild(num(o.x, v => o.x = v)); r2.appendChild(num(o.y, v => o.y = v));
+    const d = document.createElement("div"); d.className = "prop"; d.innerHTML = "<label>X / Y</label>"; d.appendChild(r2); box.appendChild(d);
+    field("Font size", num(o.fontSize||16, v => o.fontSize = v));
+    field("Fill", color(o.fill, v => o.fill = v));
+  } else if (o.type === "icon") {
+    const r2 = document.createElement("div"); r2.className = "row2";
+    r2.appendChild(num(o.x, v => o.x = v)); r2.appendChild(num(o.y, v => o.y = v));
+    const d = document.createElement("div"); d.className = "prop"; d.innerHTML = "<label>X / Y</label>"; d.appendChild(r2); box.appendChild(d);
+    const sel = document.createElement("select");
+    for (const name of ["info","star","door","wc"]) {
+      const opt = document.createElement("option"); opt.value = name; opt.textContent = name;
+      if (o.icon === name) opt.selected = true; sel.appendChild(opt);
+    }
+    sel.onchange = () => { o.icon = sel.value; render(); };
+    field("Icon", sel);
+    field("Size", num(o.size||32, v => o.size = v));
+    field("Fill", color(o.fill, v => o.fill = v));
+  } else if (o.type === "line") {
+    const r2 = document.createElement("div"); r2.className = "row2";
+    r2.appendChild(num(o.x1, v => o.x1 = v)); r2.appendChild(num(o.y1, v => o.y1 = v));
+    const d = document.createElement("div"); d.className = "prop"; d.innerHTML = "<label>X1 / Y1</label>"; d.appendChild(r2); box.appendChild(d);
+    const r3 = document.createElement("div"); r3.className = "row2";
+    r3.appendChild(num(o.x2, v => o.x2 = v)); r3.appendChild(num(o.y2, v => o.y2 = v));
+    const d2 = document.createElement("div"); d2.className = "prop"; d2.innerHTML = "<label>X2 / Y2</label>"; d2.appendChild(r3); box.appendChild(d2);
+    field("Stroke", color(o.stroke, v => o.stroke = v));
+    field("Stroke width", num(o.strokeWidth||2, v => o.strokeWidth = v));
+  }
+
+  field("Rotation°", num(o.rotation||0, v => o.rotation = v));
+  field("Z (layer)", num(o.z||0, v => o.z = v));
+
+  // Interactive / click action
+  const chk = document.createElement("input"); chk.type = "checkbox"; chk.checked = !!o.interactive;
+  chk.onchange = () => { o.interactive = chk.checked; if (o.interactive && !o.clickAction) o.clickAction = { kind:"panel", target:o.id }; render(); };
+  field("Clickable in viewer", chk);
+
+  if (o.interactive) {
+    const t = document.createElement("input"); t.type = "text";
+    t.value = o.clickAction?.target || "";
+    t.oninput = () => { o.clickAction = { kind:"panel", target: t.value }; };
+    field("Panel target id", t);
+  }
+}
+
+function drawPanelEditor() {
+  const box = document.getElementById("panelEdit");
+  const o = getObj(selectedId);
+  if (!o || !o.interactive || !o.clickAction) { box.innerHTML = '<div class="empty">Select an interactive object.</div>'; return; }
+  const target = o.clickAction.target;
+  scene.panels = scene.panels || {};
+  scene.panels[target] = scene.panels[target] || { title: "", body: "", images: [], links: [] };
+  const p = scene.panels[target];
+  box.innerHTML = "";
+  const mk = (label, val, onChange, tag="input") => {
+    const d = document.createElement("div"); d.className = "prop";
+    const l = document.createElement("label"); l.textContent = label;
+    const inp = document.createElement(tag);
+    inp.value = val || "";
+    inp.oninput = () => onChange(inp.value);
+    d.appendChild(l); d.appendChild(inp); box.appendChild(d);
+  };
+  mk("Panel title", p.title, v => p.title = v);
+  mk("Panel body", p.body, v => p.body = v, "textarea");
+}
+
+/* ---------- Add objects ---------- */
+document.getElementById("addRect").onclick = () => addObj({
+  id: "dept-" + rand(), type:"rect", x:200, y:200, width:160, height:100,
+  rotation:0, fill:"#ffd92f", stroke:"#c9a300", strokeWidth:2,
+  locked:false, selectable:true, z: nextZ(), label:"New Department",
+  interactive:true, clickAction:{ kind:"panel", target:null }
+}, function(o){ o.clickAction.target = o.id; scene.panels = scene.panels || {}; scene.panels[o.id] = { title:o.label, body:"", images:[], links:[] }; });
+
+document.getElementById("addText").onclick = () => addObj({
+  id: "text-" + rand(), type:"text", x:200, y:200, rotation:0,
+  fill:"#111", fontSize:18, locked:false, selectable:true, z: nextZ(), label:"New label"
+});
+
+document.getElementById("addIcon").onclick = () => addObj({
+  id: "icon-" + rand(), type:"icon", icon:"info", x:400, y:300, size:36,
+  rotation:0, fill:"#2b6cb0", locked:false, selectable:true, z: nextZ(),
+  label:"Icon", interactive:true, clickAction:{ kind:"panel", target:null }
+}, function(o){ o.clickAction.target = o.id; scene.panels = scene.panels || {}; scene.panels[o.id] = { title:"Icon", body:"", images:[], links:[] }; });
+
+function addObj(o, post) {
+  if (post) post(o);
+  scene.objects.push(o);
+  selectedId = o.id;
+  render();
+}
+function nextZ() { return Math.max(0, ...scene.objects.map(o => o.z||0)) + 1; }
+function rand() { return Math.random().toString(36).slice(2,7); }
+function getObj(id) { return scene.objects.find(o => o.id === id); }
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+function toHex(c) {
+  if (/^#[0-9a-f]{6}$/i.test(c)) return c;
+  if (/^#[0-9a-f]{3}$/i.test(c)) return "#" + c.slice(1).split("").map(x=>x+x).join("");
+  return "#cccccc";
+}
+
+/* ---------- Publish ---------- */
+document.getElementById("publishBtn").onclick = () => {
+  const json = JSON.stringify(scene, null, 2);
+  document.getElementById("publishOut").value = json;
+  document.getElementById("publishModal").classList.add("on");
+  const blob = new Blob([json], { type:"application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "layout.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+document.getElementById("closeModal").onclick = () => document.getElementById("publishModal").classList.remove("on");
+</script>
+</body>
+</html>

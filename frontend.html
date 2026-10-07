@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Blocks Public Building</title>
+<style>
+  body { margin:0; font:15px system-ui, sans-serif; background:#f4f6f9; color:#1a202c; }
+  header { padding:16px 24px; background:#111827; color:#fff; }
+  header h1 { margin:0; font-size:18px; font-weight:600; letter-spacing:.01em; }
+  header p { margin:4px 0 0; font-size:13px; color:#9ca3af; }
+  .wrap { display:grid; grid-template-columns: 1fr 340px; gap:20px; padding:20px; max-width:1280px; margin:0 auto; }
+  .mapbox { background:#fff; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,.05); overflow:hidden; }
+  svg.map { display:block; width:100%; height:auto; }
+  svg.map .clickable { cursor:pointer; }
+  svg.map .clickable:hover { filter:brightness(1.06); }
+  aside { background:#fff; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,.05); padding:20px; min-height:200px; }
+  aside h2 { margin:0 0 8px; font-size:17px; }
+  aside p { color:#374151; line-height:1.5; }
+  aside .placeholder { color:#9ca3af; }
+  aside img { max-width:100%; border-radius:6px; margin-top:10px; }
+  aside a { display:inline-block; margin-top:10px; color:#2b6cb0; }
+  .loader { padding:40px; text-align:center; color:#9ca3af; }
+  .fallback { padding:40px; text-align:center; }
+  .fallback button { padding:8px 16px; border:1px solid #cfd6df; background:#fff; border-radius:6px; cursor:pointer; font:inherit; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Blocks Public Building</h1>
+  <p>Click any colored area or icon to learn more.</p>
+</header>
+
+<div id="root" class="wrap">
+  <div class="mapbox" id="mapbox"><div class="loader">Loading map…</div></div>
+  <aside id="panel">
+    <h2>Welcome</h2>
+    <p class="placeholder">Select something on the map to see details here.</p>
+  </aside>
+</div>
+
+<script>
+const SVGNS = "http://www.w3.org/2000/svg";
+const root = document.getElementById("root");
+const mapbox = document.getElementById("mapbox");
+const panel = document.getElementById("panel");
+
+(async () => {
+  let scene = null;
+  try {
+    const res = await fetch("layout.json", { cache:"no-store" });
+    if (res.ok) scene = await res.json();
+  } catch(e) {}
+  if (scene) { render(scene); return; }
+  showFallback();
+})();
+
+function showFallback() {
+  mapbox.innerHTML = `<div class="fallback">
+    <p>Couldn't auto-load <code>layout.json</code> (this happens when opening the file directly).</p>
+    <button id="pick">Choose layout.json…</button>
+    <input id="fi" type="file" accept=".json" hidden>
+  </div>`;
+  document.getElementById("pick").onclick = () => document.getElementById("fi").click();
+  document.getElementById("fi").onchange = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => { try { render(JSON.parse(r.result)); } catch(err) { alert("Bad JSON"); } };
+    r.readAsText(f);
+  };
+}
+
+function render(scene) {
+  const c = scene.canvas;
+  mapbox.innerHTML = "";
+  const svg = document.createElementNS(SVGNS, "svg");
+  svg.setAttribute("class", "map");
+  svg.setAttribute("viewBox", `0 0 ${c.width} ${c.height}`);
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+
+  const bg = document.createElementNS(SVGNS, "rect");
+  bg.setAttribute("width", c.width); bg.setAttribute("height", c.height);
+  bg.setAttribute("fill", c.background || "#fff");
+  svg.appendChild(bg);
+
+  const sorted = [...scene.objects].sort((a,b) => (a.z||0) - (b.z||0));
+  for (const o of sorted) {
+    if (o.hidden) continue;
+    const g = drawObject(o);
+    if (o.interactive && o.selectable !== false && o.clickAction) {
+      g.classList.add("clickable");
+      g.style.cursor = "pointer";
+      g.addEventListener("click", () => openPanel(scene, o.clickAction.target));
+    }
+    svg.appendChild(g);
+  }
+  mapbox.appendChild(svg);
+}
+
+function drawObject(o) {
+  const g = document.createElementNS(SVGNS, "g");
+  g.setAttribute("transform", `rotate(${o.rotation||0} ${cx(o)} ${cy(o)})`);
+
+  if (o.type === "rect") {
+    const r = document.createElementNS(SVGNS, "rect");
+    r.setAttribute("x", o.x); r.setAttribute("y", o.y);
+    r.setAttribute("width", o.width); r.setAttribute("height", o.height);
+    r.setAttribute("fill", o.fill || "none");
+    if (o.stroke && o.stroke !== "none") {
+      r.setAttribute("stroke", o.stroke); r.setAttribute("stroke-width", o.strokeWidth || 1);
+    }
+    g.appendChild(r);
+    if (o.label) {
+      const t = document.createElementNS(SVGNS, "text");
+      t.setAttribute("x", o.x + o.width/2);
+      t.setAttribute("y", o.y + o.height/2);
+      t.setAttribute("text-anchor", "middle");
+      t.setAttribute("dominant-baseline", "middle");
+      t.setAttribute("font-family", "system-ui, sans-serif");
+      t.setAttribute("font-size", "13");
+      t.setAttribute("fill", "#222");
+      t.setAttribute("pointer-events", "none");
+      t.textContent = o.label;
+      g.appendChild(t);
+    }
+  } else if (o.type === "line") {
+    const l = document.createElementNS(SVGNS, "line");
+    l.setAttribute("x1", o.x1); l.setAttribute("y1", o.y1);
+    l.setAttribute("x2", o.x2); l.setAttribute("y2", o.y2);
+    l.setAttribute("stroke", o.stroke || "#000");
+    l.setAttribute("stroke-width", o.strokeWidth || 2);
+    l.setAttribute("stroke-linecap", "round");
+    g.appendChild(l);
+  } else if (o.type === "text") {
+    const t = document.createElementNS(SVGNS, "text");
+    t.setAttribute("x", o.x); t.setAttribute("y", o.y);
+    t.setAttribute("fill", o.fill || "#000");
+    t.setAttribute("font-size", o.fontSize || 16);
+    t.setAttribute("font-family", "system-ui, sans-serif");
+    t.textContent = o.label || "";
+    g.appendChild(t);
+  } else if (o.type === "icon") {
+    g.appendChild(iconNode(o.icon || "info", o.x, o.y, o.size || 32, o.fill || "#2b6cb0"));
+  }
+  return g;
+}
+
+function iconNode(name, x, y, size, fill) {
+  const g = document.createElementNS(SVGNS, "g");
+  g.setAttribute("transform", `translate(${x} ${y}) scale(${size/24})`);
+  const p = document.createElementNS(SVGNS, "path");
+  p.setAttribute("fill", fill);
+  if (name === "info") p.setAttribute("d", "M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z");
+  else if (name === "star") p.setAttribute("d", "M12 2l3 6.5 7 .9-5 4.8 1.2 7L12 17.8 5.8 21.2 7 14.2 2 9.4l7-.9z");
+  else if (name === "door") p.setAttribute("d", "M5 3h12a2 2 0 012 2v16H5V3zm11 9a1 1 0 100-2 1 1 0 000 2z");
+  else if (name === "wc") p.setAttribute("d", "M8 2a2 2 0 110 4 2 2 0 010-4zm8 0a2 2 0 110 4 2 2 0 010-4zM6 8h4l1 6H9v7H7v-7H5zm8 0h4l1 6h-2v7h-2v-7h-2z");
+  else p.setAttribute("d", "M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z");
+  g.appendChild(p);
+  return g;
+}
+
+function cx(o) {
+  if (o.type === "rect") return o.x + o.width/2;
+  if (o.type === "line") return (o.x1+o.x2)/2;
+  return o.x;
+}
+function cy(o) {
+  if (o.type === "rect") return o.y + o.height/2;
+  if (o.type === "line") return (o.y1+o.y2)/2;
+  return o.y;
+}
+
+function openPanel(scene, target) {
+  const p = scene.panels?.[target];
+  if (!p) { panel.innerHTML = `<h2>No details</h2><p class="placeholder">Nothing configured for this object.</p>`; return; }
+  panel.innerHTML = "";
+  const h = document.createElement("h2"); h.textContent = p.title || "Details"; panel.appendChild(h);
+  const b = document.createElement("p"); b.textContent = p.body || ""; panel.appendChild(b);
+  (p.images||[]).forEach(src => {
+    const img = document.createElement("img"); img.src = src; panel.appendChild(img);
+  });
+  (p.links||[]).forEach(l => {
+    const a = document.createElement("a"); a.href = l.href; a.textContent = l.label || l.href; panel.appendChild(a);
+  });
+}
+</script>
+</body>
+</html>
