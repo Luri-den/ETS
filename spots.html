@@ -1,0 +1,765 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connersville — Stories &amp; Spots Editor</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+  :root{
+    --line:#d7dde5; --accent:#2b6cb0; --ink:#1a202c;
+    --bg:#eef1f5; --panel:#fff; --muted:#6b7280;
+    --story:#D55E00; --spot:#333333;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font:14px system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:var(--ink);background:var(--bg);overflow:hidden}
+
+  #top{position:absolute;z-index:20;top:0;left:0;right:0;height:52px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 12px}
+  #top h1{font-size:15px;margin:0;font-weight:600;white-space:nowrap}
+  #top .grow{flex:1}
+  #top .status{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px}
+  button{font:inherit;padding:6px 12px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;color:var(--ink)}
+  button:hover{background:#f6f8fb}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  button.primary:hover{background:#245a94}
+  button.warn{background:#fff5f5;border-color:#f3c2c2;color:#a33}
+  button.warn:hover{background:#ffecec}
+  button.small{padding:3px 8px;font-size:12px}
+
+  #layout{position:absolute;top:52px;left:0;right:0;bottom:0;display:grid;grid-template-columns:220px 1fr 360px}
+
+  #left{background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding-bottom:20px}
+  .sec{padding:10px 12px 4px}
+  .sec h2{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:8px 0 6px;font-weight:600}
+  .palette{display:flex;flex-direction:column;gap:6px;padding:0 12px}
+  .chip{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px dashed var(--line);border-radius:8px;background:#fbfcfe;cursor:grab;user-select:none;font-size:13px}
+  .chip:active{cursor:grabbing}
+  .chip svg{flex:none;display:block}
+  .chip .lbl{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  .list{padding:0 6px}
+  .row{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:13px}
+  .row:hover{background:#f4f7fb}
+  .row.sel{background:#e6effa}
+  .row svg{flex:none;display:block}
+  .row .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .id{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+
+  .hint{padding:10px 14px;font-size:11px;line-height:1.55;color:var(--muted)}
+  .hint b{color:#333}
+
+  #stage{position:relative;min-width:0}
+  #map{position:absolute;inset:0}
+
+  /* markers, matching Demo2.html */
+  .kmark{width:44px;height:44px;border:0;background:none;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .kmark svg{filter:drop-shadow(0 0 2px #fff) drop-shadow(0 0 2px #fff)}
+  .kmark.story svg{animation:ktw 2.4s ease-in-out infinite}
+  .kmark.sel{outline:3px solid #ff9800;outline-offset:3px;border-radius:50%}
+  @keyframes ktw{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.25);opacity:.7}}
+  @media(prefers-reduced-motion:reduce){.kmark.story svg{animation:none}}
+
+  /* ---------- right panel ---------- */
+  #right{background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding-bottom:30px}
+  .empty{padding:24px 16px;color:#9aa3ad;font-size:13px;text-align:center;line-height:1.6}
+  .empty kbd{font:11px ui-monospace,Menlo,monospace;background:#f1f3f7;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 5px}
+
+  .form{padding:12px}
+  .form .badge{display:inline-block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:2px 6px;border-radius:999px;background:#f0fff0;color:#2f855a;margin-bottom:8px;font-weight:600}
+  .form .badge.story{background:#fff3e6;color:#a35400}
+
+  .field{margin-bottom:10px}
+  .field label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;font-weight:600}
+  .field input[type=text],.field input[type=number],.field textarea,.field select{
+    width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font:inherit;background:#fff;color:var(--ink)}
+  .field textarea{min-height:90px;resize:vertical;line-height:1.45}
+  .field input:focus,.field textarea:focus,.field select:focus{outline:2px solid #cfe0f3;border-color:#9dbde3}
+  .field .sub{font-size:11px;color:var(--muted);margin-top:3px}
+
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+  .catrow{display:flex;align-items:center;gap:8px}
+  .catrow select{flex:1}
+  .catrow .sw{width:22px;height:22px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--line);flex:none}
+
+  .photo{margin-top:6px;display:flex;gap:10px;align-items:flex-start}
+  .photo .thumb{width:80px;height:80px;border-radius:8px;background:#f1f3f7;border:1px solid var(--line);object-fit:cover;flex:none;display:block}
+  .photo .thumb.missing{display:flex;align-items:center;justify-content:center;font-size:11px;color:#9aa3ad;text-align:center;padding:6px}
+  .photo .meta{flex:1;font-size:12px;color:var(--muted);line-height:1.5;min-width:0}
+  .photo .meta code{font:11px ui-monospace,Menlo,monospace;color:#4a5568;background:#f1f3f7;padding:1px 4px;border-radius:3px;word-break:break-all}
+  .photo .meta .actions{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
+
+  .actions{margin-top:14px;display:flex;gap:6px;flex-wrap:wrap}
+  .actions .grow{flex:1}
+
+  .divider{height:1px;background:var(--line);margin:14px 0}
+
+  details.staff{margin-top:8px;border:1px solid var(--line);border-radius:6px;padding:8px 10px;background:#fafbfd}
+  details.staff summary{cursor:pointer;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  details.staff .field{margin-top:8px;margin-bottom:0}
+
+  details.future{margin-top:8px;border:1px solid #e8e0cc;border-radius:6px;padding:8px 10px;background:#fffcf3}
+  details.future summary{cursor:pointer;font-size:11px;font-weight:600;color:#a37a2b;text-transform:uppercase;letter-spacing:.04em}
+
+  #staged{position:absolute;z-index:15;left:220px;right:360px;bottom:0;background:#fffef6;border-top:1px solid #f0e0b0;padding:6px 12px;font-size:12px;display:none;align-items:center;gap:10px}
+  #staged.on{display:flex}
+  #staged .files{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#7a5c00}
+  #staged .files code{font:11px ui-monospace,Menlo,monospace}
+
+  #toast{position:fixed;z-index:100;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#111827;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .18s, transform .18s;pointer-events:none;max-width:80vw;text-align:center}
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  .maplibregl-ctrl-bottom-right,.maplibregl-ctrl-bottom-left{z-index:6}
+</style>
+</head>
+<body>
+
+<div id="top">
+  <h1>Connersville — Stories &amp; Spots</h1>
+  <button id="pickFile">Pick spots.csv…</button>
+  <input id="fileInput" type="file" accept=".csv,text/csv" hidden>
+  <span class="status" id="status">Loading…</span>
+  <span class="grow"></span>
+  <button id="reloadBtn" title="Re-fetch from this folder">↻ Reload</button>
+  <button id="publishBtn" class="primary" disabled>Download updated spots.csv</button>
+</div>
+
+<div id="layout">
+  <aside id="left">
+    <div class="sec">
+      <h2>Add</h2>
+      <div class="palette">
+        <div class="chip" draggable="true" data-add="spot">
+          <svg viewBox="0 0 24 24" width="22" height="22"><rect x="8" y="3" width="8" height="4" rx="1" fill="#333"/><rect x="2" y="6" width="20" height="14" rx="3" fill="#333" stroke="#fff" stroke-width="1.2"/><circle cx="12" cy="13" r="4" fill="#fff"/></svg>
+          <span class="lbl">New Photo Spot</span>
+        </div>
+        <div class="chip" draggable="true" data-add="story">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 1l2.6 7.4L22 11l-7.4 2.6L12 21l-2.6-7.4L2 11l7.4-2.6z" fill="#D55E00" stroke="#fff" stroke-width="1.2"/></svg>
+          <span class="lbl">New Story</span>
+        </div>
+      </div>
+      <div class="hint">Drag onto the map. Click any marker to edit. The site shows these only at high zoom or with "Show All Stories and Spots" on — the editor shows them always.</div>
+    </div>
+
+    <div class="sec">
+      <h2>All <span id="allCount" style="color:#9aa3ad"></span></h2>
+    </div>
+    <div class="list" id="allList"></div>
+  </aside>
+
+  <div id="stage">
+    <div id="map"></div>
+  </div>
+
+  <aside id="right">
+    <div id="form"><div class="empty">Nothing selected.<br><br>Click a marker, or drag <kbd>New Photo Spot</kbd> / <kbd>New Story</kbd> onto the map.</div></div>
+  </aside>
+</div>
+
+<div id="staged">
+  <span>📎 Staged photos:</span>
+  <span class="files" id="stagedFiles"></span>
+  <button class="small" id="downloadPhotos">Download all</button>
+  <button class="small warn" id="clearStaged">Clear</button>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+
+<script>
+/* ============================================================
+   Connersville — Stories & Spots Editor
+   ============================================================ */
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const key = s => String(s||"").trim().toLowerCase();
+
+/* Category colors — mirrors SITE.colors in Demo2.html */
+const CATEGORIES = {
+  CIV:   { label:"Civic",          color:"#E2E1E0" },
+  TRANS: { label:"Transportation", color:"#91AF45" },
+  COMM:  { label:"Commercial",     color:"#E47303" },
+  RES:   { label:"Residential",    color:"#BDD76B" },
+  IND:   { label:"Industry",       color:"#AF350A" }
+};
+const DEFAULT_CAT = "COMM";
+
+/* Exact header order from the sample you provided */
+const SPOT_COLS = ["SPOT_ID","TITLE","LAT","LONG","YEAR","PHOTO","DETAILS","CREDIT","KIND","CATEGORY","SERIES","ORDER","SOURCE","STAFF_NOTE"];
+
+/* ---------- State ---------- */
+let spots = [];         // {row, ll, marker, el, kind}
+let headers = SPOT_COLS.slice();
+let loaded = false;
+let selected = null;    // spot ref
+let stagedPhotos = [];  // {name, blob}
+
+/* ---------- Map ---------- */
+const map = new maplibregl.Map({
+  container: "map",
+  style: {
+    version: 8,
+    sources: {
+      osm: {
+        type: "raster",
+        tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+        tileSize: 256,
+        maxzoom: 19,
+        attribution: "&copy; OpenStreetMap contributors"
+      }
+    },
+    layers: [{ id:"osm", type:"raster", source:"osm" }]
+  },
+  center: [-85.13889, 39.64753],
+  zoom: 15
+});
+map.addControl(new maplibregl.NavigationControl({ showCompass:false }), "bottom-right");
+map.addControl(new maplibregl.ScaleControl(), "bottom-left");
+
+/* ============================================================
+   Loading
+   ============================================================ */
+
+$("pickFile").onclick = () => $("fileInput").click();
+$("fileInput").onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => ingest(r.result, f.name);
+  r.readAsText(f);
+};
+
+// Auto-load from same folder (GitHub Pages); falls back to picker on file://
+(async () => {
+  try {
+    const res = await fetch("spots.csv", { cache: "no-store" });
+    if (res.ok) ingest(await res.text(), "spots.csv");
+    else setStatus("Click 'Pick spots.csv…' to begin");
+  } catch (e) {
+    setStatus("Click 'Pick spots.csv…' to begin");
+  }
+})();
+
+$("reloadBtn").onclick = async () => {
+  if (!confirm("Reload spots.csv from the server? Unsaved edits will be lost.")) return;
+  try {
+    const res = await fetch("spots.csv", { cache:"no-store" });
+    if (!res.ok) throw new Error(res.status + " " + res.statusText);
+    ingest(await res.text(), "spots.csv");
+    selected = null;
+    toast("Reloaded from server");
+  } catch (e) {
+    toast("Reload failed: " + e.message);
+  }
+};
+
+function ingest(csvText, filename){
+  const parsed = Papa.parse(csvText, { header:true, skipEmptyLines:"greedy" });
+  if (parsed.errors && parsed.errors.length){
+    const hard = parsed.errors.filter(e => !/TooFewFields|TooManyFields/.test(e.code));
+    if (hard.length) console.warn("CSV warnings for " + filename, hard);
+  }
+  const rows = parsed.data.filter(r => Object.values(r).some(v => String(v||"").trim() !== ""));
+  if (!rows.length){ toast(filename + " has no rows."); return; }
+
+  headers = parsed.meta.fields && parsed.meta.fields.length
+    ? parsed.meta.fields.slice()
+    : SPOT_COLS.slice();
+  // ensure known columns exist in headers
+  for (const c of SPOT_COLS) if (!headers.includes(c)) headers.push(c);
+
+  spots = rows.map(r => mkSpot(r));
+  loaded = true;
+  selected = null;
+
+  $("publishBtn").disabled = false;
+  setStatus("Loaded " + filename + " · " + spots.length + " items");
+
+  render();
+  fitAll();
+}
+
+function mkSpot(row){
+  const lat = parseFloat(row.LAT), lng = parseFloat(row.LONG);
+  return {
+    row,
+    ll: (isNaN(lat)||isNaN(lng)) ? null : [lng, lat],
+    marker: null, el: null,
+    kind: key(row.KIND) === "story" ? "story" : "spot"
+  };
+}
+
+function fitAll(){
+  const pts = spots.filter(s => s.ll);
+  if (!pts.length) return;
+  const b = new maplibregl.LngLatBounds();
+  pts.forEach(s => b.extend(s.ll));
+  map.fitBounds(b, { padding: 80, maxZoom: 17, duration: 0 });
+}
+
+function setStatus(s){ $("status").textContent = s; }
+
+/* ============================================================
+   Icons (matching Demo2.html)
+   ============================================================ */
+
+function iconSvg(kind, color){
+  if (kind === "story"){
+    return `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 1l2.6 7.4L22 11l-7.4 2.6L12 21l-2.6-7.4L2 11l7.4-2.6z" fill="${color}" stroke="#fff" stroke-width="1.2"/></svg>`;
+  }
+  return `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1" fill="${color}"/><rect x="2" y="6" width="20" height="14" rx="3" fill="${color}" stroke="#fff" stroke-width="1.2"/><circle cx="12" cy="13" r="4" fill="#fff"/></svg>`;
+}
+
+/* ============================================================
+   Rendering
+   ============================================================ */
+
+function render(){
+  renderMarkers();
+  renderList();
+  renderForm();
+  renderStaged();
+}
+
+function renderMarkers(){
+  spots.forEach(s => { if (s.marker) s.marker.remove(); s.marker = null; s.el = null; });
+
+  spots.forEach(s => {
+    if (!s.ll) return;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "kmark " + s.kind;
+    b.title = s.row.TITLE || s.row.SPOT_ID || "";
+    b.innerHTML = iconSvg(s.kind, s.kind === "story" ? "#D55E00" : "#333333");
+    b.addEventListener("click", e => { e.stopPropagation(); select(s); });
+
+    const marker = new maplibregl.Marker({ element: b, draggable: true })
+      .setLngLat(s.ll).addTo(map);
+
+    marker.on("dragstart", () => b.classList.add("dragging"));
+    marker.on("dragend", () => {
+      b.classList.remove("dragging");
+      const ll = marker.getLngLat();
+      s.ll = [ll.lng, ll.lat];
+      s.row.LAT = fmt(ll.lat);
+      s.row.LONG = fmt(ll.lng);
+      if (selected === s) renderForm();
+      toast((s.row.TITLE || s.row.SPOT_ID) + " moved");
+    });
+
+    s.marker = marker;
+    s.el = b;
+
+    if (selected === s) b.classList.add("sel");
+  });
+}
+
+function fmt(n){ return (+n).toFixed(13).replace(/0+$/,"").replace(/\.$/,""); }
+
+function renderList(){
+  $("allCount").textContent = spots.length ? "(" + spots.length + ")" : "";
+  const list = $("allList");
+  list.innerHTML = "";
+  // sort: stories first, then spots, each alphabetically by title
+  const sorted = spots.slice().sort((a,b) => {
+    if (a.kind !== b.kind) return a.kind === "story" ? -1 : 1;
+    return String(a.row.TITLE||"").localeCompare(String(b.row.TITLE||""));
+  });
+  for (const s of sorted){
+    const row = document.createElement("div");
+    row.className = "row" + (selected === s ? " sel" : "");
+    row.innerHTML =
+      iconSvg(s.kind, s.kind === "story" ? "#D55E00" : "#333333") +
+      `<span class="name">${esc(s.row.TITLE || "(untitled)")}</span>` +
+      `<span class="id">${esc(s.row.SPOT_ID||"")}</span>`;
+    row.onclick = () => select(s);
+    list.appendChild(row);
+  }
+}
+
+function select(s){
+  selected = s;
+  render();
+  if (s.ll) map.easeTo({ center: s.ll, zoom: Math.max(map.getZoom(), 16) });
+}
+
+map.on("click", () => { selected = null; render(); });
+
+/* ============================================================
+   Form
+   ============================================================ */
+
+function renderForm(){
+  const box = $("form");
+  if (!selected){
+    box.innerHTML = `<div class="empty">Nothing selected.<br><br>Click a marker, or drag <kbd>New Photo Spot</kbd> / <kbd>New Story</kbd> onto the map.</div>`;
+    return;
+  }
+  const s = selected;
+  const r = s.row;
+  const kind = s.kind;
+  const cat = String(r.CATEGORY||"").trim().toUpperCase() || DEFAULT_CAT;
+
+  box.innerHTML = `
+    <div class="form">
+      <span class="badge ${kind === 'story' ? 'story' : ''}">${kind === "story" ? "Story" : "Photo spot"}</span>
+
+      <div class="field">
+        <label>SPOT_ID</label>
+        <input type="text" id="f-SPOT_ID" value="${esc(r.SPOT_ID||"")}">
+        <div class="sub">Referenced by tours via ITEM_ID. Renaming breaks those references.</div>
+      </div>
+
+      <div class="field">
+        <label>Kind</label>
+        <select id="f-KIND">
+          <option value="spot"  ${kind==="spot"?"selected":""}>spot — camera icon</option>
+          <option value="story" ${kind==="story"?"selected":""}>story — sparkle icon</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Title</label>
+        <input type="text" id="f-TITLE" value="${esc(r.TITLE||"")}">
+      </div>
+
+      <div class="pair">
+        <div class="field">
+          <label>Category</label>
+          <div class="catrow">
+            <select id="f-CATEGORY">
+              <option value="">—</option>
+              ${Object.entries(CATEGORIES).map(([k,v]) =>
+                `<option value="${k}" ${k===cat?"selected":""}>${k} — ${esc(v.label)}</option>`).join("")}
+            </select>
+            <span class="sw" id="catSw" style="background:${cat ? (CATEGORIES[cat]||{}).color : '#ccc'}"></span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Year</label>
+          <input type="text" id="f-YEAR" value="${esc(r.YEAR||"")}" placeholder="e.g. 1907 or 1940s">
+        </div>
+      </div>
+
+      <div class="pair">
+        <div class="field"><label>Latitude</label><input type="text" id="f-LAT" value="${esc(r.LAT||"")}"></div>
+        <div class="field"><label>Longitude</label><input type="text" id="f-LONG" value="${esc(r.LONG||"")}"></div>
+      </div>
+
+      <div class="field">
+        <label>Photo path</label>
+        <input type="text" id="f-PHOTO" value="${esc(r.PHOTO||"")}" placeholder="spots/foo.jpg or stories/bar.jpg">
+        <div class="sub">Relative to the site root. No leading slash.</div>
+        ${photoBlock(r.PHOTO, kind)}
+      </div>
+
+      <div class="field">
+        <label>Details</label>
+        <textarea id="f-DETAILS">${esc(r.DETAILS||"")}</textarea>
+      </div>
+
+      <div class="field">
+        <label>Credit</label>
+        <input type="text" id="f-CREDIT" value="${esc(r.CREDIT||"")}">
+      </div>
+
+      <div class="field">
+        <label>Source</label>
+        <input type="text" id="f-SOURCE" value="${esc(r.SOURCE||"")}">
+      </div>
+
+      <details class="future">
+        <summary>Series &amp; Order (future)</summary>
+        <div class="field" style="margin-top:8px">
+          <label>Series</label>
+          <input type="text" id="f-SERIES" value="${esc(r.SERIES||"")}" placeholder="Group name for multi-photo sets">
+        </div>
+        <div class="field">
+          <label>Order</label>
+          <input type="text" id="f-ORDER" value="${esc(r.ORDER||"")}" placeholder="Position within series">
+        </div>
+        <div class="sub" style="margin-top:4px">Not yet used by the site. Fill in now, wire up later.</div>
+      </details>
+
+      <details class="staff">
+        <summary>Staff note (internal)</summary>
+        <div class="field">
+          <textarea id="f-STAFF_NOTE" style="min-height:60px">${esc(r.STAFF_NOTE||"")}</textarea>
+        </div>
+      </details>
+
+      <div class="actions">
+        <button id="dupSpot" class="small">Duplicate</button>
+        <span class="grow"></span>
+        <button id="delSpot" class="small warn">Delete</button>
+      </div>
+    </div>
+  `;
+
+  bindText(box, "f-SPOT_ID",    v => { r.SPOT_ID = v; renderList(); });
+  bindText(box, "f-TITLE",      v => { r.TITLE = v; renderList(); if (s.marker) s.marker.getElement().title = v; });
+  bindText(box, "f-YEAR",       v => { r.YEAR = v; });
+  bindText(box, "f-LAT",        v => { r.LAT = v; syncLL(s, v, r.LONG); });
+  bindText(box, "f-LONG",       v => { r.LONG = v; syncLL(s, r.LAT, v); });
+  bindText(box, "f-PHOTO",      v => { r.PHOTO = v; refreshPhotoPreview(box, v); });
+  bindText(box, "f-DETAILS",    v => { r.DETAILS = v; });
+  bindText(box, "f-CREDIT",     v => { r.CREDIT = v; });
+  bindText(box, "f-SOURCE",     v => { r.SOURCE = v; });
+  bindText(box, "f-SERIES",     v => { r.SERIES = v; });
+  bindText(box, "f-ORDER",      v => { r.ORDER = v; });
+  bindText(box, "f-STAFF_NOTE", v => { r.STAFF_NOTE = v; });
+
+  box.querySelector("#f-KIND").onchange = e => {
+    r.KIND = e.target.value;
+    s.kind = e.target.value === "story" ? "story" : "spot";
+    render();
+  };
+
+  box.querySelector("#f-CATEGORY").onchange = e => {
+    r.CATEGORY = e.target.value;
+    const sw = box.querySelector("#catSw");
+    sw.style.background = r.CATEGORY ? (CATEGORIES[r.CATEGORY]||{}).color : "#ccc";
+  };
+
+  box.querySelector("#dupSpot").onclick = () => {
+    const nr = Object.assign({}, r);
+    nr.SPOT_ID = proposeNewId(s.kind);
+    nr.TITLE = (r.TITLE||"") + " (copy)";
+    const n = mkSpot(nr);
+    // offset slightly so it doesn't hide behind the original
+    if (n.ll){ n.ll = [n.ll[0] + 0.00015, n.ll[1] + 0.00015]; nr.LAT = fmt(n.ll[1]); nr.LONG = fmt(n.ll[0]); }
+    spots.push(n);
+    selected = n;
+    render();
+    toast("Duplicated as " + nr.SPOT_ID);
+  };
+
+  box.querySelector("#delSpot").onclick = () => {
+    if (!confirm("Delete " + (r.SPOT_ID||"") + "? This removes it from spots.csv.")) return;
+    spots = spots.filter(x => x !== s);
+    selected = null;
+    render();
+    toast("Deleted " + (r.SPOT_ID||""));
+  };
+
+  wirePhotoBlock(box, s);
+}
+
+function bindText(scope, id, onInput){
+  const el = scope.querySelector("#" + CSS.escape(id));
+  if (!el) return;
+  el.oninput = () => onInput(el.value);
+}
+
+function syncLL(s, latStr, lngStr){
+  const lat = parseFloat(latStr), lng = parseFloat(lngStr);
+  if (isNaN(lat) || isNaN(lng)) return;
+  s.ll = [lng, lat];
+  if (s.marker) s.marker.setLngLat(s.ll);
+}
+
+/* ============================================================
+   Photo
+   ============================================================ */
+
+function photoBlock(path, kind){
+  return `
+    <div class="photo">
+      <div class="thumb missing" id="photoThumb">no photo</div>
+      <div class="meta">
+        <div id="photoInfo">${path ? `<code>${esc(path)}</code>` : "Set a photo path above, or upload a file below."}</div>
+        <div class="actions">
+          <button class="small" id="uploadPhoto" type="button">Upload photo…</button>
+          <input type="file" id="photoInput" accept="image/*" hidden>
+        </div>
+      </div>
+    </div>`;
+}
+
+function refreshPhotoPreview(scope, path){
+  const thumb = scope.querySelector("#photoThumb");
+  const info  = scope.querySelector("#photoInfo");
+  if (!thumb) return;
+  thumb.classList.add("missing");
+  thumb.textContent = path ? "loading…" : "no photo";
+  thumb.innerHTML = path ? "loading…" : "no photo";
+  if (info) info.innerHTML = path ? `<code>${esc(path)}</code>` : "Set a photo path above, or upload a file below.";
+
+  if (!path) return;
+  const im = new Image();
+  im.onload = () => {
+    thumb.classList.remove("missing");
+    thumb.innerHTML = "";
+    im.style.cssText = "width:100%;height:100%;object-fit:cover;border-radius:8px";
+    thumb.appendChild(im);
+  };
+  im.onerror = () => {
+    thumb.classList.add("missing");
+    thumb.textContent = "not found";
+  };
+  // add a cache-bust so re-uploads refresh
+  im.src = path + (path.includes("?") ? "&" : "?") + "v=" + Date.now();
+}
+
+function wirePhotoBlock(scope, s){
+  const btn = scope.querySelector("#uploadPhoto");
+  const input = scope.querySelector("#photoInput");
+  if (!btn || !input) return;
+
+  // initial preview if the row already has a path
+  refreshPhotoPreview(scope, s.row.PHOTO || "");
+
+  btn.onclick = () => input.click();
+  input.onchange = () => {
+    const f = input.files[0]; if (!f) return;
+    const ext = (f.name.split(".").pop() || "jpg").toLowerCase();
+    // derive a filename from the uploaded file's name
+    const base = (f.name.replace(/\.[^.]+$/, "") || "photo").replace(/[^a-z0-9_-]+/gi, "_");
+    const folder = s.kind === "story" ? "stories" : "spots";
+    const suggested = folder + "/" + base + "." + ext;
+
+    const chosen = prompt("Photo path (relative to site root):", s.row.PHOTO || suggested);
+    if (chosen == null) return;
+    const path = chosen.trim();
+    if (!path) return;
+
+    s.row.PHOTO = path;
+    stagedPhotos.push({ name: path, blob: f });
+
+    // update form field + preview
+    const field = scope.querySelector("#f-PHOTO");
+    if (field) field.value = path;
+    refreshPhotoPreview(scope, path);
+    renderStaged();
+    toast("Staged " + path + " — download when you publish");
+  };
+}
+
+/* ---------- Staged photos ---------- */
+
+function renderStaged(){
+  const bar = $("staged");
+  if (!stagedPhotos.length){ bar.classList.remove("on"); return; }
+  bar.classList.add("on");
+  $("stagedFiles").innerHTML = stagedPhotos.map(p => `<code>${esc(p.name)}</code>`).join(", ");
+}
+
+$("downloadPhotos").onclick = () => {
+  stagedPhotos.forEach(p => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(p.blob);
+    // keep folder in the suggested name but browsers may flatten it — user can move file manually
+    a.download = p.name.split("/").pop();
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+};
+$("clearStaged").onclick = () => { stagedPhotos = []; renderStaged(); };
+
+/* ============================================================
+   Add via palette drag
+   ============================================================ */
+
+let dragKind = null;
+document.querySelectorAll(".chip").forEach(chip => {
+  chip.addEventListener("dragstart", e => {
+    dragKind = chip.dataset.add;
+    e.dataTransfer.effectAllowed = "copy";
+    e.dataTransfer.setData("text/plain", dragKind);
+  });
+  chip.addEventListener("dragend", () => { dragKind = null; });
+});
+
+const stage = $("stage");
+stage.addEventListener("dragover", e => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; });
+stage.addEventListener("drop", e => {
+  e.preventDefault();
+  const kind = e.dataTransfer.getData("text/plain") || dragKind;
+  dragKind = null;
+  if (!kind) return;
+  if (!loaded) return toast("Load spots.csv first.");
+
+  const rect = map.getContainer().getBoundingClientRect();
+  const ll = map.unproject([e.clientX - rect.left, e.clientY - rect.top]);
+
+  const row = {
+    SPOT_ID: proposeNewId(kind),
+    TITLE: kind === "story" ? "New Story" : "New Photo Spot",
+    LAT: fmt(ll.lat),
+    LONG: fmt(ll.lng),
+    YEAR: "",
+    PHOTO: "",
+    DETAILS: "",
+    CREDIT: "",
+    KIND: kind,
+    CATEGORY: DEFAULT_CAT,
+    SERIES: "",
+    ORDER: "",
+    SOURCE: "",
+    STAFF_NOTE: ""
+  };
+  // ensure every column the source file had is present
+  headers.forEach(h => { if (!(h in row)) row[h] = ""; });
+
+  const s = mkSpot(row);
+  spots.push(s);
+  selected = s;
+  render();
+  toast("Added " + row.SPOT_ID);
+});
+
+function proposeNewId(kind){
+  const prefix = kind === "story" ? "ST-" : "SPOT-";
+  const re = new RegExp("^" + prefix.replace(/[-]/g,"\\-") + "(\\d+)$", "i");
+  const nums = spots
+    .map(s => re.exec(String(s.row.SPOT_ID||"").trim()))
+    .filter(Boolean).map(m => +m[1]);
+  const n = (nums.length ? Math.max(...nums) : 0) + 1;
+  return prefix + String(n).padStart(3, "0");
+}
+
+/* ============================================================
+   Publish
+   ============================================================ */
+
+$("publishBtn").onclick = () => {
+  const rows = spots.map(s => pick(s.row, headers));
+  const csv = Papa.unparse({ fields: headers, data: rows });
+  download("spots.csv", csv);
+  toast(`Downloaded spots.csv · ${spots.length} items` +
+        (stagedPhotos.length ? ` · ${stagedPhotos.length} staged photos below` : ""));
+};
+
+function pick(row, cols){
+  const out = {};
+  for (const c of cols) out[c] = row[c] != null ? row[c] : "";
+  return out;
+}
+
+function download(name, text){
+  const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* ============================================================
+   Toast
+   ============================================================ */
+
+let toastTimer = 0;
+function toast(msg){
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("on"), 2400);
+}
+</script>
+</body>
+</html>
