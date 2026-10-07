@@ -216,7 +216,13 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 </div>
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-<script src="https://unpkg.com/papaparse@5.4.1/dist/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script>
+  // Fallback: if the primary CDN fails, try unpkg
+  if (typeof Papa === "undefined") {
+    document.write('<script src="https://unpkg.com/papaparse@5.4.1/dist/papaparse.min.js"><\/script>');
+  }
+</script>
 
 <script>
 const $ = id => document.getElementById(id);
