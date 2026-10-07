@@ -1947,6 +1947,17 @@ document.addEventListener("keydown", e => {
   #pSlam *{animation:none!important}
   #passportBtn.nudge{animation:none;outline:3px solid #fff}
 }
+
+/* Plain stamp — no rays, no shake, quick drop-in */
+#pSlam.plain .rays{display:none}
+#pSlam.plain.hit .box{animation:none}
+#pSlam.plain .seal{animation:pSlamPlain .45s cubic-bezier(.3,1.4,.5,1) both}
+@keyframes pSlamPlain{
+  0%{transform:scale(2.6) rotate(-14deg);opacity:0}
+  60%{transform:scale(.94) rotate(-5deg);opacity:1}
+  100%{transform:scale(1) rotate(-6deg);opacity:1}
+}
+#pSlam.plain .stars .new{animation:none}
 </style>`);
 
   const STAR = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/></svg>`;
@@ -2000,16 +2011,10 @@ document.addEventListener("keydown", e => {
 
   let queue = [], showing = false, autoTimer = 0;
 
-  /* Plain stamp — no rays, no shake, quick drop-in */
-#pSlam.plain .rays{display:none}
-#pSlam.plain.hit .box{animation:none}
-#pSlam.plain .seal{animation:pSlamPlain .45s cubic-bezier(.3,1.4,.5,1) both}
-@keyframes pSlamPlain{
-  0%{transform:scale(2.6) rotate(-14deg);opacity:0}
-  60%{transform:scale(.94) rotate(-5deg);opacity:1}
-  100%{transform:scale(1) rotate(-6deg);opacity:1}
+function celebrateStamp(stamp, stars, replay, kind){
+  queue.push({ stamp, stars, replay, kind: kind || "star" });
+  pump();
 }
-#pSlam.plain .stars .new{animation:none}
 
   function pump(){
     if (showing || !queue.length) return;
@@ -2135,32 +2140,29 @@ document.addEventListener("keydown", e => {
   };
 
   window.passportEvent = (type, context = {}) => {
-  console.log("[passportEvent]", type, context);
-  console.log("  STAMPS:", STAMPS.length, STAMPS.map(s => s.row.STAMP_ID));
-  console.log("  TASKS:",  TASKS.length,  TASKS.map(t => t.row.TASK_ID));
   if (!STAMPS.length || !TASKS.length) { console.log("  → early return, no data"); return; }
 
     const progress = loadProgress();
     const advanced = [];
 
     for (const stamp of STAMPS){
-      const sid = String(stamp.row.STAMP_ID).trim();
-      const bucket = progress[sid] || (progress[sid] = {});
-      let changed = false;
-          console.log("  checking stamp", stamp.row.STAMP_ID, "tasks:", stamp.tasks);
+  const sid = String(stamp.row.STAMP_ID).trim();
+  const bucket = progress[sid] || (progress[sid] = {});
+  let changed = false;
+  let matchedTaskId = null;   // ← new
 
-      for (const taskId of stamp.tasks){
-        const task = TASKS.find(t => key(t.row.TASK_ID) === key(taskId));
-        if (!task) continue;
-              console.log("    task", taskId, "→", task.row.SCOPE, task.row.TARGET, "match?", taskMatches(task.row, type, context));
-        if (!taskMatches(task.row, type, context)) continue;
-        if (bucket[taskId]) continue;
-        bucket[taskId] = true;
-        changed = true;
-      }
+  for (const taskId of stamp.tasks){
+    const task = TASKS.find(t => key(t.row.TASK_ID) === key(taskId));
+    if (!task) continue;
+    if (!taskMatches(task.row, type, context)) continue;
+    if (bucket[taskId]) continue;
+    bucket[taskId] = true;
+    changed = true;
+    matchedTaskId = taskId;   // ← record which task matched
+  }
 
-      if (changed) advanced.push(stamp);
-    }
+  if (changed) advanced.push({ stamp, matchedTaskId });   // ← push object, not stamp
+}
 
     saveProgress(progress);
 
@@ -2189,13 +2191,7 @@ document.addEventListener("keydown", e => {
 
   window.__lastStars = window.__lastStars || {};
   window.__lastStars[sid] = stars;
-
-  window.__lastTasks = window.__lastTasks || {};
-  for (const id of Object.keys(progress[sid])){
-    window.__lastTasks[sid + "/" + id] = true;
-  }
 }
-    console.log("  → progress now:", JSON.stringify(progress));
     renderStampCards();
   };
 
