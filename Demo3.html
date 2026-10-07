@@ -1941,6 +1941,7 @@ document.addEventListener("keydown", e => {
 #pSlam .note{font-size:15px;animation:pFade .5s 2s both}
 #pSlam .tap{font-size:12px;letter-spacing:.05em;opacity:.8;margin-top:6px}
 @keyframes pFade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+#pSlam.plain{background:#0006}
 
 @media(prefers-reduced-motion:reduce){
   #pSlam *{animation:none!important}
@@ -1999,10 +2000,16 @@ document.addEventListener("keydown", e => {
 
   let queue = [], showing = false, autoTimer = 0;
 
-  function celebrateStamp(stamp, stars, replay){
-    queue.push({ stamp, stars, replay });
-    pump();
-  }
+  /* Plain stamp — no rays, no shake, quick drop-in */
+#pSlam.plain .rays{display:none}
+#pSlam.plain.hit .box{animation:none}
+#pSlam.plain .seal{animation:pSlamPlain .45s cubic-bezier(.3,1.4,.5,1) both}
+@keyframes pSlamPlain{
+  0%{transform:scale(2.6) rotate(-14deg);opacity:0}
+  60%{transform:scale(.94) rotate(-5deg);opacity:1}
+  100%{transform:scale(1) rotate(-6deg);opacity:1}
+}
+#pSlam.plain .stars .new{animation:none}
 
   function pump(){
     if (showing || !queue.length) return;
@@ -2013,37 +2020,45 @@ document.addEventListener("keydown", e => {
   }
 
   function render(job){
-    const { stamp, stars, replay } = job;
-    const row = stamp.row;
-    const rank = rankFor(row, stars);
-    const done = stars >= 3;
+  const { stamp, stars, replay, kind } = job;
+  const row = stamp.row;
+  const rank = rankFor(row, stars);
+  const done = stars >= 3;
+  const isStar = kind === "star";
 
-    slam.querySelector(".box").innerHTML =
-      `<div class="seal">${VEHICLE_SVG[String(row.VEHICLE||"train").toLowerCase()] || VEHICLE_SVG.train}<b>${esc(row.TITLE||"")}</b></div>` +
-      `<div class="stars">${starRow(stars, replay ? 0 : stars)}</div>` +
-      `<div class="rank" id="pRank" aria-live="polite">${esc(rank)}</div>` +
-      (done
-        ? `<div class="grand">${esc(row.GRAND_RANK || "")}</div>`
-        : "") +
-      `<div class="tap">TAP TO CONTINUE</div>`;
+  slam.classList.toggle("plain", !isStar);
 
-    slam.classList.add("on", "hit");
-    slam.focus();
+  // The plain stamp shows the completed task label under the seal,
+  // the star version shows the star row + rank.
+  const taskLabel = job.taskLabel || "";
 
-    if (done && !REDUCED) stopConfetti = confetti(slam.querySelector("canvas"));
-    if (!done) autoTimer = setTimeout(() => dismiss(replay), 6000);
-  }
+  slam.querySelector(".box").innerHTML =
+    `<div class="seal">${VEHICLE_SVG[String(row.VEHICLE||"train").toLowerCase()] || VEHICLE_SVG.train}<b>${esc(row.TITLE||"")}</b></div>` +
+    (isStar
+      ? `<div class="stars">${starRow(stars, replay ? 0 : stars)}</div>` +
+        `<div class="rank" id="pRank" aria-live="polite">${esc(rank)}</div>` +
+        (done ? `<div class="grand">${esc(row.GRAND_RANK || "")}</div>` : "")
+      : `<div class="rank" style="font-size:20px">${esc(taskLabel || "Task complete!")}</div>`) +
+    `<div class="tap">TAP TO CONTINUE</div>`;
 
-  function dismiss(replay){
-    if (!slam.classList.contains("on")) return;
-    clearTimeout(autoTimer);
-    if (stopConfetti) { stopConfetti(); stopConfetti = null; }
-    slam.classList.remove("on", "hit");
-    showing = false;
-    if (replay !== true) $("passportBtn").classList.add("nudge");
-    renderStampCards();
-    pump();
-  }
+  slam.classList.add("on");
+  if (isStar) slam.classList.add("hit");
+  slam.focus();
+
+  if (isStar && done && !REDUCED) stopConfetti = confetti(slam.querySelector("canvas"));
+  // Star version waits for a tap if it's the finale; otherwise auto-dismiss.
+  // Plain stamp always auto-dismisses.
+  autoTimer = setTimeout(() => dismiss(replay), isStar && done ? 10000 : (isStar ? 6000 : 2600));
+}
+ function dismiss(replay){
+  if (!slam.classList.contains("on")) return;
+  clearTimeout(autoTimer);
+  if (stopConfetti) { stopConfetti(); stopConfetti = null; }
+  slam.classList.remove("on", "hit", "plain");   
+  if (replay !== true) $("passportBtn").classList.add("nudge");
+  renderStampCards();
+  pump();
+}
 
   slam.addEventListener("click", () => dismiss());
   document.addEventListener("keydown", e => {
@@ -2150,16 +2165,36 @@ document.addEventListener("keydown", e => {
     saveProgress(progress);
 
     for (const stamp of advanced){
-      const sid = String(stamp.row.STAMP_ID).trim();
-      const total = stamp.tasks.filter(id => progress[sid][id]).length;
-      const stars = starsFor(stamp.row, total);
-      const prev = (window.__lastStars || {})[sid] || 0;
-      if (stars > prev){
-        celebrateStamp(stamp, stars, false);
-      }
-      window.__lastStars = window.__lastStars || {};
-      window.__lastStars[sid] = stars;
+  const sid = String(stamp.row.STAMP_ID).trim();
+  const total = stamp.tasks.filter(id => progress[sid][id]).length;
+  const stars = starsFor(stamp.row, total);
+  const prev = (window.__lastStars || {})[sid] || 0;
+
+  if (stars > prev){
+    // Threshold crossed — full sunburst ceremony
+    celebrateStamp(stamp, stars, false, "star");
+  } else {
+    // Just a task — plain stamp, showing which task completed
+    const taskId = Object.keys(progress[sid]).find(id =>
+      !(window.__lastTasks || {})[sid + "/" + id]
+    );
+    const task = TASKS.find(t => key(t.row.TASK_ID) === key(taskId));
+    const label = task ? task.row.LABEL : "Task Complete!";
+    celebrateStamp(stamp, stars, false, "plain");
+    // queue the label so render() can show it
+    if (queue.length){
+      queue[queue.length - 1].taskLabel = label;
     }
+  }
+
+  window.__lastStars = window.__lastStars || {};
+  window.__lastStars[sid] = stars;
+
+  window.__lastTasks = window.__lastTasks || {};
+  for (const id of Object.keys(progress[sid])){
+    window.__lastTasks[sid + "/" + id] = true;
+  }
+}
     console.log("  → progress now:", JSON.stringify(progress));
     renderStampCards();
   };
