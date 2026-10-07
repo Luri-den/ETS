@@ -1,0 +1,1020 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connersville — Tours Editor</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+  :root{
+    --line:#d7dde5; --accent:#2b6cb0; --ink:#1a202c;
+    --bg:#eef1f5; --panel:#fff; --muted:#6b7280;
+    --tour:#D55E00;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font:14px system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:var(--ink);background:var(--bg);overflow:hidden}
+
+  #top{position:absolute;z-index:20;top:0;left:0;right:0;height:52px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 12px}
+  #top h1{font-size:15px;margin:0;font-weight:600;white-space:nowrap}
+  #top .grow{flex:1}
+  #top .status{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px}
+  #top .warn{color:#a33;font-weight:600}
+  button{font:inherit;padding:6px 12px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;color:var(--ink)}
+  button:hover{background:#f6f8fb}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  button.primary:hover{background:#245a94}
+  button.on{background:#e6effa;border-color:#9dbde3}
+  button.warn{background:#fff5f5;border-color:#f3c2c2;color:#a33}
+  button.warn:hover{background:#ffecec}
+  button.small{padding:3px 8px;font-size:12px}
+
+  #layout{position:absolute;top:52px;left:0;right:0;bottom:0;display:grid;grid-template-columns:260px 1fr 400px}
+
+  #left{background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding-bottom:20px}
+  .sec{padding:10px 14px 4px}
+  .sec h2{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:8px 0 6px;font-weight:600;display:flex;align-items:center;justify-content:space-between}
+  .sec h2 button{padding:3px 8px;font-size:11px}
+
+  .tour{display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:6px;cursor:pointer;font-size:13px;margin:2px 6px}
+  .tour:hover{background:#f4f7fb}
+  .tour.sel{background:#e6effa;font-weight:600}
+  .tour .sw{width:10px;height:10px;border-radius:50%;flex:none;box-shadow:0 0 0 1px #0002}
+  .tour .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tour .cnt{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+  .hint{padding:10px 14px;font-size:11px;line-height:1.55;color:var(--muted)}
+  .hint b{color:#333}
+
+  #stage{position:relative;min-width:0}
+  #map{position:absolute;inset:0}
+
+  #tools{position:absolute;z-index:6;top:10px;left:10px;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 2px 8px #0001;padding:6px;display:flex;gap:6px;align-items:center}
+  #tools .lbl{font-size:11px;color:var(--muted);padding:0 4px;text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+
+  /* markers on the map: uniform, dimmed, or highlighted */
+  .mk{width:32px;height:32px;border-radius:50%;border:3px solid #fff;background:#999;box-shadow:0 1px 4px #0005;padding:0;overflow:hidden;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:bold}
+  .mk img{width:100%;height:100%;object-fit:cover;display:block}
+  .mk.story{background:#D55E00}
+  .mk.spot{background:#333}
+  .mk.parent{background:#E47303}
+  .mk.child{background:#91AF45}
+  .mk.tour-stop{box-shadow:0 0 0 3px #fff,0 0 0 7px var(--tour);z-index:5;border-width:3px;border-color:#fff}
+  .mk.tour-stop.future{opacity:.55;filter:grayscale(.4)}
+  .mk.tour-stop.past{opacity:.85}
+  .mk.tour-start{border:4px solid #fff;box-shadow:0 0 0 4px #fff,0 0 0 8px #2f855a}
+  .mk:hover{transform:scale(1.08)}
+
+  /* ---------- right panel ---------- */
+  #right{background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding-bottom:30px}
+  .empty{padding:24px 16px;color:#9aa3ad;font-size:13px;text-align:center;line-height:1.6}
+  .empty kbd{font:11px ui-monospace,Menlo,monospace;background:#f1f3f7;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 5px}
+
+  .form{padding:12px}
+  .field{margin-bottom:10px}
+  .field label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;font-weight:600}
+  .field input[type=text],.field input[type=number],.field textarea,.field select{
+    width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font:inherit;background:#fff;color:var(--ink)}
+  .field textarea{min-height:70px;resize:vertical;line-height:1.45}
+  .field .sub{font-size:11px;color:var(--muted);margin-top:3px}
+
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+  .catrow{display:flex;align-items:center;gap:8px}
+  .catrow select{flex:1}
+  .catrow .sw{width:22px;height:22px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--line);flex:none}
+
+  .actions{margin-top:14px;display:flex;gap:6px;flex-wrap:wrap}
+  .actions .grow{flex:1}
+
+  .divider{height:1px;background:var(--line);margin:14px 0}
+
+  /* ---------- stops list ---------- */
+  .stops{display:flex;flex-direction:column;gap:4px}
+  .stop{display:grid;grid-template-columns:24px 1fr 90px 24px;gap:6px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fbfcfe;cursor:grab;font-size:13px}
+  .stop:hover{background:#f4f7fb}
+  .stop.sel{border-color:var(--accent);background:#f0f6fc}
+  .stop.dragging{opacity:.4;cursor:grabbing}
+  .stop.drop-before{box-shadow:0 -3px 0 var(--accent)}
+  .stop.drop-after{box-shadow:0 3px 0 var(--accent)}
+  .stop .step{font:11px ui-monospace,Menlo,monospace;color:var(--muted);text-align:center;background:#fff;border-radius:4px;padding:2px 0;border:1px solid #eef1f5}
+  .stop .title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .stop .title small{display:block;color:var(--muted);font-size:11px}
+  .stop .veh{font:11px ui-monospace,Menlo,monospace;text-align:center;color:#4a5568;background:#fff;border:1px solid #eef1f5;border-radius:4px;padding:3px 0}
+  .stop .mini{border:none;background:transparent;padding:2px;cursor:pointer;color:#a33;font-size:14px;line-height:1}
+  .stop.orphan{border-color:#f3c2c2;background:#fff8f8}
+  .stop.orphan .title{color:#a33}
+  .stop .add{display:block;width:100%;text-align:center;border:1px dashed var(--line);border-radius:6px;background:#fff;padding:8px;color:var(--muted);cursor:pointer;font-size:12px}
+  .stop .add:hover{color:var(--ink);border-color:#9dbde3;background:#f6f8fb}
+
+  /* per-stop edit form */
+  .stop-edit{background:#f0f6fc;border:1px solid #9dbde3;border-radius:8px;padding:10px;margin-top:6px}
+  .stop-edit .field{margin-bottom:8px}
+
+  /* ---------- preview playback bar ---------- */
+  #playbar{position:absolute;z-index:8;left:50%;transform:translateX(-50%);bottom:16px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 16px #0002;padding:8px 12px;display:none;align-items:center;gap:10px;min-width:340px}
+  #playbar.on{display:flex}
+  #playbar button{padding:4px 10px;font-size:13px}
+  #playbar .prog{flex:1;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+  #playbar .prog b{color:var(--ink)}
+
+  #toast{position:fixed;z-index:100;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#111827;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .18s, transform .18s;pointer-events:none;max-width:80vw;text-align:center}
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  .maplibregl-ctrl-bottom-right,.maplibregl-ctrl-bottom-left{z-index:6}
+</style>
+</head>
+<body>
+
+<div id="top">
+  <h1>Connersville — Tours</h1>
+  <button id="pickTours">Pick tours.csv…</button>
+  <input id="fileTours" type="file" accept=".csv,text/csv" hidden>
+  <button id="pickStops">Pick tourstops.csv…</button>
+  <input id="fileStops" type="file" accept=".csv,text/csv" hidden>
+  <span class="status" id="status">Loading…</span>
+  <span class="grow"></span>
+  <button id="reloadBtn" title="Re-fetch all five files">↻ Reload</button>
+  <button id="publishBtn" class="primary" disabled>Download updated CSVs</button>
+</div>
+
+<div id="layout">
+  <aside id="left">
+    <div class="sec">
+      <h2>Tours <button id="addTour" type="button">＋ New</button></h2>
+    </div>
+    <div id="tourList"></div>
+
+    <div class="sec"><h2>Loaded data</h2></div>
+    <div class="hint" id="loadSummary">Waiting for files…</div>
+
+    <div class="sec"><h2>Legend</h2></div>
+    <div class="hint">
+      <b>● Parent</b> location &nbsp; <b>● Child</b> location<br>
+      <b>● Story</b> &nbsp; <b>● Photo spot</b><br><br>
+      Tour stops get a bold ring and a numbered order. Click any stop marker to jump to it in the list.
+    </div>
+  </aside>
+
+  <div id="stage">
+    <div id="map"></div>
+    <div id="tools">
+      <span class="lbl">Tour</span>
+      <button id="previewBtn" disabled>▶ Preview</button>
+      <button id="clearBtn" disabled>Clear line</button>
+    </div>
+    <div id="playbar">
+      <button id="playStop">⏸</button>
+      <span class="prog">Playing stop <b id="playIdx">1</b> of <b id="playTot">1</b></span>
+      <button id="playClose">✕ Close</button>
+    </div>
+  </div>
+
+  <aside id="right">
+    <div id="form"><div class="empty">No tour selected.<br><br>Choose one on the left, or click <kbd>＋ New</kbd>.</div></div>
+  </aside>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+
+<script>
+/* ============================================================
+   Connersville — Tours Editor
+   Edits tours.csv and tourstops.csv, referencing items from
+   locations.csv, childmarkers.csv, and spots.csv.
+   ============================================================ */
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const key = s => String(s||"").trim().toLowerCase();
+const uid = () => Math.random().toString(36).slice(2,8);
+
+/* Category colors — same map the other editors use */
+const CATEGORIES = {
+  CIV:   { label:"Civic",          color:"#E2E1E0" },
+  TRANS: { label:"Transportation", color:"#91AF45" },
+  COMM:  { label:"Commercial",     color:"#E47303" },
+  RES:   { label:"Residential",    color:"#BDD76B" },
+  IND:   { label:"Industry",       color:"#AF350A" }
+};
+const DEFAULT_CAT = "CIV";
+
+/* Column orders observed in your files */
+const TOUR_COLS  = ["TOUR_ID","TITLE","INTRO","CATEGORY"];
+const STOP_COLS  = ["TOUR_ID","STEP","ITEM_ID","NOTE","VEHICLE"];
+
+/* Vehicles available on the live site */
+const VEHICLES = ["TRAIN","CAR","BOAT"];
+
+/* ---------- State ---------- */
+let tours = [];         // {row, stops:[stopRow...]}
+let items = [];         // everything referenceable: {id, name, ll, kind, source}
+let headers = { tour: TOUR_COLS.slice(), stop: STOP_COLS.slice() };
+let loaded = { tours:false, stops:false, spots:false, loc:false, child:false };
+let selectedTour = null;  // ref to the tour object
+let selectedStop = null;  // ref to a stop row
+let draggingStop = null;
+let playback = null;      // {tour, idx, paused, cancel}
+
+/* ---------- Map ---------- */
+const map = new maplibregl.Map({
+  container: "map",
+  style: {
+    version: 8,
+    sources: {
+      osm: {
+        type: "raster",
+        tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+        tileSize: 256,
+        maxzoom: 19,
+        attribution: "&copy; OpenStreetMap contributors"
+      }
+    },
+    layers: [{ id:"osm", type:"raster", source:"osm" }]
+  },
+  center: [-85.13889, 39.64753],
+  zoom: 14
+});
+map.addControl(new maplibregl.NavigationControl({ showCompass:false }), "bottom-right");
+map.addControl(new maplibregl.ScaleControl(), "bottom-left");
+
+/* Marker storage — key by item.id so we don't duplicate */
+let markerIndex = new Map(); // id → {marker, el}
+
+/* ============================================================
+   Vehicle SVGs (lifted from Demo2.html)
+   ============================================================ */
+
+const VEHICLE_SVG = {
+  TRAIN: `<svg viewBox="0 0 60 30" width="60" height="30" aria-hidden="true">
+      <rect x="6" y="8" width="34" height="12" fill="#3a3a3a" rx="2"/>
+      <rect x="34" y="4" width="16" height="16" fill="#3a3a3a" rx="2"/>
+      <rect x="36" y="7" width="6" height="5" fill="#f5e6c8"/>
+      <rect x="44" y="7" width="4" height="5" fill="#f5e6c8"/>
+      <rect x="4" y="18" width="4" height="5" fill="#3a3a3a"/>
+      <circle cx="14" cy="22" r="4" fill="#1c1c1c"/>
+      <circle cx="24" cy="22" r="4" fill="#1c1c1c"/>
+      <circle cx="34" cy="22" r="4" fill="#1c1c1c"/>
+      <circle cx="44" cy="22" r="3" fill="#1c1c1c"/>
+      <rect x="16" y="2" width="4" height="6" fill="#3a3a3a"/>
+      <rect x="6" y="11" width="30" height="2" fill="#E47303"/>
+    </svg>`,
+  BOAT: `<svg viewBox="0 0 60 30" width="60" height="30" aria-hidden="true">
+      <path d="M4 20 L10 16 L50 16 L56 20 L56 24 L4 24 Z" fill="#5a3a1a"/>
+      <rect x="14" y="10" width="30" height="6" fill="#8a5a2a"/>
+      <rect x="18" y="12" width="6" height="4" fill="#f5e6c8"/>
+      <rect x="30" y="12" width="6" height="4" fill="#f5e6c8"/>
+      <rect x="4" y="8" width="4" height="8" fill="#3a3a3a"/>
+      <path d="M6 10 Q 20 4 40 8" stroke="#3a3a3a" stroke-width="1.5" fill="none"/>
+      <path d="M6 16 Q 20 20 40 16" stroke="#E47303" stroke-width="1.5" fill="none"/>
+    </svg>`,
+  CAR: `<svg viewBox="0 0 60 30" width="60" height="30" aria-hidden="true">
+      <path d="M6 18 L14 12 L44 12 L54 18 L54 24 L6 24 Z" fill="#8b1a1a"/>
+      <rect x="16" y="9" width="24" height="6" fill="#8b1a1a" rx="2"/>
+      <rect x="18" y="10" width="8" height="4" fill="#f5e6c8"/>
+      <rect x="30" y="10" width="8" height="4" fill="#f5e6c8"/>
+      <circle cx="16" cy="24" r="4" fill="#1c1c1c"/>
+      <circle cx="44" cy="24" r="4" fill="#1c1c1c"/>
+      <rect x="6" y="18" width="48" height="1.5" fill="#E47303"/>
+    </svg>`
+};
+
+/* ============================================================
+   Loading
+   ============================================================ */
+
+$("pickTours").onclick = () => $("fileTours").click();
+$("pickStops").onclick = () => $("fileStops").click();
+$("fileTours").onchange = e => readCSV(e.target.files[0], "tours");
+$("fileStops").onchange = e => readCSV(e.target.files[0], "stops");
+
+function readCSV(file, kind){
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = () => ingestCSV(r.result, kind, file.name);
+  r.readAsText(file);
+}
+
+/* Auto-load all five from same folder; keep going if any fail */
+(async () => {
+  const specs = [
+    ["tours.csv",          "tours"],
+    ["tourstops.csv",      "stops"],
+    ["spots.csv",          "spots"],
+    ["locations.csv",      "loc"],
+    ["childmarkers.csv",   "child"]
+  ];
+  const results = await Promise.all(specs.map(([file]) =>
+    fetch(file, { cache:"no-store" }).then(r => r.ok ? r.text() : null).catch(() => null)
+  ));
+  results.forEach((text, i) => {
+    const [file, kind] = specs[i];
+    if (text == null){ console.info("Skipped " + file); return; }
+    ingestCSV(text, kind, file);
+  });
+
+  const have = Object.values(loaded).filter(Boolean).length;
+  if (have === 0) setStatus("Click 'Pick tours.csv…' to begin");
+  else setStatus("Loaded " + have + " of 5 files");
+})();
+
+$("reloadBtn").onclick = async () => {
+  if (!confirm("Reload all five CSVs from the server? Unsaved changes will be lost.")) return;
+  try {
+    const specs = [
+      ["tours.csv","tours"], ["tourstops.csv","stops"], ["spots.csv","spots"],
+      ["locations.csv","loc"], ["childmarkers.csv","child"]
+    ];
+    const results = await Promise.all(specs.map(([file]) =>
+      fetch(file, { cache:"no-store" }).then(r => r.ok ? r.text() : null).catch(() => null)
+    ));
+    resetAll();
+    results.forEach((text, i) => {
+      if (text == null) return;
+      ingestCSV(text, specs[i][1], specs[i][0]);
+    });
+    selectedTour = null; selectedStop = null;
+    render();
+    toast("Reloaded from server");
+  } catch (e) {
+    toast("Reload failed: " + e.message);
+  }
+};
+
+function resetAll(){
+  tours = []; items = [];
+  markerIndex.forEach(o => o.marker.remove()); markerIndex.clear();
+  loaded = { tours:false, stops:false, spots:false, loc:false, child:false };
+}
+
+function ingestCSV(text, kind, filename){
+  const parsed = Papa.parse(text, { header:true, skipEmptyLines:"greedy" });
+  if (parsed.errors && parsed.errors.length){
+    const hard = parsed.errors.filter(e => !/TooFewFields|TooManyFields/.test(e.code));
+    if (hard.length) console.warn("CSV warnings for " + filename, hard);
+  }
+  const rows = parsed.data.filter(r => Object.values(r).some(v => String(v||"").trim() !== ""));
+
+  if (kind === "tours"){
+    headers.tour = parsed.meta.fields?.length ? parsed.meta.fields.slice() : TOUR_COLS.slice();
+    for (const c of TOUR_COLS) if (!headers.tour.includes(c)) headers.tour.push(c);
+    tours = rows.map(r => ({ row: r, stops: [] }));
+    loaded.tours = true;
+  }
+  else if (kind === "stops"){
+    headers.stop = parsed.meta.fields?.length ? parsed.meta.fields.slice() : STOP_COLS.slice();
+    for (const c of STOP_COLS) if (!headers.stop.includes(c)) headers.stop.push(c);
+    // stops attach to tours after both are loaded
+    window._pendingStops = rows;
+    loaded.stops = true;
+    attachStops();
+  }
+  else if (kind === "spots"){
+    rows.forEach(r => {
+      const id = String(r.SPOT_ID||"").trim();
+      if (!id) return;
+      const lat = parseFloat(r.LAT), lng = parseFloat(r.LONG);
+      items.push({
+        id, name: r.TITLE || id,
+        ll: (isNaN(lat)||isNaN(lng)) ? null : [lng, lat],
+        kind: key(r.KIND) === "story" ? "story" : "spot",
+        source: "spots"
+      });
+    });
+    loaded.spots = true;
+  }
+  else if (kind === "loc"){
+    rows.forEach(r => {
+      const id = String(r.ID||"").trim();
+      if (!id) return;
+      const lat = parseFloat(r.LAT), lng = parseFloat(r.LONG);
+      items.push({
+        id, name: r.NAME || id,
+        ll: (isNaN(lat)||isNaN(lng)) ? null : [lng, lat],
+        kind: "parent", source: "locations"
+      });
+    });
+    loaded.loc = true;
+  }
+  else if (kind === "child"){
+    rows.forEach(r => {
+      const id = String(r.CHILD_ID || r.CHILD_IS || "").trim();
+      if (!id) return;
+      const lat = parseFloat(r.LAT), lng = parseFloat(r.LONG);
+      items.push({
+        id, name: r.NAME || id,
+        ll: (isNaN(lat)||isNaN(lng)) ? null : [lng, lat],
+        kind: "child", source: "childmarkers"
+      });
+    });
+    loaded.child = true;
+  }
+
+  if (kind === "stops" || kind === "tours") attachStops();
+
+  render();
+  $("publishBtn").disabled = !(loaded.tours && loaded.stops);
+  updateLoadSummary();
+}
+
+function attachStops(){
+  if (!loaded.tours || !window._pendingStops) return;
+  tours.forEach(t => t.stops = []);
+  for (const r of window._pendingStops){
+    const tid = String(r.TOUR_ID||"").trim();
+    const t = tours.find(x => key(x.row.TOUR_ID) === key(tid));
+    if (t) t.stops.push(r);
+    else console.warn("Orphan tourstop: TOUR_ID=" + tid + " has no matching tour");
+  }
+  tours.forEach(t => t.stops.sort((a,b) => (parseFloat(a.STEP)||0) - (parseFloat(b.STEP)||0)));
+}
+
+function updateLoadSummary(){
+  const bits = [];
+  if (loaded.tours) bits.push(`tours (${tours.length})`);
+  if (loaded.stops) bits.push(`stops (${tours.reduce((n,t)=>n+t.stops.length,0)})`);
+  if (loaded.spots) bits.push(`spots (${items.filter(i=>i.source==="spots").length})`);
+  if (loaded.loc)   bits.push(`locations (${items.filter(i=>i.source==="locations").length})`);
+  if (loaded.child) bits.push(`children (${items.filter(i=>i.source==="childmarkers").length})`);
+  $("loadSummary").innerHTML = bits.length ? bits.join("<br>") : "Waiting for files…";
+}
+
+function setStatus(s){ $("status").textContent = s; }
+
+/* ============================================================
+   Items lookup
+   ============================================================ */
+
+function findItem(id){
+  const k = key(id);
+  return items.find(i => key(i.id) === k) || null;
+}
+
+/* ============================================================
+   Rendering
+   ============================================================ */
+
+function render(){
+  renderMapMarkers();
+  renderTourList();
+  renderTourLine();
+  renderForm();
+  updateLoadSummary();
+}
+
+function renderMapMarkers(){
+  // tear down old markers that are no longer in items
+  const currentIds = new Set(items.map(i => i.id));
+  for (const [id, o] of markerIndex){
+    if (!currentIds.has(id)){ o.marker.remove(); markerIndex.delete(id); }
+  }
+  // add/update markers for items
+  for (const item of items){
+    if (!item.ll) continue;
+    const stopIndex = selectedTour ? selectedTour.stops.findIndex(s => key(s.ITEM_ID) === key(item.id)) : -1;
+    const inTour = stopIndex >= 0;
+    const isStart = inTour && stopIndex === 0;
+    const isFuture = playback && inTour && stopIndex > playback.idx;
+    const isPast   = playback && inTour && stopIndex < playback.idx;
+
+    // reuse or create marker
+    let entry = markerIndex.get(item.id);
+    if (!entry){
+      const el = document.createElement("button");
+      el.type = "button";
+      el.className = "mk " + item.kind;
+      el.title = item.name;
+      const marker = new maplibregl.Marker({ element: el }).setLngLat(item.ll).addTo(map);
+      entry = { marker, el };
+      markerIndex.set(item.id, entry);
+      el.addEventListener("click", e => {
+        e.stopPropagation();
+        if (selectedTour){
+          const idx = selectedTour.stops.findIndex(s => key(s.ITEM_ID) === key(item.id));
+          if (idx >= 0){ selectedStop = selectedTour.stops[idx]; renderForm(); return; }
+        }
+        toast(item.name);
+      });
+    } else {
+      entry.marker.setLngLat(item.ll);
+    }
+    // style state
+    const el = entry.el;
+    el.className = "mk " + item.kind;
+    if (inTour){
+      el.classList.add("tour-stop");
+      if (isStart) el.classList.add("tour-start");
+      if (isFuture) el.classList.add("future");
+      if (isPast) el.classList.add("past");
+      el.title = `${stopIndex + 1}. ${item.name}`;
+    } else {
+      el.title = item.name;
+    }
+    // no thumbnails for tours; use a colored dot with kind styling
+    if (!el.querySelector("span")){
+      const s = document.createElement("span");
+      s.textContent = item.kind === "parent" ? "P" :
+                      item.kind === "child" ? "C" :
+                      item.kind === "story" ? "★" : "◉";
+      s.style.cssText = "font-size:14px;line-height:1;color:#fff";
+      el.appendChild(s);
+    }
+  }
+}
+
+function renderTourList(){
+  const list = $("tourList");
+  list.innerHTML = "";
+  if (!tours.length){
+    list.innerHTML = `<div class="hint">No tours loaded.</div>`;
+    return;
+  }
+  for (const t of tours){
+    const row = document.createElement("div");
+    row.className = "tour" + (selectedTour === t ? " sel" : "");
+    const cat = String(t.row.CATEGORY||"").trim().toUpperCase();
+    const color = CATEGORIES[cat]?.color || "#E47303";
+    row.innerHTML =
+      `<span class="sw" style="background:${color}"></span>` +
+      `<span class="name">${esc(t.row.TITLE || t.row.TOUR_ID || "(unnamed)")}</span>` +
+      `<span class="cnt">${t.stops.length}</span>`;
+    row.onclick = () => { selectedTour = t; selectedStop = null; render(); };
+    list.appendChild(row);
+  }
+}
+
+/* ---------- tour line on the map ---------- */
+
+function renderTourLine(){
+  const src = map.getSource("tour-line");
+  if (!selectedTour || selectedTour.stops.length < 2){
+    if (src) src.setData({ type:"Feature", geometry:{ type:"LineString", coordinates: [] } });
+    else {
+      map.addSource("tour-line", { type:"geojson", data:{ type:"Feature", geometry:{ type:"LineString", coordinates: [] } } });
+      map.addLayer({
+        id:"tour-line", type:"line", source:"tour-line",
+        layout:{ "line-cap":"round","line-join":"round" },
+        paint:{ "line-color":"#D55E00","line-width":4,"line-opacity":0.75,"line-dasharray":[2,1.5] }
+      });
+    }
+    return;
+  }
+  const coords = selectedTour.stops.map(s => {
+    const it = findItem(s.ITEM_ID);
+    return it && it.ll ? it.ll : null;
+  }).filter(Boolean);
+
+  const data = { type:"Feature", geometry:{ type:"LineString", coordinates: coords } };
+  if (src) src.setData(data);
+  else {
+    map.addSource("tour-line", { type:"geojson", data });
+    map.addLayer({
+      id:"tour-line", type:"line", source:"tour-line",
+      layout:{ "line-cap":"round","line-join":"round" },
+      paint:{ "line-color":"#D55E00","line-width":4,"line-opacity":0.75,"line-dasharray":[2,1.5] }
+    });
+  }
+}
+
+/* ============================================================
+   Right panel — tour form
+   ============================================================ */
+
+function renderForm(){
+  const box = $("form");
+  if (!selectedTour){
+    box.innerHTML = `<div class="empty">No tour selected.<br><br>Choose one on the left, or click <kbd>＋ New</kbd>.</div>`;
+    return;
+  }
+  const r = selectedTour.row;
+  const cat = String(r.CATEGORY||"").trim().toUpperCase() || DEFAULT_CAT;
+
+  box.innerHTML = `
+    <div class="form">
+      <div class="field">
+        <label>TOUR_ID</label>
+        <input type="text" id="f-TOUR_ID" value="${esc(r.TOUR_ID||"")}">
+        <div class="sub">Changing this breaks references from tourstops.csv.</div>
+      </div>
+      <div class="field">
+        <label>Title</label>
+        <input type="text" id="f-TITLE" value="${esc(r.TITLE||"")}">
+      </div>
+      <div class="field">
+        <label>Intro</label>
+        <textarea id="f-INTRO">${esc(r.INTRO||"")}</textarea>
+      </div>
+      <div class="field">
+        <label>Category</label>
+        <div class="catrow">
+          <select id="f-CATEGORY">
+            ${Object.entries(CATEGORIES).map(([k,v]) =>
+              `<option value="${k}" ${k===cat?"selected":""}>${k} — ${esc(v.label)}</option>`).join("")}
+          </select>
+          <span class="sw" id="catSw" style="background:${CATEGORIES[cat]?.color||'#E47303'}"></span>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="field">
+        <label>Stops (${selectedTour.stops.length})</label>
+        <div class="stops" id="stopList">
+          ${selectedTour.stops.map((s, i) => stopRowHtml(s, i)).join("")}
+          <div class="stop add" id="addStopRow">＋ Add stop</div>
+        </div>
+      </div>
+
+      ${selectedStop ? stopEditHtml(selectedStop, selectedTour.stops.indexOf(selectedStop)) : ""}
+
+      <div class="actions">
+        <button id="dupTour" class="small">Duplicate tour</button>
+        <span class="grow"></span>
+        <button id="delTour" class="small warn">Delete tour</button>
+      </div>
+    </div>
+  `;
+
+  // basic field wiring
+  bindText(box, "f-TOUR_ID",  v => { r.TOUR_ID = v; renderTourList(); });
+  bindText(box, "f-TITLE",    v => { r.TITLE = v; renderTourList(); });
+  bindText(box, "f-INTRO",    v => { r.INTRO = v; });
+  box.querySelector("#f-CATEGORY").onchange = e => {
+    r.CATEGORY = e.target.value;
+    box.querySelector("#catSw").style.background = CATEGORIES[r.CATEGORY]?.color || "#E47303";
+    renderTourList();
+  };
+
+  box.querySelector("#dupTour").onclick = () => {
+    const nr = Object.assign({}, r);
+    nr.TOUR_ID = r.TOUR_ID + "-copy-" + uid().slice(0,4);
+    nr.TITLE = (r.TITLE||"") + " (copy)";
+    const n = { row: nr, stops: [] };
+    tours.push(n);
+    selectedTour = n;
+    render();
+    toast("Duplicated as " + nr.TOUR_ID);
+  };
+
+  box.querySelector("#delTour").onclick = () => {
+    if (!confirm(`Delete "${r.TITLE||r.TOUR_ID}" and its ${selectedTour.stops.length} stops?`)) return;
+    tours = tours.filter(x => x !== selectedTour);
+    selectedTour = null; selectedStop = null;
+    render();
+  };
+
+  // stop list wiring
+  box.querySelectorAll(".stop[data-idx]").forEach(el => {
+    const idx = +el.dataset.idx;
+    const stop = selectedTour.stops[idx];
+
+    el.addEventListener("click", e => {
+      if (e.target.closest("[data-remove]")) return;
+      selectedStop = stop;
+      renderForm();
+    });
+
+    const removeBtn = el.querySelector("[data-remove]");
+    if (removeBtn){
+      removeBtn.addEventListener("click", e => {
+        e.stopPropagation();
+        selectedTour.stops.splice(idx, 1);
+        renumber(selectedTour);
+        selectedStop = null;
+        render();
+      });
+    }
+
+    el.addEventListener("dragstart", e => {
+      draggingStop = { tour: selectedTour, from: idx };
+      el.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+    });
+    el.addEventListener("dragend", () => {
+      el.classList.remove("dragging");
+      document.querySelectorAll(".stop").forEach(x => x.classList.remove("drop-before","drop-after"));
+      draggingStop = null;
+    });
+    el.addEventListener("dragover", e => {
+      if (!draggingStop || draggingStop.tour !== selectedTour) return;
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const before = e.clientY < rect.top + rect.height / 2;
+      el.classList.toggle("drop-before", before);
+      el.classList.toggle("drop-after", !before);
+    });
+    el.addEventListener("dragleave", () => {
+      el.classList.remove("drop-before","drop-after");
+    });
+    el.addEventListener("drop", e => {
+      e.preventDefault();
+      if (!draggingStop || draggingStop.tour !== selectedTour) return;
+      const rect = el.getBoundingClientRect();
+      const before = e.clientY < rect.top + rect.height / 2;
+      let to = before ? idx : idx + 1;
+      const from = draggingStop.from;
+      const [moved] = selectedTour.stops.splice(from, 1);
+      if (from < to) to--;
+      selectedTour.stops.splice(to, 0, moved);
+      renumber(selectedTour);
+      render();
+    });
+  });
+
+  const addBtn = box.querySelector("#addStopRow");
+  if (addBtn){
+    addBtn.addEventListener("click", () => {
+      const row = {
+        TOUR_ID: r.TOUR_ID,
+        STEP: String(selectedTour.stops.length + 1),
+        ITEM_ID: "",
+        NOTE: "",
+        VEHICLE: "CAR"
+      };
+      headers.stop.forEach(h => { if (!(h in row)) row[h] = ""; });
+      selectedTour.stops.push(row);
+      selectedStop = row;
+      render();
+    });
+  }
+
+  // stop edit form
+  if (selectedStop){
+    const idx = selectedTour.stops.indexOf(selectedStop);
+    const sBox = box.querySelector(".stop-edit");
+    if (sBox){
+      const itemField = sBox.querySelector("#s-ITEM_ID");
+      if (itemField) itemField.onchange = e => { selectedStop.ITEM_ID = e.target.value; render(); };
+      const veh = sBox.querySelector("#s-VEHICLE");
+      if (veh) veh.onchange = e => { selectedStop.VEHICLE = e.target.value; renderForm(); };
+      bindText(sBox, "s-NOTE", v => { selectedStop.NOTE = v; });
+    }
+  }
+}
+
+function stopRowHtml(s, i){
+  const item = findItem(s.ITEM_ID);
+  const orphan = s.ITEM_ID && !item;
+  const color = orphan ? "#a33" : "#4a5568";
+  return `
+    <div class="stop ${orphan?"orphan":""} ${selectedStop===s?"sel":""}" data-idx="${i}" draggable="true">
+      <span class="step">${i+1}</span>
+      <span class="title">${esc(item ? item.name : (s.ITEM_ID || "(empty)"))}<small>${esc(item ? item.id : (orphan ? "unmatched ITEM_ID" : "not set"))}</small></span>
+      <span class="veh" style="color:${color}">${esc(s.VEHICLE||"—")}</span>
+      <button class="mini" data-remove title="Remove this stop">✕</button>
+    </div>
+  `;
+}
+
+function stopEditHtml(s, idx){
+  const itemFieldId = "s-ITEM_ID";
+  const current = s.ITEM_ID || "";
+  // group items by source for readability
+  const grouped = {
+    "Locations": items.filter(i => i.source === "locations"),
+    "Children":  items.filter(i => i.source === "childmarkers"),
+    "Spots & Stories": items.filter(i => i.source === "spots")
+  };
+  return `
+    <div class="stop-edit">
+      <div style="font-weight:600;font-size:12px;color:#4a5568;margin-bottom:6px">Stop ${idx+1} of ${selectedTour.stops.length}</div>
+      <div class="field">
+        <label>Item (points to a location, child, or spot/story)</label>
+        <select id="${itemFieldId}">
+          <option value="">— choose —</option>
+          ${Object.entries(grouped).map(([label, list]) => {
+            if (!list.length) return "";
+            return `<optgroup label="${label}">
+              ${list.map(i => `<option value="${esc(i.id)}" ${key(i.id)===key(current)?"selected":""}>${esc(i.id)} — ${esc(i.name)}</option>`).join("")}
+            </optgroup>`;
+          }).join("")}
+        </select>
+      </div>
+      <div class="field">
+        <label>Note (narration, shown under the title)</label>
+        <input type="text" id="s-NOTE" value="${esc(s.NOTE||"")}">
+      </div>
+      <div class="field">
+        <label>Vehicle for the leg <em>arriving at</em> this stop</label>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
+          ${VEHICLES.map(v => `
+            <label style="display:flex;flex-direction:column;align-items:center;gap:4px;border:1px solid ${s.VEHICLE===v?'#9dbde3':'#eef1f5'};border-radius:6px;padding:6px 8px;cursor:pointer;background:${s.VEHICLE===v?'#e6effa':'#fff'};flex:1">
+              <input type="radio" name="veh" value="${v}" ${s.VEHICLE===v?"checked":""} style="display:none" onchange="document.getElementById('s-VEHICLE').value='${v}';document.getElementById('s-VEHICLE').dispatchEvent(new Event('change'))">
+              <span style="pointer-events:none">${VEHICLE_SVG[v]}</span>
+              <b style="font-size:10px;color:#4a5568;text-transform:uppercase;letter-spacing:.05em">${v}</b>
+            </label>
+          `).join("")}
+          <select id="s-VEHICLE" style="display:none">
+            ${VEHICLES.map(v => `<option value="${v}" ${s.VEHICLE===v?"selected":""}>${v}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renumber(t){
+  t.stops.forEach((s, i) => { s.STEP = String(i + 1); });
+}
+
+function bindText(scope, id, onInput){
+  const el = scope.querySelector("#" + CSS.escape(id));
+  if (!el) return;
+  el.oninput = () => onInput(el.value);
+}
+
+/* ============================================================
+   Add tour
+   ============================================================ */
+
+$("addTour").onclick = () => {
+  if (!loaded.tours) return toast("Load tours.csv first.");
+  const existing = tours.map(t => String(t.row.TOUR_ID||"").trim()).filter(Boolean);
+  let n = 1, id;
+  do { id = "TOUR-" + String(n).padStart(3,"0"); n++; } while (existing.some(x => key(x) === key(id)));
+
+  const row = { TOUR_ID:id, TITLE:"New Tour", INTRO:"", CATEGORY: DEFAULT_CAT };
+  headers.tour.forEach(h => { if (!(h in row)) row[h] = ""; });
+
+  const t = { row, stops: [] };
+  tours.push(t);
+  selectedTour = t;
+  selectedStop = null;
+  render();
+  toast("Added " + id);
+};
+
+/* ============================================================
+   Preview playback
+   ============================================================ */
+
+function travelTo(fromLl, toLl, vehicleKey){
+  return new Promise(resolve => {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches || !vehicleKey){
+      map.easeTo({ center: toLl, duration: 400 });
+      setTimeout(resolve, 400);
+      return;
+    }
+    const v = VEHICLE_SVG[vehicleKey] ? vehicleKey : "TRAIN";
+    const wrap = document.createElement("div");
+    wrap.className = "travel-clip " + v.toLowerCase();
+    wrap.innerHTML = `
+      <div class="scene">
+        <div class="env" style="position:absolute;left:0;right:0;bottom:0;height:14px;background-repeat:repeat-x;background-size:60px 14px"></div>
+        <div class="vehicle" style="position:absolute;left:50%;bottom:10px;transform:translateX(-50%)">${VEHICLE_SVG[v]}</div>
+      </div>`;
+    Object.assign(wrap.style, { width:"88px", height:"56px", overflow:"hidden", pointerEvents:"none" });
+
+    const marker = new maplibregl.Marker({ element: wrap, anchor:"center" })
+      .setLngLat(fromLl).addTo(map);
+
+    const midZoom = Math.max(map.getZoom() - 0.3, 14.5);
+    map.jumpTo({ center: fromLl, zoom: midZoom });
+
+    const t0 = performance.now();
+    const DURATION = 1100;
+
+    function frame(now){
+      const t = Math.min((now - t0) / DURATION, 1);
+      const lng = fromLl[0] + (toLl[0] - fromLl[0]) * t;
+      const lat = fromLl[1] + (toLl[1] - fromLl[1]) * t;
+      marker.setLngLat([lng, lat]);
+      map.jumpTo({ center:[lng, lat] });
+
+      if (t < 1) requestAnimationFrame(frame);
+      else {
+        marker.remove();
+        map.easeTo({ center: toLl, zoom: 17, duration: 500 });
+        setTimeout(resolve, 500);
+      }
+    }
+    requestAnimationFrame(frame);
+  });
+}
+
+$("previewBtn").onclick = async () => {
+  if (!selectedTour || selectedTour.stops.length < 2){
+    toast("A tour needs at least 2 stops with coordinates.");
+    return;
+  }
+  if (playback){ toast("Preview already running."); return; }
+
+  const validStops = selectedTour.stops.filter(s => {
+    const it = findItem(s.ITEM_ID);
+    return it && it.ll;
+  });
+  if (validStops.length < 2){
+    toast("Not enough stops with valid coordinates.");
+    return;
+  }
+
+  playback = { tour: selectedTour, idx: 0, cancel: false };
+  $("playbar").classList.add("on");
+  $("playTot").textContent = String(validStops.length);
+  $("playIdx").textContent = "1";
+
+  // jump to first stop
+  map.easeTo({ center: validStops[0].ll ?? findItem(validStops[0].ITEM_ID).ll, zoom: 16 });
+  await sleep(600);
+
+  for (let i = 1; i < validStops.length; i++){
+    if (playback.cancel) break;
+    const fromIt = findItem(validStops[i-1].ITEM_ID);
+    const toIt   = findItem(validStops[i].ITEM_ID);
+    playback.idx = i;
+    $("playIdx").textContent = String(i + 1);
+    renderMapMarkers();
+    await travelTo(fromIt.ll, toIt.ll, validStops[i].VEHICLE || "CAR");
+    if (playback.cancel) break;
+  }
+
+  // cleanup
+  $("playbar").classList.remove("on");
+  playback = null;
+  render();
+};
+
+$("clearBtn").onclick = () => {
+  selectedTour = null; selectedStop = null;
+  render();
+};
+
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+$("playClose").onclick = () => { if (playback) playback.cancel = true; };
+
+/* ============================================================
+   Publish
+   ============================================================ */
+
+$("publishBtn").onclick = () => {
+  // renumber every tour's stops to be safe
+  tours.forEach(t => renumber(t));
+
+  // Tours
+  const tourRows = tours.map(t => pick(t.row, headers.tour));
+  const toursCSV = Papa.unparse({ fields: headers.tour, data: tourRows });
+  download("tours.csv", toursCSV);
+
+  // Tourstops — flatten
+  const allStops = [];
+  for (const t of tours){
+    for (const s of t.stops){
+      // ensure TOUR_ID matches the tour even if user changed it
+      s.TOUR_ID = t.row.TOUR_ID;
+      allStops.push(pick(s, headers.stop));
+    }
+  }
+  const stopsCSV = Papa.unparse({ fields: headers.stop, data: allStops });
+  setTimeout(() => download("tourstops.csv", stopsCSV), 200);
+
+  toast(`Downloaded tours.csv (${tours.length}) and tourstops.csv (${allStops.length})`);
+};
+
+function pick(row, cols){
+  const out = {};
+  for (const c of cols) out[c] = row[c] != null ? row[c] : "";
+  return out;
+}
+
+function download(name, text){
+  const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* ============================================================
+   Preview / clear button state
+   ============================================================ */
+
+function updateToolButtons(){
+  const has = selectedTour && selectedTour.stops.length >= 2 && !playback;
+  $("previewBtn").disabled = !has;
+  $("clearBtn").disabled = !selectedTour;
+}
+
+/* Patch render to also update tool button state */
+const _origRender = render;
+render = function(){ _origRender.apply(this, arguments); updateToolButtons(); };
+
+/* ============================================================
+   Toast
+   ============================================================ */
+
+let toastTimer = 0;
+function toast(msg){
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("on"), 2600);
+}
+</script>
+</body>
+</html>
