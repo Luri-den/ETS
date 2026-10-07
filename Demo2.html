@@ -1031,10 +1031,17 @@ map.on("click", () => { $("res").hidden = true; deselect(); });
 map.on("resize", update);
 
   function tourGo(n){
-    tourI = n;
-    select(stops[n]);
-    if (n === stops.length - 1 && window.passportEvent) passportEvent("tour");
+  tourI = n;
+  select(stops[n]);
+  if (n === stops.length - 1 && window.passportEvent) {
+    const stop = stops[n];
+    passportEvent("tour", {
+      id: stop?.d?.TOUR_ID || null,
+      category: stop?.d?.CATEGORY || null,
+      source: "tours"
+    });
   }
+}
 
 $("tour").onclick = () => {
   const coords = stops.map(s => s.ll);
@@ -1372,7 +1379,13 @@ new MutationObserver(() => { if (box.hidden) setSpotUrl(null); })
 
     if (img) card.insertBefore(img, card.firstChild);
     card.hidden = false;
-    if (n === T.stops.length - 1 && window.passportEvent) passportEvent("tour");
+   if (n === T.stops.length - 1 && window.passportEvent) {
+  passportEvent("tour", {
+    id: T.id,
+    category: T.category || null,
+    source: "tours"
+  });
+}
   }
 
   function listTours() {
@@ -1477,7 +1490,7 @@ new MutationObserver(() => { if (box.hidden) setSpotUrl(null); })
       const stops = TS
         .filter(x => key(x.TOUR_ID) === key(id))
         .sort((a,b) => parseFloat(a.STEP) - parseFloat(b.STEP));
-      if (stops.length) tours.push({ id, title: r.TITLE || id, intro: r.INTRO || "", stops });
+      tours.push({ id, title: r.TITLE || id, intro: r.INTRO || "", category: r.CATEGORY || null, stops });
     });
 
     $("tours").hidden = !tours.length;
