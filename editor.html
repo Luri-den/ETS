@@ -132,7 +132,8 @@
   <span class="status" id="status">Load both CSVs to begin</span>
   <span class="grow"></span>
   <button id="reloadBoth" title="Re-pick both files">Reload…</button>
-  <button id="publishBtn" class="primary" disabled>Publish (download CSVs)</button>
+  <button id="reloadCSVs" title="Re-fetch from this folder">↻ Reload</button>
+<button id="publishBtn" class="primary" disabled>Download updated CSVs</button>
 </div>
 
 <div id="layout">
@@ -195,6 +196,26 @@ const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&
 const key = s => String(s||"").trim().toLowerCase();
 const uid = () => Math.random().toString(36).slice(2,8);
 
+  /* ---------- Auto-load from the same folder (GitHub Pages) ---------- */
+(async () => {
+  try {
+    const [locRes, chiRes] = await Promise.all([
+      fetch("locations.csv",     { cache: "no-store" }).catch(() => null),
+      fetch("childmarkers.csv",  { cache: "no-store" }).catch(() => null)
+    ]);
+    if (locRes && locRes.ok) {
+      const text = await locRes.text();
+      ingest(Papa.parse(text, { header:true, skipEmptyLines:"greedy" }), "loc", "locations.csv");
+    }
+    if (chiRes && chiRes.ok) {
+      const text = await chiRes.text();
+      ingest(Papa.parse(text, { header:true, skipEmptyLines:"greedy" }), "child", "childmarkers.csv");
+    }
+  } catch (e) {
+    console.info("Auto-load skipped (probably file://):", e.message);
+  }
+})();
+
 /* Category colors — mirrors SITE.colors in Demo2.html */
 const CATEGORIES = {
   CIV:   { label:"Civic",          color:"#E2E1E0" },
@@ -248,7 +269,22 @@ $("loadChildren").onclick  = () => $("fileChildren").click();
 $("fileLocations").onchange = e => loadCSV(e.target.files[0], "loc");
 $("fileChildren").onchange  = e => loadCSV(e.target.files[0], "child");
 $("reloadBoth").onclick = () => { $("fileLocations").click(); };
-
+$("reloadCSVs").onclick = async () => {
+  if (!confirm("Reload CSVs from the server? Unsaved edits will be lost.")) return;
+  try {
+    const [locRes, chiRes] = await Promise.all([
+      fetch("locations.csv",    { cache:"no-store" }),
+      fetch("childmarkers.csv", { cache:"no-store" })
+    ]);
+    if (locRes.ok) ingest(Papa.parse(await locRes.text(), { header:true, skipEmptyLines:"greedy" }), "loc", "locations.csv");
+    if (chiRes.ok) ingest(Papa.parse(await chiRes.text(), { header:true, skipEmptyLines:"greedy" }), "child", "childmarkers.csv");
+    selected = null;
+    toast("Reloaded from server");
+  } catch (e) {
+    toast("Reload failed: " + e.message);
+  }
+};
+  
 function loadCSV(file, kind){
   if (!file) return;
   Papa.parse(file, {
