@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connersville — Boundary Editor</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+  :root{
+    --line:#d7dde5; --accent:#2b6cb0; --ink:#1a202c;
+    --bg:#eef1f5; --panel:#fff; --muted:#6b7280;
+    --boundary:#E47303;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font:14px system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:var(--ink);background:var(--bg);overflow:hidden}
+
+  #top{position:absolute;z-index:20;top:0;left:0;right:0;height:52px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 12px}
+  #top h1{font-size:15px;margin:0;font-weight:600;white-space:nowrap}
+  #top .grow{flex:1}
+  #top .status{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px}
+  button{font:inherit;padding:6px 12px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;color:var(--ink)}
+  button:hover{background:#f6f8fb}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  button.primary:hover{background:#245a94}
+  button.on{background:#e6effa;border-color:#9dbde3}
+  button.warn{background:#fff5f5;border-color:#f3c2c2;color:#a33}
+  button.warn:hover{background:#ffecec}
+
+  #layout{position:absolute;top:52px;left:0;right:0;bottom:0;display:grid;grid-template-columns:240px 1fr}
+
+  #left{background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding-bottom:20px}
+  .sec{padding:10px 14px 4px}
+  .sec h2{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:8px 0 6px;font-weight:600}
+  .stat{display:flex;justify-content:space-between;padding:6px 14px;font-size:13px;border-bottom:1px solid #eef1f5}
+  .stat b{font-variant-numeric:tabular-nums;font-weight:600}
+  .hint{padding:10px 14px;font-size:11px;line-height:1.55;color:var(--muted)}
+  .hint b{color:#333}
+  .hint kbd{font:11px ui-monospace,Menlo,monospace;background:#f1f3f7;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 5px}
+
+  #stage{position:relative;min-width:0}
+  #map{position:absolute;inset:0}
+
+  /* vertex handles */
+  .vtx{width:14px;height:14px;border-radius:50%;background:#fff;border:2px solid var(--accent);box-shadow:0 1px 3px #0004;cursor:grab;box-sizing:border-box}
+  .vtx:hover{background:#e6effa;transform:scale(1.15)}
+  .vtx.dragging{cursor:grabbing;background:#cfe0f3}
+  .vtx.first{background:#fff8e0;border-color:#b7791f}
+
+  /* midpoint insert handles */
+  .mid{width:10px;height:10px;border-radius:50%;background:var(--boundary);opacity:.55;cursor:copy;box-sizing:border-box;border:1.5px solid #fff;box-shadow:0 1px 3px #0004}
+  .mid:hover{opacity:1;transform:scale(1.3)}
+
+  #tools{position:absolute;z-index:6;top:10px;left:10px;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 2px 8px #0001;padding:6px;display:flex;gap:6px}
+
+  #toast{position:fixed;z-index:100;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#111827;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .18s, transform .18s;pointer-events:none;max-width:80vw;text-align:center}
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* preview of raw JSON for debugging / inspection */
+  #peek{position:absolute;z-index:6;right:10px;bottom:10px;max-width:520px;max-height:180px;overflow:auto;background:#ffffffec;border:1px solid var(--line);border-radius:6px;padding:8px 10px;font:11px ui-monospace,Menlo,monospace;color:#374151;white-space:pre-wrap;word-break:break-word;display:none}
+  #peek.on{display:block}
+</style>
+</head>
+<body>
+
+<div id="top">
+  <h1>Connersville — Boundary Editor</h1>
+  <button id="pickFile">Pick connersville.geojson…</button>
+  <input id="fileInput" type="file" accept=".geojson,.json,application/geo+json,application/json" hidden>
+  <span class="status" id="status">Loading…</span>
+  <span class="grow"></span>
+  <button id="reloadBtn" title="Re-fetch from this folder">↻ Reload</button>
+  <button id="publishBtn" class="primary" disabled>Download updated GeoJSON</button>
+</div>
+
+<div id="layout">
+  <aside id="left">
+    <div class="sec"><h2>Boundary</h2></div>
+    <div class="stat"><span>Name</span><b id="sName">—</b></div>
+    <div class="stat"><span>Type</span><b id="sType">—</b></div>
+    <div class="stat"><span>Features</span><b id="sFeatures">—</b></div>
+    <div class="stat"><span>Ring vertices</span><b id="sVerts">—</b></div>
+    <div class="stat"><span>Precision</span><b id="sPrec">—</b></div>
+
+    <div class="sec"><h2>Edit</h2></div>
+    <div class="hint">
+      <p style="margin:0 0 8px"><b>Drag</b> any white dot to move a vertex.</p>
+      <p style="margin:0 0 8px"><b>Click</b> an orange midpoint to insert a new vertex there.</p>
+      <p style="margin:0 0 8px"><b>Shift-click</b> a vertex to delete it (minimum 3 unique points).</p>
+      <p style="margin:0"><b>Hide/Show</b> toggles the vertex handles so you can see the clean line.</p>
+    </div>
+
+    <div class="sec"><h2>Actions</h2></div>
+    <div style="padding:0 14px;display:flex;flex-direction:column;gap:6px">
+      <button id="fitBtn">Fit to boundary</button>
+      <button id="toggleBtn" class="on">Hide vertex handles</button>
+      <button id="peekBtn">Show raw coordinates</button>
+      <button id="resetBtn" class="warn">Reset to loaded file</button>
+    </div>
+
+    <div class="hint" style="margin-top:10px;border-top:1px solid #eef1f5;padding-top:10px">
+      <b>Note:</b> properties are preserved exactly. Only coordinates change.
+    </div>
+  </aside>
+
+  <div id="stage">
+    <div id="map"></div>
+    <div id="tools">
+      <button id="addMode" title="Add vertices by clicking on the map">＋ Draw</button>
+      <button id="deleteMode" class="warn" title="Click a vertex to delete it">− Delete</button>
+      <button id="doneMode" class="on">✓ Select</button>
+    </div>
+    <div id="peek"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+<script>
+/* ============================================================
+   Connersville — Boundary Editor
+   Edits the coordinates of a single Polygon feature in a
+   FeatureCollection, preserving properties and precision.
+   ============================================================ */
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ---------- State ---------- */
+let original = null;   // the exact parsed file (for reset)
+let doc = null;        // mutable copy: { type:"FeatureCollection", features:[...] }
+let feature = null;    // the Feature we're editing
+let ring = null;       // reference to feature.geometry.coordinates[0]
+let precision = 6;     // detected on load
+let showHandles = true;
+let mode = "select";   // "select" | "add" | "delete"
+let vertexMarkers = []; // maplibre markers for the ring vertices
+let midMarkers = [];    // midpoint insert handles
+let dragging = false;
+
+/* ============================================================
+   Map
+   ============================================================ */
+
+const map = new maplibregl.Map({
+  container: "map",
+  style: {
+    version: 8,
+    sources: {
+      osm: {
+        type: "raster",
+        tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+        tileSize: 256,
+        maxzoom: 19,
+        attribution: "&copy; OpenStreetMap contributors"
+      }
+    },
+    layers: [{ id:"osm", type:"raster", source:"osm" }]
+  },
+  center: [-85.13889, 39.64753],
+  zoom: 13
+});
+map.addControl(new maplibregl.NavigationControl({ showCompass:false }), "bottom-right");
+map.addControl(new maplibregl.ScaleControl(), "bottom-left");
+
+/* ============================================================
+   Loading
+   ============================================================ */
+
+$("pickFile").onclick = () => $("fileInput").click();
+$("fileInput").onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => ingest(r.result, f.name);
+  r.readAsText(f);
+};
+
+// Auto-load from same folder (GitHub Pages); swallowed on file://
+(async () => {
+  try {
+    const res = await fetch("connersville.geojson", { cache: "no-store" });
+    if (res.ok) ingest(await res.text(), "connersville.geojson");
+    else setStatus("Click 'Pick connersville.geojson…' to begin");
+  } catch (e) {
+    setStatus("Click 'Pick connersville.geojson…' to begin");
+  }
+})();
+
+$("reloadBtn").onclick = async () => {
+  if (!confirm("Reload connersville.geojson from the server? Unsaved changes will be lost.")) return;
+  try {
+    const res = await fetch("connersville.geojson", { cache:"no-store" });
+    if (!res.ok) throw new Error(res.status + " " + res.statusText);
+    ingest(await res.text(), "connersville.geojson");
+    toast("Reloaded from server");
+  } catch (e) {
+    toast("Reload failed: " + e.message);
+  }
+};
+
+function ingest(text, filename){
+  let parsed;
+  try { parsed = JSON.parse(text); }
+  catch (e) { toast("Couldn't parse " + filename + ": " + e.message); return; }
+
+  // Normalize to a FeatureCollection with exactly one Polygon feature
+  let fc;
+  if (parsed.type === "FeatureCollection") {
+    fc = JSON.parse(JSON.stringify(parsed));
+  } else if (parsed.type === "Feature") {
+    fc = { type:"FeatureCollection", features:[ JSON.parse(JSON.stringify(parsed)) ] };
+  } else if (parsed.type === "Polygon" || parsed.type === "MultiPolygon") {
+    fc = { type:"FeatureCollection", features:[{
+      type:"Feature", properties:{}, geometry: JSON.parse(JSON.stringify(parsed))
+    }]};
+  } else {
+    toast("Unrecognized GeoJSON: top-level type is " + parsed.type);
+    return;
+  }
+
+  if (!fc.features.length) { toast("FeatureCollection is empty."); return; }
+
+  // find the first Polygon feature
+  const f = fc.features.find(x => x.geometry && x.geometry.type === "Polygon")
+         || fc.features.find(x => x.geometry && x.geometry.type === "MultiPolygon");
+  if (!f) { toast("No Polygon or MultiPolygon feature found."); return; }
+  if (f.geometry.type === "MultiPolygon") {
+    toast("MultiPolygon detected — only the first polygon will be editable for now.");
+  }
+
+  let poly;
+  if (f.geometry.type === "Polygon") {
+    poly = f.geometry.coordinates[0];
+  } else {
+    // MultiPolygon: use the first polygon's outer ring
+    poly = f.geometry.coordinates[0][0];
+  }
+
+  if (!Array.isArray(poly) || poly.length < 4) {
+    toast("Ring has fewer than 4 points — that's not a valid polygon.");
+    return;
+  }
+
+  original = JSON.parse(JSON.stringify(fc));
+  doc = fc;
+  feature = f;
+  ring = poly;
+  precision = detectPrecision(ring);
+
+  // derive the display name/type from properties
+  $("sName").textContent  = f.properties?.NAME || "—";
+  $("sType").textContent  = f.properties?.TYPE || f.properties?.type || "—";
+  $("sFeatures").textContent = String(fc.features.length);
+  $("sVerts").textContent = String(ring.length - 1); // exclude duplicate closing point
+  $("sPrec").textContent  = precision + " decimals";
+
+  $("publishBtn").disabled = false;
+
+  // Camera
+  const bounds = new maplibregl.LngLatBounds();
+  ring.forEach(([lng, lat]) => bounds.extend([lng, lat]));
+  map.fitBounds(bounds, { padding: 60, duration: 0 });
+
+  renderAll();
+  setStatus("Loaded " + filename + " · " + (ring.length - 1) + " vertices");
+
+  // nudge: refresh map source after the initial fit
+  setTimeout(() => map.resize(), 0);
+}
+
+function detectPrecision(points){
+  let max = 0;
+  for (const [lng, lat] of points){
+    for (const n of [lng, lat]){
+      const s = String(n);
+      const dot = s.indexOf(".");
+      if (dot >= 0) max = Math.max(max, s.length - dot - 1);
+    }
+    if (max >= 8) break;
+  }
+  return Math.min(Math.max(max, 4), 9); // clamp to a sane range
+}
+
+function setStatus(s){ $("status").textContent = s; }
+
+/* ============================================================
+   Rendering
+   ============================================================ */
+
+function renderAll(){
+  renderBoundary();
+  renderHandles();
+  updateStats();
+}
+
+function updateStats(){
+  if (!ring) return;
+  $("sVerts").textContent = String(ring.length - 1);
+}
+
+function renderBoundary(){
+  if (!doc) return;
+
+  // Replace the source data wholesale so style stays consistent
+  const src = map.getSource("boundary");
+  const data = {
+    type: "FeatureCollection",
+    features: [{
+      type: "Feature",
+      properties: feature.properties || {},
+      geometry: { type: "Polygon", coordinates: [ ring ] }
+    }]
+  };
+
+  if (src) {
+    src.setData(data);
+  } else {
+    map.addSource("boundary", { type: "geojson", data });
+    // underlay fill for readability
+    map.addLayer({
+      id: "boundary-fill",
+      type: "fill",
+      source: "boundary",
+      paint: { "fill-color": "#E47303", "fill-opacity": 0.06 }
+    });
+    map.addLayer({
+      id: "boundary-line",
+      type: "line",
+      source: "boundary",
+      layout: { "line-cap":"round", "line-join":"round" },
+      paint: { "line-color": "#E47303", "line-width": 2.5, "line-dasharray":[3,2] }
+    });
+  }
+}
+
+function renderHandles(){
+  // tear down
+  vertexMarkers.forEach(m => m.remove()); vertexMarkers = [];
+  midMarkers.forEach(m => m.remove());    midMarkers = [];
+
+  if (!ring || !showHandles) return;
+
+  // vertices (skip the duplicated closing point at the end)
+  const uniqueCount = ring.length - 1;
+  for (let i = 0; i < uniqueCount; i++){
+    const [lng, lat] = ring[i];
+    const el = document.createElement("div");
+    el.className = "vtx" + (i === 0 ? " first" : "");
+    el.dataset.index = String(i);
+    el.title = `Vertex ${i + 1} of ${uniqueCount} · ${lat.toFixed(precision)}, ${lng.toFixed(precision)}`;
+
+    const marker = new maplibregl.Marker({ element: el, draggable: true })
+      .setLngLat([lng, lat])
+      .addTo(map);
+
+    marker.on("dragstart", () => {
+      dragging = true;
+      el.classList.add("dragging");
+    });
+    marker.on("drag", () => {
+      const ll = marker.getLngLat();
+      // update the ring live so the line follows
+      const p = ring[i];
+      p[0] = ll.lng;
+      p[1] = ll.lat;
+      // keep the closing point in sync if we moved index 0
+      if (i === 0) {
+        ring[ring.length - 1] = [p[0], p[1]];
+      }
+      renderBoundary();
+    });
+    marker.on("dragend", () => {
+      dragging = false;
+      el.classList.remove("dragging");
+      // finalize with rounded precision
+      const ll = marker.getLngLat();
+      ring[i] = [ round(ll.lng), round(ll.lat) ];
+      if (i === 0) ring[ring.length - 1] = [ ring[0][0], ring[0][1] ];
+      marker.setLngLat(ring[i]);
+      renderBoundary();
+      renderHandles(); // recompute midpoints
+    });
+
+    el.addEventListener("click", e => {
+      if (mode === "delete") {
+        e.stopPropagation();
+        deleteVertex(i);
+      } else if (e.shiftKey) {
+        e.stopPropagation();
+        deleteVertex(i);
+      }
+    });
+
+    vertexMarkers.push(marker);
+  }
+
+  // midpoints (insert handles) between each pair
+  if (mode !== "delete") {
+    for (let i = 0; i < uniqueCount; i++){
+      const a = ring[i];
+      const b = ring[(i + 1) % uniqueCount];
+      const midLng = (a[0] + b[0]) / 2;
+      const midLat = (a[1] + b[1]) / 2;
+      const el = document.createElement("div");
+      el.className = "mid";
+      el.title = "Click to insert a vertex here";
+      el.addEventListener("click", e => {
+        e.stopPropagation();
+        insertVertex(i, midLng, midLat);
+      });
+      const marker = new maplibregl.Marker({ element: el, anchor:"center" })
+        .setLngLat([midLng, midLat])
+        .addTo(map);
+      midMarkers.push(marker);
+    }
+  }
+}
+
+function round(n){ return +(+n).toFixed(precision); }
+
+/* ============================================================
+   Vertex operations
+   ============================================================ */
+
+function insertVertex(edgeIndex, lng, lat){
+  // insert between edgeIndex and edgeIndex+1
+  ring.splice(edgeIndex + 1, 0, [ round(lng), round(lat) ]);
+  // if we just inserted after the last unique vertex (i.e., before the closing point),
+  // that's fine — the closing point stays the same.
+  renderBoundary();
+  renderHandles();
+  updateStats();
+  toast("Inserted vertex after #" + (edgeIndex + 1));
+}
+
+function deleteVertex(i){
+  const uniqueCount = ring.length - 1;
+  if (uniqueCount <= 3){
+    toast("A polygon needs at least 3 unique vertices.");
+    return;
+  }
+  ring.splice(i, 1);
+  // if we deleted the first unique vertex, the closing point (originally == old ring[0])
+  // is now dangling; reset it to the new first point
+  ring[ring.length - 1] = [ ring[0][0], ring[0][1] ];
+  renderBoundary();
+  renderHandles();
+  updateStats();
+  toast("Deleted vertex " + (i + 1));
+}
+
+/* ============================================================
+   Modes / tools
+   ============================================================ */
+
+function setMode(m){
+  mode = m;
+  ["addMode","deleteMode","doneMode"].forEach(id => $(id).classList.remove("on"));
+  $({select:"doneMode",add:"addMode",delete:"deleteMode"}[m]).classList.add("on");
+  map.getContainer().style.cursor =
+    m === "add" ? "crosshair" :
+    m === "delete" ? "not-allowed" : "";
+  renderHandles();
+}
+
+$("addMode").onclick    = () => setMode("add");
+$("deleteMode").onclick = () => setMode("delete");
+$("doneMode").onclick   = () => setMode("select");
+
+map.on("click", e => {
+  if (mode !== "add") return;
+  // find nearest edge and insert there
+  const pt = e.lngLat;
+  const ll = [pt.lng, pt.lat];
+  const uniqueCount = ring.length - 1;
+
+  let bestI = 0, bestD = Infinity;
+  for (let i = 0; i < uniqueCount; i++){
+    const a = ring[i];
+    const b = ring[(i + 1) % uniqueCount];
+    const d = segDist(ll, a, b);
+    if (d < bestD){ bestD = d; bestI = i; }
+  }
+  insertVertex(bestI, pt.lng, pt.lat);
+});
+
+function segDist(p, a, b){
+  const [px, py] = p, [ax, ay] = a, [bx, by] = b;
+  const dx = bx - ax, dy = by - ay;
+  const denom = dx*dx + dy*dy;
+  let t = denom ? ((px-ax)*dx + (py-ay)*dy) / denom : 0;
+  t = Math.max(0, Math.min(1, t));
+  const cx = ax + t*dx, cy = ay + t*dy;
+  return Math.hypot(px - cx, py - cy);
+}
+
+/* ============================================================
+   Buttons: fit, toggle handles, peek, reset
+   ============================================================ */
+
+$("fitBtn").onclick = () => {
+  if (!ring) return;
+  const b = new maplibregl.LngLatBounds();
+  ring.forEach(([lng, lat]) => b.extend([lng, lat]));
+  map.fitBounds(b, { padding: 60 });
+};
+
+$("toggleBtn").onclick = () => {
+  showHandles = !showHandles;
+  $("toggleBtn").textContent = showHandles ? "Hide vertex handles" : "Show vertex handles";
+  $("toggleBtn").classList.toggle("on", showHandles);
+  renderHandles();
+};
+
+$("peekBtn").onclick = () => {
+  const el = $("peek");
+  if (el.classList.toggle("on")) {
+    el.textContent = JSON.stringify(ring, null, 2);
+  }
+};
+
+$("resetBtn").onclick = () => {
+  if (!original) return;
+  if (!confirm("Reset to the loaded file? Unsaved changes will be lost.")) return;
+  ingest(JSON.stringify(original), "connersville.geojson");
+  toast("Reset to loaded version");
+};
+
+/* ============================================================
+   Publish
+   ============================================================ */
+
+$("publishBtn").onclick = () => {
+  if (!doc || !ring) return;
+
+  // Ensure closure: last point equals first
+  if (ring.length >= 2) {
+    const first = ring[0];
+    const last = ring[ring.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) {
+      ring[ring.length - 1] = [ first[0], first[1] ];
+    }
+  }
+
+  // Write the edited ring back into the feature we loaded
+  if (feature.geometry.type === "Polygon") {
+    feature.geometry.coordinates[0] = ring;
+  } else {
+    // MultiPolygon: only first ring edited (we warned about this)
+    feature.geometry.coordinates[0][0] = ring;
+  }
+
+  // Serialize with a compact but readable shape
+  const json = JSON.stringify(doc, null, 2);
+
+  const blob = new Blob([json], { type: "application/geo+json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "connersville.geojson";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+
+  toast("Downloaded connersville.geojson · " + (ring.length - 1) + " vertices");
+};
+
+/* ============================================================
+   Toast
+   ============================================================ */
+
+let toastTimer = 0;
+function toast(msg){
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("on"), 2400);
+}
+
+/* ============================================================
+   Keyboard: Esc returns to Select; Del removes focused vertex
+   (Del handled via shift-click on the vertex itself for now)
+   ============================================================ */
+
+document.addEventListener("keydown", e => {
+  if (e.target.matches("input,textarea")) return;
+  if (e.key === "Escape") setMode("select");
+  if (e.key === "a") setMode("add");
+  if (e.key === "d") setMode("delete");
+  if (e.key === "s") setMode("select");
+});
+</script>
+</body>
+</html>
