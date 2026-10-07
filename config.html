@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connersville — Editor Hub</title>
+<style>
+  :root{
+    --bg:#eef1f5; --panel:#fff; --line:#d7dde5; --ink:#1a202c;
+    --muted:#6b7280; --accent:#2b6cb0; --orange:#E47303;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:var(--ink);background:var(--bg);min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px}
+  .wrap{max-width:900px;width:100%}
+  header{margin-bottom:28px;text-align:center}
+  header h1{margin:0;font-size:28px;color:var(--orange)}
+  header p{margin:6px 0 0;color:var(--muted);font-size:14px}
+  .section{background:var(--panel);border-radius:12px;box-shadow:0 2px 8px #0001;padding:20px 24px;margin-bottom:16px}
+  .section h2{margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+  .card{display:block;padding:14px 16px;background:#fafbfd;border:1px solid var(--line);border-radius:10px;text-decoration:none;color:var(--ink);transition:all .12s;cursor:pointer}
+  .card:hover{background:#f0f6fc;border-color:#9dbde3;transform:translateY(-1px)}
+  .card .title{font-weight:600;font-size:15px;margin-bottom:4px}
+  .card .what{font-size:12px;color:var(--muted);line-height:1.4}
+  .card .files{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:#6b7280;margin-top:8px;background:#f1f3f7;padding:4px 7px;border-radius:4px;display:inline-block}
+  .live{background:linear-gradient(135deg,#E47303,#AF350A);color:#fff;border:none}
+  .live:hover{background:linear-gradient(135deg,#d46500,#9f2a00);color:#fff;transform:translateY(-1px)}
+  .live .what{color:#fff9}
+  .live .files{background:#fff3;color:#fff}
+  footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-height:1.6}
+  footer code{background:#fff;padding:2px 6px;border-radius:3px;font:11px ui-monospace,Menlo,monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Connersville — Editor Hub</h1>
+    <p>Every visual editor in one place. Open one, edit, download, re-upload.</p>
+  </header>
+
+  <div class="section">
+    <h2>The Site</h2>
+    <div class="grid">
+      <a class="card live" href="Demo3.html">
+        <div class="title">▶ Open the live map</div>
+        <div class="what">The visitor-facing site. Click here to see what a kid sees.</div>
+        <div class="files">Demo3.html</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Data Editors</h2>
+    <div class="grid">
+
+      <a class="card" href="editor.html">
+        <div class="title">Places</div>
+        <div class="what">Locations &amp; child markers. Drag pins, edit fields, upload photos.</div>
+        <div class="files">locations.csv · childmarkers.csv</div>
+      </a>
+
+      <a class="card" href="spots.html">
+        <div class="title">Stories &amp; Spots</div>
+        <div class="what">Photo spots and story pins. Edits all 14 columns.</div>
+        <div class="files">spots.csv</div>
+      </a>
+
+      <a class="card" href="tours.html">
+        <div class="title">Tours</div>
+        <div class="what">Build tours by clicking stops in order. Preview the vehicle animation.</div>
+        <div class="files">tours.csv · tourstops.csv</div>
+      </a>
+
+      <a class="card" href="boundary.html">
+        <div class="title">Boundary</div>
+        <div class="what">Edit the city outline. Drag vertices, insert midpoints.</div>
+        <div class="files">connersville.geojson</div>
+      </a>
+
+      <a class="card" href="overlays.html">
+        <div class="title">Historical Maps</div>
+        <div class="what">Align old map images to real streets by dragging corners.</div>
+        <div class="files">overlays.json</div>
+      </a>
+
+      <a class="card" href="passport.html">
+        <div class="title">Passport</div>
+        <div class="what">Edit stamps and tasks. Preview star thresholds with a slider.</div>
+        <div class="files">stamps.csv · tasks.csv</div>
+      </a>
+
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>The Loop</h2>
+    <div style="font-size:14px;line-height:1.7;color:#4a5568">
+      <p style="margin:0 0 8px"><b>1. Open</b> one of the editors above. It auto-loads its CSVs or JSON from this same folder.</p>
+      <p style="margin:0 0 8px"><b>2. Edit</b> visually. Drag pins, tick checkboxes, set thresholds, align images.</p>
+      <p style="margin:0 0 8px"><b>3. Publish</b> from the editor. It downloads the updated file to your computer.</p>
+      <p style="margin:0"><b>4. Upload</b> that file back into this GitHub repo, replacing the old one. The live map updates.</p>
+    </div>
+  </div>
+
+  <footer>
+    Publish writes a file. Uploading that file is what makes it live.<br>
+    If something goes wrong, you can always <code>?resetpassport</code> to clear a tester's progress, or use <code>git revert</code>.
+  </footer>
+
+</div>
+</body>
+</html>
