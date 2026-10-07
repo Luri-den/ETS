@@ -653,7 +653,7 @@ map.on("load", async () => {
 
   $("tour").hidden = !stops.length;
 
-  initOverlays();
+  await initOverlays();
   update();
   updatePassportUI();
 });
@@ -1062,7 +1062,18 @@ $("yr").oninput = e => {
    OLD MAP OVERLAYS
    ============================================================ */
 
-function initOverlays(){
+async function initOverlays(){
+  // Load overlays.json; fall back to whatever was hardcoded in SITE.overlays
+  try {
+    const res = await fetch("overlays.json", { cache:"no-store" });
+    if (res.ok) {
+      const loaded = await res.json();
+      if (Array.isArray(loaded) && loaded.length) SITE.overlays = loaded;
+    }
+  } catch (e) {
+    console.warn("Couldn't load overlays.json — using SITE.overlays fallback", e);
+  }
+
   const o = SITE.overlays;
   if (!o.length) return;
 
