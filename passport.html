@@ -124,6 +124,10 @@
   .target-help{font-size:11px;color:var(--muted);margin-top:4px}
   .warn-inline{background:#fff5f5;border:1px solid #f3c2c2;border-radius:6px;padding:8px 10px;font-size:12px;color:#a33;margin-top:8px}
 
+  .target-explain{margin-top:8px;padding:8px 10px;background:#f0f6fc;border-left:3px solid #2b6cb0;border-radius:4px;font-size:13px;color:#2b4a6b;line-height:1.5}
+.target-explain b{color:#1a3a5b}
+.target-explain.empty{background:#fff5f5;border-left-color:#c33;color:#a33}
+
   #toast{position:fixed;z-index:100;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#111827;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .18s, transform .18s;pointer-events:none;max-width:80vw;text-align:center}
   #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
@@ -722,10 +726,11 @@ function renderTaskForm(box, t){
       </div>
 
       <div class="field" id="targetField">
-        <label>Target</label>
-        ${targetInputHtml(scope, r.TARGET || "")}
-        <div class="target-help" id="targetHelp">${targetHelpText(scope)}</div>
-      </div>
+  <label>Target</label>
+  ${targetInputHtml(scope, r.TARGET || "")}
+  <div class="target-help" id="targetHelp">${targetHelpText(scope)}</div>
+  <div class="target-explain" id="targetExplain">${explainTarget(scope, r.TARGET || "")}</div>
+</div>
 
       ${behaviorWarning(scope, r)}
 
@@ -759,11 +764,16 @@ function renderTaskForm(box, t){
   };
 
   // target input depends on scope
-  const tgt = box.querySelector("#targetInput");
-  if (tgt){
-    tgt.oninput = () => { r.TARGET = tgt.value; };
-    tgt.onchange = () => { r.TARGET = tgt.value; };
-  }
+const tgt = box.querySelector("#targetInput");
+if (tgt){
+  const update = () => {
+    r.TARGET = tgt.value;
+    const ex = box.querySelector("#targetExplain");
+    if (ex) ex.outerHTML = explainTarget(scope, r.TARGET).replace(/^/, '<div class="target-explain" id="targetExplain">').replace(/$/, '</div>');
+  };
+  tgt.oninput = update;
+  tgt.onchange = update;
+}
 
   $("dupTask").onclick = () => {
     const nr = Object.assign({}, r);
@@ -811,6 +821,34 @@ function targetHelpText(scope){
   return "Counts only the specific item with this id.";
 }
 
+function explainTarget(scope, target){
+  const t = String(target||"").trim();
+  if (!t){
+    return `<div class="target-explain empty" id="targetExplain">Nothing selected yet — this task won't fire until you pick a target.</div>`;
+  }
+
+  if (scope === "behavior"){
+    if (t.toLowerCase() === "story" || t.toLowerCase() === "stories")
+      return `<b>Fires when:</b> the player opens <b>any story</b> (sparkle marker). Counts once per story.`;
+    if (t.toLowerCase() === "spot")
+      return `<b>Fires when:</b> the player opens <b>any photo spot</b> (camera marker) or scans <b>any QR sign</b>. Counts once per spot.`;
+    if (t.toLowerCase() === "tour")
+      return `<b>Fires when:</b> the player reaches the <b>last stop of any tour</b>. Counts once per tour.`;
+    return `<b>Fires when:</b> the site emits a <code>${esc(t)}</code> event. The site doesn't currently fire that event — this task won't count until a developer adds a hook.`;
+  }
+
+  if (scope === "item"){
+    return `<b>Fires when:</b> the player completes <b>specifically</b> <code>${esc(t)}</code> — that one tour, spot, location, or child marker. Nothing else counts toward this task.`;
+  }
+
+  if (scope === "category"){
+    const label = CATEGORIES[t.toUpperCase()] || t;
+    return `<b>Fires when:</b> the player completes <b>anything tagged ${esc(t)}</b> (${esc(label)}) — a story, spot, location card, or tour with that category. Each completion counts once.`;
+  }
+
+  return "";
+}
+  
 function behaviorWarning(scope, r){
   if (scope !== "behavior") return "";
   const target = String(r.TARGET||"").trim();
