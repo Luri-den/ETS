@@ -2120,6 +2120,7 @@ document.addEventListener("keydown", e => {
   };
 
   window.passportEvent = (type, context = {}) => {
+    console.log("[passportEvent]", type, context, "stamps:", STAMPS.length, "tasks:", TASKS.length);
     if (!STAMPS.length || !TASKS.length) return;
 
     const progress = loadProgress();
