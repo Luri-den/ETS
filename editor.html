@@ -1,0 +1,1032 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connersville Map — Editor</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+  :root{
+    --bar:#E47303; --line:#d7dde5; --accent:#2b6cb0; --ink:#1a202c;
+    --bg:#eef1f5; --panel:#fff; --muted:#6b7280;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font:14px system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:var(--ink);background:var(--bg);overflow:hidden}
+
+  /* ---------- top bar ---------- */
+  #top{position:absolute;z-index:20;top:0;left:0;right:0;height:52px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 12px}
+  #top h1{font-size:15px;margin:0;font-weight:600;white-space:nowrap}
+  #top .grow{flex:1}
+  #top .status{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+  button{font:inherit;padding:6px 12px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;color:var(--ink)}
+  button:hover{background:#f6f8fb}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  button.primary:hover{background:#245a94}
+  button.warn{background:#fff5f5;border-color:#f3c2c2;color:#a33}
+  button.warn:hover{background:#ffecec}
+  button.small{padding:3px 8px;font-size:12px}
+
+  /* ---------- layout ---------- */
+  #layout{position:absolute;top:52px;left:0;right:0;bottom:0;display:grid;grid-template-columns:210px 1fr 340px}
+
+  /* ---------- left palette ---------- */
+  #left{background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding-bottom:20px}
+  .sec{padding:10px 12px 4px}
+  .sec h2{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:8px 0 6px;font-weight:600}
+  .palette{display:flex;flex-direction:column;gap:6px;padding:0 12px}
+  .chip{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px dashed var(--line);border-radius:8px;background:#fbfcfe;cursor:grab;user-select:none;font-size:13px}
+  .chip:active{cursor:grabbing}
+  .chip .sw{width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--line);flex:none}
+  .chip.parent .sw{width:20px;height:20px}
+  .chip .lbl{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chip .cnt{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+  .list{padding:0 6px}
+  .row{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:13px}
+  .row:hover{background:#f4f7fb}
+  .row.sel{background:#e6effa}
+  .row .dot{width:10px;height:10px;border-radius:50%;flex:none;box-shadow:0 0 0 1px #0002}
+  .row .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .id{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+  .row .mini{border:none;background:transparent;padding:2px 4px;font-size:12px;color:#4a5568;cursor:pointer}
+  .row .mini:hover{color:#000}
+  .row.child{padding-left:20px;font-size:12px}
+
+  .hint{padding:10px 14px;font-size:11px;line-height:1.5;color:var(--muted)}
+  .hint b{color:#333}
+
+  /* ---------- stage ---------- */
+  #stage{position:relative;min-width:0}
+  #map{position:absolute;inset:0}
+  #dropzone{position:absolute;inset:0;pointer-events:none;z-index:5}
+  #dropzone.on{pointer-events:auto}
+
+  /* pins, mirroring the live site */
+  .pin{width:44px;height:44px;border-radius:50%;border:3px solid var(--c,#E47303);background:#E47303;box-shadow:0 0 0 2px #fff,0 1px 4px #0007;padding:0;overflow:hidden;cursor:pointer}
+  .pin img{width:100%;height:100%;object-fit:cover;display:block}
+  .pin.parent{width:58px;height:58px;border:4px solid var(--c,#E47303);box-shadow:0 0 0 2px #fff,0 1px 5px #0008}
+  .pin.sel{border-color:#ff9800;box-shadow:0 0 0 3px #fff,0 0 0 6px #ff980055,0 1px 5px #0008}
+  .pin.nophoto{background:repeating-linear-gradient(45deg,var(--c,#E47303),var(--c,#E47303) 6px,#ffffff33 6px,#ffffff33 12px)}
+  .pin.dragging{cursor:grabbing}
+
+  /* ---------- right panel ---------- */
+  #right{background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding-bottom:30px}
+  .empty{padding:24px 16px;color:#9aa3ad;font-size:13px;text-align:center;line-height:1.6}
+  .empty kbd{font:11px ui-monospace,Menlo,monospace;background:#f1f3f7;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 5px}
+
+  .form{padding:12px}
+  .form .badge{display:inline-block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:2px 6px;border-radius:999px;background:#eef3fb;color:#2b6cb0;margin-bottom:8px}
+  .form .badge.child{background:#f0fff0;color:#2f855a}
+  .form .badge.container{background:#fff7e6;color:#b7791f;margin-left:6px}
+
+  .field{margin-bottom:10px}
+  .field label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;font-weight:600}
+  .field input[type=text],.field input[type=number],.field textarea,.field select{
+    width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font:inherit;background:#fff;color:var(--ink)}
+  .field textarea{min-height:100px;resize:vertical;line-height:1.45}
+  .field input:focus,.field textarea:focus,.field select:focus{outline:2px solid #cfe0f3;border-color:#9dbde3}
+  .field .sub{font-size:11px;color:var(--muted);margin-top:3px}
+  .field .ro{background:#f6f8fb;color:#4a5568;font:12px ui-monospace,Menlo,monospace}
+
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+  .catrow{display:flex;align-items:center;gap:8px}
+  .catrow select{flex:1}
+  .catrow .sw{width:22px;height:22px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--line);flex:none}
+
+  .photo{margin-top:6px;display:flex;gap:10px;align-items:flex-start}
+  .photo .thumb{width:80px;height:80px;border-radius:8px;background:#f1f3f7;border:1px solid var(--line);object-fit:cover;flex:none;display:block}
+  .photo .thumb.missing{display:flex;align-items:center;justify-content:center;font-size:11px;color:#9aa3ad;text-align:center;padding:6px}
+  .photo .meta{flex:1;font-size:12px;color:var(--muted);line-height:1.5;min-width:0}
+  .photo .meta code{font:11px ui-monospace,Menlo,monospace;color:#4a5568;background:#f1f3f7;padding:1px 4px;border-radius:3px;word-break:break-all}
+  .photo .meta .actions{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
+
+  .actions{margin-top:14px;display:flex;gap:6px;flex-wrap:wrap}
+  .actions .grow{flex:1}
+
+  .divider{height:1px;background:var(--line);margin:14px 0}
+
+  /* ---------- staged files bar ---------- */
+  #staged{position:absolute;z-index:15;left:210px;right:340px;bottom:0;background:#fffef6;border-top:1px solid #f0e0b0;padding:6px 12px;font-size:12px;display:none;align-items:center;gap:10px}
+  #staged.on{display:flex}
+  #staged .files{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#7a5c00}
+  #staged .files code{font:11px ui-monospace,Menlo,monospace}
+
+  /* ---------- toast ---------- */
+  #toast{position:fixed;z-index:100;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#111827;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .18s, transform .18s;pointer-events:none;max-width:80vw;text-align:center}
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* ---------- map tweaks ---------- */
+  .maplibregl-ctrl-bottom-right,.maplibregl-ctrl-bottom-left{z-index:6}
+</style>
+</head>
+<body>
+
+<div id="top">
+  <h1>Connersville Map — Editor</h1>
+  <button id="loadLocations">Load locations.csv…</button>
+  <input id="fileLocations" type="file" accept=".csv,text/csv" hidden>
+  <button id="loadChildren">Load childmarkers.csv…</button>
+  <input id="fileChildren" type="file" accept=".csv,text/csv" hidden>
+  <span class="status" id="status">Load both CSVs to begin</span>
+  <span class="grow"></span>
+  <button id="reloadBoth" title="Re-pick both files">Reload…</button>
+  <button id="publishBtn" class="primary" disabled>Publish (download CSVs)</button>
+</div>
+
+<div id="layout">
+  <aside id="left">
+    <div class="sec">
+      <h2>Add</h2>
+      <div class="palette">
+        <div class="chip parent" draggable="true" data-add="parent">
+          <span class="sw" style="background:#E47303"></span>
+          <span class="lbl">New Parent</span>
+        </div>
+        <div class="chip" draggable="true" data-add="child">
+          <span class="sw" style="background:#91AF45"></span>
+          <span class="lbl">New Child</span>
+        </div>
+      </div>
+      <div class="hint">Drag onto the map. A child needs a parent — the editor picks the nearest one and you can change it in the form.</div>
+    </div>
+
+    <div class="sec">
+      <h2>Parents <span id="parentCount" style="color:#9aa3ad"></span></h2>
+    </div>
+    <div class="list" id="parentList"></div>
+
+    <div class="sec">
+      <h2>Children <span id="childCount" style="color:#9aa3ad"></span></h2>
+    </div>
+    <div class="list" id="childList"></div>
+  </aside>
+
+  <div id="stage">
+    <div id="map"></div>
+    <div id="dropzone"></div>
+  </div>
+
+  <aside id="right">
+    <div id="form"><div class="empty">Nothing selected.<br><br>Click a pin, or drag <kbd>New Parent</kbd> / <kbd>New Child</kbd> onto the map.</div></div>
+  </aside>
+</div>
+
+<div id="staged">
+  <span>📎 Staged photos:</span>
+  <span class="files" id="stagedFiles"></span>
+  <button class="small" id="downloadPhotos">Download all</button>
+  <button class="small warn" id="clearStaged">Clear</button>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+
+<script>
+/* ============================================================
+   Connersville Map — CSV Editor (Slice 1: places)
+   ============================================================ */
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const key = s => String(s||"").trim().toLowerCase();
+const uid = () => Math.random().toString(36).slice(2,8);
+
+/* Category colors — mirrors SITE.colors in Demo2.html */
+const CATEGORIES = {
+  CIV:   { label:"Civic",          color:"#E2E1E0" },
+  TRANS: { label:"Transportation", color:"#91AF45" },
+  COMM:  { label:"Commercial",     color:"#E47303" },
+  RES:   { label:"Residential",    color:"#BDD76B" },
+  IND:   { label:"Industry",       color:"#AF350A" }
+};
+const DEFAULT_CAT = "COMM";
+
+/* Preserve exact header order from the source files */
+const LOC_COLS  = ["ID","NAME","EST.","LAT","LONG","DETAILS","CATEGORY"];
+const CHILD_COLS= ["CHILD_ID","PARENT_ID","NAME","HIST_NAMES","ADDRESS","DETAILS","LAT","LONG","CONNECTION","CATEGORY"];
+
+/* ---------- State ---------- */
+let parents = [];      // {row, ll, marker, el, kids:[]}
+let children = [];     // {row, ll, marker, el, parent}
+let headers = { loc: LOC_COLS.slice(), child: CHILD_COLS.slice() };
+let loaded = { loc: false, child: false };
+let selected = null;   // {kind:"parent"|"child", ref}
+let stagedPhotos = []; // {name, blob}
+
+/* ---------- Map ---------- */
+const map = new maplibregl.Map({
+  container: "map",
+  style: {
+    version: 8,
+    sources: {
+      osm: {
+        type: "raster",
+        tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+        tileSize: 256,
+        maxzoom: 19,
+        attribution: "&copy; OpenStreetMap contributors"
+      }
+    },
+    layers: [{ id:"osm", type:"raster", source:"osm" }]
+  },
+  center: [-85.13889, 39.64753],
+  zoom: 14
+});
+map.addControl(new maplibregl.NavigationControl({ showCompass:false }), "bottom-right");
+map.addControl(new maplibregl.ScaleControl(), "bottom-left");
+
+/* ============================================================
+   CSV loading
+   ============================================================ */
+
+$("loadLocations").onclick = () => $("fileLocations").click();
+$("loadChildren").onclick  = () => $("fileChildren").click();
+$("fileLocations").onchange = e => loadCSV(e.target.files[0], "loc");
+$("fileChildren").onchange  = e => loadCSV(e.target.files[0], "child");
+$("reloadBoth").onclick = () => { $("fileLocations").click(); };
+
+function loadCSV(file, kind){
+  if (!file) return;
+  Papa.parse(file, {
+    header: true,
+    skipEmptyLines: "greedy",
+    complete: r => ingest(r, kind, file.name),
+    error: err => toast("Couldn't parse " + file.name + ": " + err.message)
+  });
+}
+
+function ingest(parsed, kind, filename){
+  if (parsed.errors && parsed.errors.length){
+    // Papa surfaces minor issues here; only complain about hard ones
+    const hard = parsed.errors.filter(e => !/TooFewFields|TooManyFields/.test(e.code));
+    if (hard.length) console.warn("CSV warnings for " + filename, hard);
+  }
+  const rows = parsed.data.filter(r => Object.values(r).some(v => String(v||"").trim() !== ""));
+  if (!rows.length){ toast(filename + " has no rows."); return; }
+
+  // capture actual headers in order
+  const h = parsed.meta.fields && parsed.meta.fields.length
+    ? parsed.meta.fields.slice()
+    : (kind === "loc" ? LOC_COLS.slice() : CHILD_COLS.slice());
+
+  if (kind === "loc"){
+    headers.loc = mergeHeaders(h, LOC_COLS);
+    parents = rows.map(r => mkParent(r));
+    loaded.loc = true;
+  } else {
+    headers.child = mergeHeaders(h, CHILD_COLS);
+    children = rows.map(r => mkChild(r));
+    loaded.child = true;
+  }
+  linkChildren();
+  render();
+  updateStatus();
+  if (loaded.loc && loaded.child) $("publishBtn").disabled = false;
+}
+
+// keep the source's order, but make sure any known columns exist
+function mergeHeaders(actual, known){
+  const out = actual.slice();
+  for (const k of known) if (!out.includes(k)) out.push(k);
+  return out;
+}
+
+/* ============================================================
+   Model
+   ============================================================ */
+
+function mkParent(row){
+  const lat = parseFloat(row.LAT), lng = parseFloat(row.LONG);
+  return { row, ll: (isNaN(lat)||isNaN(lng)) ? null : [lng, lat], marker:null, el:null, kids:[] };
+}
+function mkChild(row){
+  const lat = parseFloat(row.LAT), lng = parseFloat(row.LONG);
+  return { row, ll: (isNaN(lat)||isNaN(lng)) ? null : [lng, lat], marker:null, el:null, parent:null };
+}
+
+function linkChildren(){
+  parents.forEach(p => p.kids = []);
+  children.forEach(c => {
+    const pid = String(c.row.PARENT_ID||"").trim();
+    const p = parents.find(p => key(p.row.ID) === key(pid));
+    c.parent = p || null;
+    if (p) p.kids.push(c);
+  });
+}
+
+function nextParentId(){
+  const nums = parents
+    .map(p => /^CV-(\d+)$/i.exec(String(p.row.ID||"").trim()))
+    .filter(Boolean)
+    .map(m => +m[1]);
+  const n = (nums.length ? Math.max(...nums) : 0) + 1;
+  return "CV-" + String(n).padStart(3, "0");
+}
+
+function nextChildId(parentId){
+  const pid = String(parentId||"").trim();
+  const esc = pid.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp("^" + esc + "-(\\d+)$", "i");
+  const nums = children
+    .map(c => re.exec(String(c.row.CHILD_ID||"").trim()))
+    .filter(Boolean)
+    .map(m => +m[1]);
+  const n = (nums.length ? Math.max(...nums) : 0) + 1;
+  return pid + "-" + String(n).padStart(2, "0");
+}
+
+/* ============================================================
+   Rendering
+   ============================================================ */
+
+function render(){
+  renderPins();
+  renderLists();
+  renderForm();
+  renderStaged();
+}
+
+function pinColor(cat){
+  const c = CATEGORIES[String(cat||"").trim().toUpperCase()];
+  return c ? c.color : CATEGORIES[DEFAULT_CAT].color;
+}
+
+function renderPins(){
+  // tear down
+  parents.concat(children).forEach(o => { if (o.marker) o.marker.remove(); o.marker = null; o.el = null; });
+
+  // parents first (kids render on top)
+  parents.forEach(p => {
+    if (!p.ll) return;
+    p.el = makePinEl(p, "parent");
+    p.marker = new maplibregl.Marker({ element: p.el, draggable: true })
+      .setLngLat(p.ll).addTo(map);
+    wireDrag(p, p.marker);
+    p.el.addEventListener("click", e => { e.stopPropagation(); select("parent", p); });
+  });
+  children.forEach(c => {
+    if (!c.ll) return;
+    c.el = makePinEl(c, "child");
+    c.marker = new maplibregl.Marker({ element: c.el, draggable: true })
+      .setLngLat(c.ll).addTo(map);
+    wireDrag(c, c.marker);
+    c.el.addEventListener("click", e => { e.stopPropagation(); select("child", c); });
+  });
+
+  // reflect selection
+  parents.concat(children).forEach(o => o.el && o.el.classList.toggle("sel", isSelected(o)));
+}
+
+function makePinEl(o, kind){
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "pin " + (kind === "parent" && o.kids && o.kids.length ? "parent" : "");
+  if (kind === "child") b.classList.add("child");
+  const cat = String(o.row.CATEGORY||"").trim().toUpperCase() || DEFAULT_CAT;
+  const color = pinColor(cat);
+  b.style.setProperty("--c", color);
+  b.title = (o.row.NAME || o.row.ID || o.row.CHILD_ID || "");
+
+  // try a thumbnail from /thumbs/{id}.{ext} — same probe the live site uses
+  const id = kind === "parent" ? o.row.ID : o.row.CHILD_ID;
+  const img = new Image();
+  img.alt = "";
+  const EXT = ["jpg","jpeg","png","webp","JPG","PNG"];
+  let i = 0;
+  const tryNext = () => { img.src = "thumbs/" + encodeURIComponent(id) + "." + EXT[i]; };
+  img.onerror = () => { if (++i < EXT.length) tryNext(); else { img.remove(); b.classList.add("nophoto"); } };
+  tryNext();
+  b.appendChild(img);
+  return b;
+}
+
+function wireDrag(o, marker){
+  marker.on("dragstart", () => { if (o.el) o.el.classList.add("dragging"); });
+  marker.on("dragend", () => {
+    if (o.el) o.el.classList.remove("dragging");
+    const ll = marker.getLngLat();
+    o.ll = [ll.lng, ll.lat];
+    o.row.LAT = fmt(ll.lat);
+    o.row.LONG = fmt(ll.lng);
+    if (isSelected(o)) renderForm();
+    toast((o.row.NAME || o.row.CHILD_ID || o.row.ID) + " moved");
+  });
+}
+
+function fmt(n){ return (+n).toFixed(13).replace(/0+$/,"").replace(/\.$/,""); }
+
+function isSelected(o){
+  if (!selected) return false;
+  if (selected.kind === "parent") return o === selected.ref;
+  return o === selected.ref;
+}
+
+function select(kind, ref){
+  selected = { kind, ref };
+  render();
+}
+
+function clearSelection(){
+  selected = null;
+  render();
+}
+
+map.on("click", e => {
+  // ignore clicks that were on a pin (those call stopPropagation)
+  clearSelection();
+});
+
+/* ============================================================
+   Left panel lists
+   ============================================================ */
+
+function renderLists(){
+  $("parentCount").textContent = parents.length ? "(" + parents.length + ")" : "";
+  $("childCount").textContent  = children.length ? "(" + children.length + ")" : "";
+
+  const pl = $("parentList");
+  pl.innerHTML = "";
+  const sortedParents = parents.slice().sort((a,b) =>
+    String(a.row.ID||"").localeCompare(String(b.row.ID||"")));
+  for (const p of sortedParents){
+    const row = document.createElement("div");
+    row.className = "row" + (selected && selected.ref === p ? " sel" : "");
+    const cat = String(p.row.CATEGORY||"").trim().toUpperCase() || DEFAULT_CAT;
+    row.innerHTML =
+      `<span class="dot" style="background:${pinColor(cat)}"></span>` +
+      `<span class="name">${esc(p.row.NAME || "(unnamed)")}</span>` +
+      (p.kids.length ? `<span class="id">${p.kids.length}</span>` : "") +
+      `<span class="id">${esc(p.row.ID||"")}</span>`;
+    row.onclick = () => select("parent", p);
+    pl.appendChild(row);
+
+    // children indented under their parent
+    for (const c of p.kids){
+      const cr = document.createElement("div");
+      cr.className = "row child" + (selected && selected.ref === c ? " sel" : "");
+      const ccat = String(c.row.CATEGORY||"").trim().toUpperCase() || DEFAULT_CAT;
+      cr.innerHTML =
+        `<span class="dot" style="background:${pinColor(ccat)};width:8px;height:8px"></span>` +
+        `<span class="name">${esc(c.row.NAME || "(unnamed)")}</span>` +
+        `<span class="id">${esc(c.row.CHILD_ID||"")}</span>`;
+      cr.onclick = () => select("child", c);
+      pl.appendChild(cr);
+    }
+  }
+
+  // orphans (children whose parent isn't in the parents file)
+  const orphans = children.filter(c => !c.parent);
+  const cl = $("childList");
+  cl.innerHTML = "";
+  if (!orphans.length){
+    cl.innerHTML = `<div class="hint">All children are attached to a parent.</div>`;
+  } else {
+    for (const c of orphans){
+      const row = document.createElement("div");
+      row.className = "row child" + (selected && selected.ref === c ? " sel" : "");
+      row.innerHTML =
+        `<span class="dot" style="background:#c00;width:8px;height:8px"></span>` +
+        `<span class="name">${esc(c.row.NAME || "(unnamed)")}</span>` +
+        `<span class="id">${esc(c.row.CHILD_ID||"")}</span>`;
+      row.onclick = () => select("child", c);
+      cl.appendChild(row);
+    }
+  }
+}
+
+/* ============================================================
+   Right panel form
+   ============================================================ */
+
+function renderForm(){
+  const box = $("form");
+  if (!selected){
+    box.innerHTML = `<div class="empty">Nothing selected.<br><br>Click a pin, or drag <kbd>New Parent</kbd> / <kbd>New Child</kbd> onto the map.</div>`;
+    return;
+  }
+
+  if (selected.kind === "parent") renderParentForm(box, selected.ref);
+  else renderChildForm(box, selected.ref);
+}
+
+function renderParentForm(box, p){
+  const r = p.row;
+  const cat = String(r.CATEGORY||"").trim().toUpperCase() || DEFAULT_CAT;
+
+  box.innerHTML = `
+    <div class="form">
+      <span class="badge">Parent${p.kids.length ? ` <span class="badge container">container · ${p.kids.length}</span>` : ""}</span>
+
+      <div class="field">
+        <label>ID</label>
+        <input type="text" id="f-ID" value="${esc(r.ID||"")}">
+        <div class="sub">Changing this breaks references from children and QR links. The editor will offer to update children on publish.</div>
+      </div>
+
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="f-NAME" value="${esc(r.NAME||"")}">
+      </div>
+
+      <div class="pair">
+        <div class="field">
+          <label>Category</label>
+          <div class="catrow">
+            <select id="f-CATEGORY">
+              ${Object.entries(CATEGORIES).map(([k,v]) =>
+                `<option value="${k}" ${k===cat?"selected":""}>${k} — ${esc(v.label)}</option>`).join("")}
+            </select>
+            <span class="sw" id="catSw" style="background:${pinColor(cat)}"></span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Established</label>
+          <input type="text" id="f-EST" value="${esc(r["EST."]||"")}" placeholder="e.g. 1842">
+        </div>
+      </div>
+
+      <div class="pair">
+        <div class="field"><label>Latitude</label><input type="text" id="f-LAT" value="${esc(r.LAT||"")}"></div>
+        <div class="field"><label>Longitude</label><input type="text" id="f-LONG" value="${esc(r.LONG||"")}"></div>
+      </div>
+
+      <div class="field">
+        <label>Details</label>
+        <textarea id="f-DETAILS">${esc(r.DETAILS||"")}</textarea>
+      </div>
+
+      <div class="field">
+        <label>Photo</label>
+        ${photoBlock(r.ID)}
+      </div>
+
+      ${p.kids.length ? `
+        <div class="divider"></div>
+        <div class="field">
+          <label>Children (${p.kids.length})</label>
+          <div id="kidList">
+            ${p.kids.map(k => `
+              <div class="row" data-kid="${esc(k.row.CHILD_ID)}" style="cursor:pointer">
+                <span class="dot" style="background:${pinColor(k.row.CATEGORY)};width:8px;height:8px"></span>
+                <span class="name">${esc(k.row.NAME||"")}</span>
+                <span class="id">${esc(k.row.CHILD_ID||"")}</span>
+              </div>`).join("")}
+          </div>
+        </div>` : ""}
+
+      <div class="actions">
+        <button id="addChild" class="small">＋ Add Child</button>
+        <button id="dupParent" class="small">Duplicate</button>
+        <span class="grow"></span>
+        <button id="delParent" class="small warn">Delete</button>
+      </div>
+    </div>
+  `;
+
+  // wire basic fields
+  bindText(box, "f-ID",       v => { r.ID = v; renderPins(); renderLists(); });
+  bindText(box, "f-NAME",     v => { r.NAME = v; renderPins(); renderLists(); });
+  bindText(box, "f-EST",      v => { r["EST."] = v; });
+  bindText(box, "f-LAT",      v => { r.LAT = v; syncLL(p, v, r.LONG); });
+  bindText(box, "f-LONG",     v => { r.LONG = v; syncLL(p, r.LAT, v); });
+  bindText(box, "f-DETAILS",  v => { r.DETAILS = v; });
+
+  box.querySelector("#f-CATEGORY").onchange = e => {
+    r.CATEGORY = e.target.value;
+    box.querySelector("#catSw").style.background = pinColor(r.CATEGORY);
+    renderPins();
+    renderLists();
+  };
+
+  box.querySelector("#addChild").onclick = () => {
+    const id = nextChildId(r.ID);
+    const c = mkChild({
+      CHILD_ID: id, PARENT_ID: r.ID, NAME: "New Child",
+      HIST_NAMES:"", ADDRESS:"", DETAILS:"",
+      LAT: r.LAT, LONG: r.LONG, CONNECTION:"", CATEGORY: DEFAULT_CAT
+    });
+    c.parent = p;
+    p.kids.push(c);
+    children.push(c);
+    // ensure both files are considered loaded/edited
+    loaded.child = true;
+    selected = { kind:"child", ref:c };
+    render();
+    toast("Added " + id);
+  };
+
+  box.querySelector("#dupParent").onclick = () => {
+    const nr = Object.assign({}, r);
+    nr.ID = nextParentId();
+    nr.NAME = (r.NAME||"") + " (copy)";
+    const n = mkParent(nr);
+    parents.push(n);
+    selected = { kind:"parent", ref:n };
+    render();
+    toast("Duplicated as " + nr.ID);
+  };
+
+  box.querySelector("#delParent").onclick = () => {
+    if (p.kids.length && !confirm(`Delete ${r.ID}? It has ${p.kids.length} children. They'll be orphaned and won't render on the live site. Continue?`)) return;
+    parents = parents.filter(x => x !== p);
+    children.forEach(c => { if (c.parent === p) c.parent = null; });
+    selected = null;
+    render();
+    toast("Deleted " + (r.ID||""));
+  };
+
+  box.querySelectorAll("#kidList [data-kid]").forEach(el => {
+    el.onclick = () => {
+      const c = children.find(x => key(x.row.CHILD_ID) === key(el.dataset.kid));
+      if (c) select("child", c);
+    };
+  });
+
+  wirePhotoBlock(box, r.ID);
+}
+
+function renderChildForm(box, c){
+  const r = c.row;
+  const cat = String(r.CATEGORY||"").trim().toUpperCase() || DEFAULT_CAT;
+
+  box.innerHTML = `
+    <div class="form">
+      <span class="badge child">Child</span>
+
+      <div class="field">
+        <label>Child ID</label>
+        <input type="text" id="f-CHILD_ID" value="${esc(r.CHILD_ID||"")}">
+      </div>
+
+      <div class="field">
+        <label>Parent</label>
+        <select id="f-PARENT_ID">
+          <option value="">— none (orphan) —</option>
+          ${parents.map(p =>
+            `<option value="${esc(p.row.ID)}" ${key(p.row.ID)===key(r.PARENT_ID)?"selected":""}>${esc(p.row.ID)} — ${esc(p.row.NAME||"")}</option>`).join("")}
+        </select>
+        ${!c.parent ? `<div class="sub" style="color:#a33">Not attached to a parent — this child won't render on the live site.</div>` : ""}
+      </div>
+
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="f-NAME" value="${esc(r.NAME||"")}">
+      </div>
+
+      <div class="pair">
+        <div class="field">
+          <label>Category</label>
+          <div class="catrow">
+            <select id="f-CATEGORY">
+              ${Object.entries(CATEGORIES).map(([k,v]) =>
+                `<option value="${k}" ${k===cat?"selected":""}>${k} — ${esc(v.label)}</option>`).join("")}
+            </select>
+            <span class="sw" id="catSw" style="background:${pinColor(cat)}"></span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Connection</label>
+          <input type="text" id="f-CONNECTION" value="${esc(r.CONNECTION||"")}" list="connList">
+          <datalist id="connList">
+            ${[...new Set(children.map(x => String(x.row.CONNECTION||"").trim()).filter(Boolean))]
+              .map(v => `<option value="${esc(v)}">`).join("")}
+          </datalist>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Historical names</label>
+        <input type="text" id="f-HIST_NAMES" value="${esc(r.HIST_NAMES||"")}">
+      </div>
+
+      <div class="field">
+        <label>Address</label>
+        <input type="text" id="f-ADDRESS" value="${esc(r.ADDRESS||"")}">
+      </div>
+
+      <div class="pair">
+        <div class="field"><label>Latitude</label><input type="text" id="f-LAT" value="${esc(r.LAT||"")}"></div>
+        <div class="field"><label>Longitude</label><input type="text" id="f-LONG" value="${esc(r.LONG||"")}"></div>
+      </div>
+
+      <div class="field">
+        <label>Details</label>
+        <textarea id="f-DETAILS">${esc(r.DETAILS||"")}</textarea>
+      </div>
+
+      <div class="field">
+        <label>Photo</label>
+        ${photoBlock(r.CHILD_ID)}
+      </div>
+
+      <div class="actions">
+        <button id="dupChild" class="small">Duplicate</button>
+        <span class="grow"></span>
+        <button id="delChild" class="small warn">Delete</button>
+      </div>
+    </div>
+  `;
+
+  bindText(box, "f-CHILD_ID",  v => { r.CHILD_ID = v; renderLists(); });
+  bindText(box, "f-NAME",      v => { r.NAME = v; renderPins(); renderLists(); });
+  bindText(box, "f-HIST_NAMES",v => { r.HIST_NAMES = v; });
+  bindText(box, "f-ADDRESS",   v => { r.ADDRESS = v; });
+  bindText(box, "f-CONNECTION",v => { r.CONNECTION = v; });
+  bindText(box, "f-LAT",       v => { r.LAT = v; syncLL(c, v, r.LONG); });
+  bindText(box, "f-LONG",      v => { r.LONG = v; syncLL(c, r.LAT, v); });
+  bindText(box, "f-DETAILS",   v => { r.DETAILS = v; });
+
+  box.querySelector("#f-CATEGORY").onchange = e => {
+    r.CATEGORY = e.target.value;
+    box.querySelector("#catSw").style.background = pinColor(r.CATEGORY);
+    renderPins();
+    renderLists();
+  };
+
+  box.querySelector("#f-PARENT_ID").onchange = e => {
+    const newPid = e.target.value;
+    const old = c.parent;
+    if (old) old.kids = old.kids.filter(k => k !== c);
+    r.PARENT_ID = newPid;
+    linkChildren();
+    render();
+  };
+
+  box.querySelector("#dupChild").onclick = () => {
+    const nr = Object.assign({}, r);
+    const pid = nr.PARENT_ID || (c.parent && c.parent.row.ID) || "";
+    nr.CHILD_ID = pid ? nextChildId(pid) : "NEW-" + uid();
+    nr.NAME = (r.NAME||"") + " (copy)";
+    const n = mkChild(nr);
+    children.push(n);
+    linkChildren();
+    selected = { kind:"child", ref:n };
+    render();
+    toast("Duplicated as " + nr.CHILD_ID);
+  };
+
+  box.querySelector("#delChild").onclick = () => {
+    if (!confirm("Delete " + (r.CHILD_ID||"") + "?")) return;
+    children = children.filter(x => x !== c);
+    linkChildren();
+    selected = null;
+    render();
+    toast("Deleted " + (r.CHILD_ID||""));
+  };
+
+  wirePhotoBlock(box, r.CHILD_ID);
+}
+
+function bindText(scope, id, onInput){
+  const el = scope.querySelector("#" + CSS.escape(id));
+  if (!el) return;
+  el.oninput = () => onInput(el.value);
+}
+
+function syncLL(o, latStr, lngStr){
+  const lat = parseFloat(latStr), lng = parseFloat(lngStr);
+  if (isNaN(lat) || isNaN(lng)) return;
+  o.ll = [lng, lat];
+  if (o.marker) o.marker.setLngLat(o.ll);
+}
+
+/* ---------- Photo block ---------- */
+
+function photoBlock(id){
+  const safe = esc(id || "");
+  return `
+    <div class="photo">
+      <div class="thumb missing" id="photoThumb">loading…</div>
+      <div class="meta">
+        <div>Looking for <code>thumbs/${safe}.jpg</code> (or png/webp/JPG/PNG)</div>
+        <div class="actions">
+          <button class="small" id="uploadPhoto" type="button">Upload photo…</button>
+          <input type="file" id="photoInput" accept="image/*" hidden>
+        </div>
+      </div>
+    </div>`;
+}
+
+function wirePhotoBlock(scope, id){
+  const thumb = scope.querySelector("#photoThumb");
+  const btn   = scope.querySelector("#uploadPhoto");
+  const input = scope.querySelector("#photoInput");
+  if (!thumb || !btn || !input) return;
+
+  // probe thumbs/{id}.{ext}
+  const EXT = ["jpg","jpeg","png","webp","JPG","PNG"];
+  const tryNext = i => {
+    if (i >= EXT.length){
+      thumb.classList.add("missing");
+      thumb.textContent = "no photo yet";
+      return;
+    }
+    const im = new Image();
+    im.onload = () => {
+      thumb.classList.remove("missing");
+      thumb.innerHTML = "";
+      im.style.cssText = "width:100%;height:100%;object-fit:cover;border-radius:8px";
+      thumb.appendChild(im);
+    };
+    im.onerror = () => tryNext(i+1);
+    im.src = "thumbs/" + encodeURIComponent(id) + "." + EXT[i];
+  };
+  tryNext(0);
+
+  btn.onclick = () => input.click();
+  input.onchange = () => {
+    const f = input.files[0]; if (!f) return;
+    const ext = (f.name.split(".").pop() || "jpg").toLowerCase();
+    const name = id + "." + ext;
+    stagedPhotos.push({ name, blob: f });
+    // show in the panel
+    const im = new Image();
+    im.onload = () => {
+      thumb.classList.remove("missing");
+      thumb.innerHTML = "";
+      im.style.cssText = "width:100%;height:100%;object-fit:cover;border-radius:8px";
+      thumb.appendChild(im);
+    };
+    im.src = URL.createObjectURL(f);
+    renderStaged();
+    toast("Staged " + name + " — download when you publish");
+  };
+}
+
+/* ---------- Staged photos ---------- */
+
+function renderStaged(){
+  const bar = $("staged");
+  if (!stagedPhotos.length){ bar.classList.remove("on"); return; }
+  bar.classList.add("on");
+  $("stagedFiles").innerHTML = stagedPhotos.map(p => `<code>${esc(p.name)}</code>`).join(", ");
+}
+
+$("downloadPhotos").onclick = () => {
+  stagedPhotos.forEach(p => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(p.blob);
+    a.download = p.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+};
+$("clearStaged").onclick = () => { stagedPhotos = []; renderStaged(); };
+
+/* ============================================================
+   Drag from palette onto map
+   ============================================================ */
+
+const dropzone = $("dropzone");
+let dragKind = null;
+
+document.querySelectorAll(".chip").forEach(chip => {
+  chip.addEventListener("dragstart", e => {
+    dragKind = chip.dataset.add;
+    e.dataTransfer.effectAllowed = "copy";
+    e.dataTransfer.setData("text/plain", dragKind);
+    dropzone.classList.add("on");
+  });
+  chip.addEventListener("dragend", () => {
+    dragKind = null;
+    dropzone.classList.remove("on");
+  });
+});
+
+dropzone.addEventListener("dragover", e => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; });
+
+dropzone.addEventListener("drop", e => {
+  e.preventDefault();
+  dropzone.classList.remove("on");
+  const kind = e.dataTransfer.getData("text/plain") || dragKind;
+  dragKind = null;
+  if (!kind) return;
+  if (kind === "parent" && !loaded.loc) return toast("Load locations.csv first.");
+  if (kind === "child" && !loaded.loc)  return toast("Load locations.csv and childmarkers.csv first.");
+
+  const rect = map.getContainer().getBoundingClientRect();
+  const ll = map.unproject([e.clientX - rect.left, e.clientY - rect.top]);
+  const lat = fmt(ll.lat), lng = fmt(ll.lng);
+
+  if (kind === "parent"){
+    const id = nextParentId();
+    const row = { ID:id, NAME:"New Parent", "EST.":"", LAT:lat, LONG:lng, DETAILS:"", CATEGORY:DEFAULT_CAT };
+    // make sure every column that exists in the source file is present
+    headers.loc.forEach(h => { if (!(h in row)) row[h] = ""; });
+    const p = mkParent(row);
+    parents.push(p);
+    selected = { kind:"parent", ref:p };
+    render();
+    toast("Added " + id);
+  } else {
+    // find nearest parent
+    const nearest = nearestParent([ll.lng, ll.lat]);
+    if (!nearest) return toast("No parents loaded yet.");
+    const id = nextChildId(nearest.row.ID);
+    const row = {
+      CHILD_ID:id, PARENT_ID:nearest.row.ID, NAME:"New Child",
+      HIST_NAMES:"", ADDRESS:"", DETAILS:"",
+      LAT:lat, LONG:lng, CONNECTION:"", CATEGORY:DEFAULT_CAT
+    };
+    headers.child.forEach(h => { if (!(h in row)) row[h] = ""; });
+    const c = mkChild(row);
+    children.push(c);
+    linkChildren();
+    selected = { kind:"child", ref:c };
+    render();
+    toast("Added " + id + " to " + nearest.row.ID);
+  }
+});
+
+function nearestParent(ll){
+  if (!parents.length) return null;
+  let best = null, bd = Infinity;
+  for (const p of parents){
+    if (!p.ll) continue;
+    const d = (p.ll[0]-ll[0])**2 + (p.ll[1]-ll[1])**2;
+    if (d < bd){ bd = d; best = p; }
+  }
+  return best;
+}
+
+/* ============================================================
+   Publish — write both CSVs
+   ============================================================ */
+
+$("publishBtn").onclick = () => {
+  // Build the arrays of plain row objects in the exact header order
+  const locRows   = parents.map(p => pick(p.row, headers.loc));
+  const childRows = children.map(c => pick(c.row, headers.child));
+
+  const locCSV   = Papa.unparse({ fields: headers.loc,   data: locRows   });
+  const childCSV = Papa.unparse({ fields: headers.child, data: childRows });
+
+  download("locations.csv", locCSV);
+  download("childmarkers.csv", childCSV);
+
+  toast(`Downloaded ${parents.length} parents, ${children.length} children.`
+        + (stagedPhotos.length ? ` Plus ${stagedPhotos.length} staged photos below.` : ""));
+};
+
+function pick(row, cols){
+  const out = {};
+  for (const c of cols) out[c] = row[c] != null ? row[c] : "";
+  return out;
+}
+
+function download(name, text){
+  const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* ============================================================
+   UI helpers
+   ============================================================ */
+
+function updateStatus(){
+  const bits = [];
+  if (loaded.loc)   bits.push(`locations.csv (${parents.length})`);
+  if (loaded.child) bits.push(`childmarkers.csv (${children.length})`);
+  $("status").textContent = bits.length ? "Loaded: " + bits.join(" · ") : "Load both CSVs to begin";
+}
+
+let toastTimer = 0;
+function toast(msg){
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("on"), 2600);
+}
+
+/* keyboard: Delete removes selection, Escape clears */
+document.addEventListener("keydown", e => {
+  if (e.target.matches("input,textarea,select")) return;
+  if (e.key === "Escape"){ clearSelection(); return; }
+  if (e.key === "Delete" || e.key === "Backspace"){
+    if (!selected) return;
+    const o = selected.ref;
+    if (selected.kind === "parent"){
+      if (o.kids.length && !confirm(`Delete ${o.row.ID}? It has ${o.kids.length} children.`)) return;
+      parents = parents.filter(x => x !== o);
+      children.forEach(c => { if (c.parent === o) c.parent = null; });
+    } else {
+      if (!confirm("Delete " + (o.row.CHILD_ID||"") + "?")) return;
+      children = children.filter(x => x !== o);
+    }
+    selected = null;
+    linkChildren();
+    render();
+  }
+});
+</script>
+</body>
+</html>
