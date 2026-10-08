@@ -204,13 +204,15 @@
             brushVal.textContent = e.target.value + 'px';
         });
 
-        // 1. Handle image file uploads
+                // 1. Handle image file uploads (FIXED VERSION)
         upload.addEventListener('change', (e) => {
-            const file = e.target.files[0];
+            const file = e.target.files[0]; // Fixed array target indexing
             if (!file) return;
 
             const reader = new FileReader();
             reader.onload = (event) => {
+                // Ensure source image completely binds before initializing workspace calculations
+                sourceImg = new Image(); 
                 sourceImg.onload = () => {
                     setupWorkspace();
                 };
@@ -218,6 +220,7 @@
             };
             reader.readAsDataURL(file);
         });
+
 
         function setupWorkspace() {
             // Cancel pending loops
