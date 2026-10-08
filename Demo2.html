@@ -10,11 +10,11 @@
 
 html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 
-#bar{position:absolute;z-index:5;top:0;left:0;right:0;background:#E47303;color:#fff;padding:calc(6px + env(safe-area-inset-top)) 10px 8px;display:flex;flex-direction:column;gap:6px}
+#bar{position:absolute;z-index:5;top:0;left:0;right:0;background:var(--bar,#E47303);color:#fff;padding:calc(6px + env(safe-area-inset-top)) 10px 8px;display:flex;flex-direction:column;gap:6px}
 .bar-top{display:flex;justify-content:space-between;align-items:center}
 #bar h1{font-size:17px;margin:0}
 
-#passportBtn{background:#fff;color:#E47303;border:0;border-radius:20px;padding:5px 12px;font-weight:bold;font-size:13px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.2)}
+#passportBtn{background:#fff;color:var(--bar,#E47303);border:0;border-radius:20px;padding:5px 12px;font-weight:bold;font-size:13px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.2)}
 #passportBtn:hover{background:#fff8f0}
 
 #q{width:100%;box-sizing:border-box;padding:8px;font-size:16px;border:0;border-radius:4px}
@@ -116,7 +116,7 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 /* PASSPORT / ACHIEVEMENTS DRAWER */
 #passportDrawer{position:fixed;top:0;right:-400px;width:360px;max-width:90vw;height:100%;background:#fff;z-index:100000;box-shadow:-4px 0 20px rgba(0,0,0,0.3);transition:right 0.3s ease;display:flex;flex-direction:column;box-sizing:border-box}
 #passportDrawer.open{right:0}
-.passport-header{background:#E47303;color:#fff;padding:16px;display:flex;justify-content:space-between;align-items:center}
+.passport-header{background:var(--bar,#E47303)3;color:#fff;padding:16px;display:flex;justify-content:space-between;align-items:center}
 .passport-header h2{margin:0;font-size:18px}
 #closePassport{background:none;border:0;color:#fff;font-size:28px;cursor:pointer}
 .passport-body{padding:16px;overflow-y:auto;flex:1;background:#fafafa}
@@ -507,7 +507,46 @@ const SITE = {
 /* ============================================================
    MAP
    ============================================================ */
+/* ===== Settings from site.csv (written by the settings editor) ===== */
+SITE.fitMarkers = true;
+SITE.fromCsv = false;
+const SETTINGS_READY = fetch("site.csv", { cache: "no-store" })
+  .then(r => r.ok ? r.text() : "")
+  .catch(() => "")
+  .then(txt => {
+    if (!txt.trim()) return;               // no site.csv: keep the built-in defaults
+    const S = {};
+    Papa.parse(txt, { header: true, skipEmptyLines: "greedy" }).data.forEach(r => {
+      const k = String(r.KEY || "").trim().toUpperCase();
+      if (k) S[k] = String(r.VALUE == null ? "" : r.VALUE).trim();
+    });
+    const num = k => { const v = parseFloat(S[k]); return isNaN(v) ? null : v; };
+    const fill = t => t.replace(/\{PLACE\}/g, S.PLACE || "");
 
+    if (S.HEADER)    document.querySelector("#bar h1").textContent = fill(S.HEADER);
+    if (S.TAB_TITLE) document.title = fill(S.TAB_TITLE);
+    if (/^#[0-9a-f]{3,8}$/i.test(S.BAR_COLOR || "")) document.documentElement.style.setProperty("--bar", S.BAR_COLOR);
+
+    const lng = num("CENTER_LNG"), lat = num("CENTER_LAT"), z = num("ZOOM");
+    if (lng !== null && lat !== null) SITE.center = [lng, lat];
+    if (z !== null) SITE.zoom = z;
+    const w = num("BOUNDS_WEST"), s = num("BOUNDS_SOUTH"), e = num("BOUNDS_EAST"), n = num("BOUNDS_NORTH");
+    if ([w, s, e, n].every(v => v !== null) && w < e && s < n) SITE.maxBounds = [[w, s], [e, n]];
+    SITE.minZoom = num("MIN_ZOOM");
+    SITE.maxZoom = num("MAX_ZOOM");
+    SITE.fitMarkers = (S.FIT_TO_MARKERS || "yes").toLowerCase() !== "no";
+    SITE.fromCsv = true;
+  });
+
+async function applySettingsToMap(){
+  await SETTINGS_READY;
+  if (!SITE.fromCsv) return;
+  map.setMaxBounds(SITE.maxBounds);
+  if (SITE.minZoom !== null) map.setMinZoom(SITE.minZoom);
+  if (SITE.maxZoom !== null) map.setMaxZoom(SITE.maxZoom);
+  if (!SITE.fitMarkers && !spotId) map.jumpTo({ center: SITE.center, zoom: SITE.zoom });
+}
+  
 const map = new maplibregl.Map({
   container: "map",
   style: {
@@ -692,6 +731,7 @@ map.on("load", async () => {
     paint: { "line-color":"#E47303", "line-width":2, "line-dasharray":[3,2] }
   });
 
+  await applySettingsToMap();
   const [L,C] = await Promise.all([
     load(SITE.files.locations),
     load(SITE.files.children)
@@ -1748,6 +1788,7 @@ $("res").onclick = e => {
       if (!places.length && ++tries <= 50) return;
       clearInterval(t);
       if (!places.length) return;
+      if (!SITE.fitMarkers) return;
 
       const b = new maplibregl.LngLatBounds();
       places.forEach(p => b.extend(p.ll));
