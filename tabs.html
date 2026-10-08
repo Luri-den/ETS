@@ -100,27 +100,41 @@
   </div>
 
   <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const tabs = document.querySelectorAll(".top-tab");
-      const containers = document.querySelectorAll(".page-container");
-      const blurbText = document.getElementById("dynamic-blurb");
+document.addEventListener("DOMContentLoaded", () => {
+  const tabs = document.querySelectorAll(".top-tab");
+  const containers = document.querySelectorAll(".page-container");
+  const blurbText = document.getElementById("dynamic-blurb");
 
-      tabs.forEach(tab => {
-        tab.addEventListener("click", () => {
-          // 1. Remove active state from current tab and container
-          document.querySelector(".top-tab.active").classList.remove("active");
-          document.querySelector(".page-container.active").classList.remove("active");
+  // Keep track of which pages have already been opened/loaded correctly
+  const loadedPages = { p1: true }; 
 
-          // 2. Add active state to clicked tab and corresponding container
-          tab.classList.add("active");
-          const targetId = tab.getAttribute("data-target");
-          document.getElementById(targetId).classList.add("active");
+  tabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+      // 1. Remove active state from current tab and container
+      document.querySelector(".top-tab.active").classList.remove("active");
+      document.querySelector(".page-container.active").classList.remove("active");
 
-          // 3. Dynamically update the instructions blurb
-          blurbText.innerHTML = tab.getAttribute("data-blurb");
-        });
-      });
+      // 2. Add active state to clicked tab and corresponding container
+      tab.classList.add("active");
+      const targetId = tab.getAttribute("data-target");
+      const targetContainer = document.getElementById(targetId);
+      targetContainer.classList.add("active");
+
+      // 3. Dynamically update the instructions blurb
+      blurbText.innerHTML = tab.getAttribute("data-blurb");
+
+      
+      if (!loadedPages[targetId]) {
+        const iframe = targetContainer.querySelector("iframe");
+        if (iframe) {
+          iframe.src = iframe.src; // This cleanly forces the iframe map to recalculate its width/height
+        }
+        loadedPages[targetId] = true; // Mark as loaded so it saves user progress moving forward
+      }
     });
+  });
+});
+
   </script>
 
 </body>
