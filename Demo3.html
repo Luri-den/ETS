@@ -2139,61 +2139,57 @@ function celebrateStamp(stamp, stars, replay, kind){
     $("passportDrawer").classList.add("open");
   };
 
-  window.passportEvent = (type, context = {}) => {
-  if (!STAMPS.length || !TASKS.length) { console.log("  → early return, no data"); return; }
+window.passportEvent = (type, context = {}) => {
+  if (!STAMPS.length || !TASKS.length) return;
 
-    const progress = loadProgress();
-    const advanced = [];
+  const progress = loadProgress();
+  const advanced = [];
 
-    for (const stamp of STAMPS){
-  const sid = String(stamp.row.STAMP_ID).trim();
-  const bucket = progress[sid] || (progress[sid] = {});
-  let changed = false;
-  let matchedTaskId = null;   // ← new
+  for (const stamp of STAMPS){
+    const sid = String(stamp.row.STAMP_ID).trim();
+    const bucket = progress[sid] || (progress[sid] = {});
+    let changed = false;
+    let matchedTaskId = null;
 
-  for (const taskId of stamp.tasks){
-    const task = TASKS.find(t => key(t.row.TASK_ID) === key(taskId));
-    if (!task) continue;
-    if (!taskMatches(task.row, type, context)) continue;
-    if (bucket[taskId]) continue;
-    bucket[taskId] = true;
-    changed = true;
-    matchedTaskId = taskId;   // ← record which task matched
-  }
-
-  if (changed) advanced.push({ stamp, matchedTaskId });   // ← push object, not stamp
-}
-
-    saveProgress(progress);
-
-    for (const stamp of advanced){
-  const sid = String(stamp.row.STAMP_ID).trim();
-  const total = stamp.tasks.filter(id => progress[sid][id]).length;
-  const stars = starsFor(stamp.row, total);
-  const prev = (window.__lastStars || {})[sid] || 0;
-
-  if (stars > prev){
-    // Threshold crossed — full sunburst ceremony
-    celebrateStamp(stamp, stars, false, "star");
-  } else {
-    // Just a task — plain stamp, showing which task completed
-    const taskId = Object.keys(progress[sid]).find(id =>
-      !(window.__lastTasks || {})[sid + "/" + id]
-    );
-    const task = TASKS.find(t => key(t.row.TASK_ID) === key(taskId));
-    const label = task ? task.row.LABEL : "Task Complete!";
-    celebrateStamp(stamp, stars, false, "plain");
-    // queue the label so render() can show it
-    if (queue.length){
-      queue[queue.length - 1].taskLabel = label;
+    for (const taskId of stamp.tasks){
+      const task = TASKS.find(t => key(t.row.TASK_ID) === key(taskId));
+      if (!task) continue;
+      if (!taskMatches(task.row, type, context)) continue;
+      if (bucket[taskId]) continue;
+      bucket[taskId] = true;
+      changed = true;
+      matchedTaskId = taskId;
     }
+
+    if (changed) advanced.push({ stamp, matchedTaskId });
   }
 
-  window.__lastStars = window.__lastStars || {};
-  window.__lastStars[sid] = stars;
+  saveProgress(progress);
+
+  for (const entry of advanced){
+    const { stamp, matchedTaskId } = entry;
+    const sid = String(stamp.row.STAMP_ID).trim();
+    const total = stamp.tasks.filter(id => progress[sid][id]).length;
+    const stars = starsFor(stamp.row, total);
+    const prev = (window.__lastStars || {})[sid] || 0;
+
+   if (stars > prev){
+  celebrateStamp(stamp, stars, false, "star");
+} else {
+  const task = TASKS.find(t => key(t.row.TASK_ID) === key(matchedTaskId));
+  const label = task ? task.row.LABEL : "Task Complete!";
+  // Push with the label baked in
+  queue.push({ stamp, stars, replay: false, kind: "plain", taskLabel: label });
+  pump();
 }
-    renderStampCards();
-  };
+    }
+
+    window.__lastStars = window.__lastStars || {};
+    window.__lastStars[sid] = stars;
+  }
+
+  renderStampCards();
+};
 
   function nudgeWhenReady(){
     if (document.getElementById("welcomeOverlay")) { setTimeout(nudgeWhenReady, 2000); return; }
