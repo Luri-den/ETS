@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Unified Navigation Hub</title>
+  <title>Page Source Editing Hub</title>
   <style>
     body {
       font-family: sans-serif;
@@ -69,9 +69,14 @@
 
   <!-- 1. Top Level Navigation -->
   <div class="top-tabs" role="tablist">
-    <button class="top-tab active" data-target="p1" data-blurb="Welcome to Page 1. Use the left menu inside to manage primary data fields.">Page 1</button>
-    <button class="top-tab" data-target="p2" data-blurb="Welcome to Page 2. Review the structural configuration tools layout.">Page 2</button>
-    <button class="top-tab" data-target="p3" data-blurb="Welcome to Page 3. Update map settings and spatial coordinates.">Page 3</button>
+    <button class="top-tab active" data-target="p1" data-blurb="Location and Child Location Markers. Drag pins, edit fields, create new places, and upload photos. This edits locations.csv and childmarkers.csv.">Places</button>
+    <button class="top-tab" data-target="p2" data-blurb="Stories and Spots. Create photo spots for before / after shots and add story pins for historical events. This edits spots.csv.">Stories / Spots</button>
+    <button class="top-tab" data-target="p3" data-blurb="Tours and Tour Stops. Biuld tours by adding and editing stops and location order. Edits tours.csv and tourstops.csv">Tours</button>
+    <button class="top-tab" data-target="p4" data-blurb="Boundary Line. Edit the visible city, county, or area boundary line by clicking and draggings, adding, or subtracting points on a map. Edits connersville.geojson.">Boundary Line</button>
+    <button class="top-tab" data-target="p5" data-blurb="Overlay Maps. Align old maps to the current map by resizing, skewing, and rotating them. Edits overlays.json.">Historical Overlay</button>
+    <button class="top-tab" data-target="p6" data-blurb="Edit and preview stars, stamps, and tasks in the Passport system. Edits stamps.csv and tasks.csv.">Passport</button>
+    <button class="top-tab" data-target="p7" data-blurb="Edit photos using masks to create short psuedo-3D videos to place in the /anims folder.">2.5D Generator</button>
+    <button class="top-tab" data-target="p8" data-blurb="Open the live map to preview changes once they are completed and uploaded.">Live View</button>
     <!-- Add tabs 4 through 7 identically here -->
   </div>
 
@@ -84,7 +89,7 @@
   <div class="content-area">
     
     <div id="p1" class="page-container active">
-      <iframe src="tours.html"></iframe>
+      <iframe src="places.html"></iframe>
     </div>
 
     <div id="p2" class="page-container">
@@ -92,9 +97,28 @@
     </div>
 
     <div id="p3" class="page-container">
-      <iframe src="editor.html"></iframe>
+      <iframe src="tours.html"></iframe>
     </div>
-    
+
+    <div id="p4" class="page-container">
+      <iframe src="boundary.html"></iframe>
+    </div>
+
+    <div id="p5" class="page-container">
+      <iframe src="overlay.html"></iframe>
+    </div>
+
+    <div id="p6" class="page-container">
+      <iframe src="passport.html"></iframe>
+    </div>
+
+    <div id="p7" class="page-container">
+      <iframe src="25dgenerator.html"></iframe>
+    </div>
+
+    <div id="p9" class="page-container">
+      <iframe src="demo2.html"></iframe>
+    </div>
     <!-- Add containers for p4 through p7 identically here -->
 
   </div>
