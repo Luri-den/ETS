@@ -69,14 +69,15 @@
 
   <!-- 1. Top Level Navigation -->
   <div class="top-tabs" role="tablist">
-    <button class="top-tab active" data-target="p1" data-blurb="Location and Child Location Markers. Drag pins, edit fields, create new places, and upload photos. This edits locations.csv and childmarkers.csv.">Places</button>
-    <button class="top-tab" data-target="p2" data-blurb="Stories and Spots. Create photo spots for before / after shots and add story pins for historical events. This edits spots.csv.">Stories / Spots</button>
-    <button class="top-tab" data-target="p3" data-blurb="Tours and Tour Stops. Biuld tours by adding and editing stops and location order. Edits tours.csv and tourstops.csv">Tours</button>
-    <button class="top-tab" data-target="p4" data-blurb="Boundary Line. Edit the visible city, county, or area boundary line by clicking and draggings, adding, or subtracting points on a map. Edits connersville.geojson.">Boundary Line</button>
-    <button class="top-tab" data-target="p5" data-blurb="Overlay Maps. Align old maps to the current map by resizing, skewing, and rotating them. Edits overlays.json.">Historical Overlay</button>
-    <button class="top-tab" data-target="p6" data-blurb="Edit and preview stars, stamps, and tasks in the Passport system. Edits stamps.csv and tasks.csv.">Passport</button>
-    <button class="top-tab" data-target="p7" data-blurb="Edit photos using masks to create short psuedo-3D videos to place in the /anims folder.">2.5D Generator</button>
-    <button class="top-tab" data-target="p8" data-blurb="Open the live map to preview changes once they are completed and uploaded.">Live View</button>
+    <button class="top-tab active" data-target="p1" data-blurb="Change the color and text of the header, the movable map bounds, and the default camera location.">Site Settings</button>
+    <button class="top-tab" data-target="p2" data-blurb="Location and Child Location Markers. Drag pins, edit fields, create new places, and upload photos. This edits locations.csv and childmarkers.csv.">Places</button>
+    <button class="top-tab" data-target="p3" data-blurb="Stories and Spots. Create photo spots for before / after shots and add story pins for historical events. This edits spots.csv.">Stories / Spots</button>
+    <button class="top-tab" data-target="p4" data-blurb="Tours and Tour Stops. Biuld tours by adding and editing stops and location order. Edits tours.csv and tourstops.csv">Tours</button>
+    <button class="top-tab" data-target="p5" data-blurb="Boundary Line. Edit the visible city, county, or area boundary line by clicking and draggings, adding, or subtracting points on a map. Edits connersville.geojson.">Boundary Line</button>
+    <button class="top-tab" data-target="p6" data-blurb="Overlay Maps. Align old maps to the current map by resizing, skewing, and rotating them. Edits overlays.json.">Historical Overlay</button>
+    <button class="top-tab" data-target="p7" data-blurb="Edit and preview stars, stamps, and tasks in the Passport system. Edits stamps.csv and tasks.csv.">Passport</button>
+    <button class="top-tab" data-target="p8" data-blurb="Edit photos using masks to create short psuedo-3D videos to place in the /anims folder.">2.5D Generator</button>
+    <button class="top-tab" data-target="p9" data-blurb="Open the live map to view changes once they are completed and uploaded.">Live View</button>
     <!-- Add tabs 4 through 7 identically here -->
   </div>
 
@@ -84,41 +85,45 @@
   <div class="blurb-container">
     <p id="dynamic-blurb">Welcome to the Editing Hub. Select any of the tabs above to edit basic information and settings for that function. Each tab auto-loads its assigned CSV or JSON files from the main folder. This
       allows you to edit visually by dragging pins, ticking checkboxes, setting thresholds, and aligning images. Using the Download Updated button on the tab will download the updated file to your computer. Upload that file back into 
-      your hosting site in the same place from which it came. The live site preview will update itself once the updates are published and loaded. Let's start with the Marker / Child Marker Editor below, shall we?</p>
+      your hosting site in the same place from which it came. The live site view will update itself once the updates are published and loaded.</p>
   </div>
 
   <!-- 3. Embedded Pages (The Progress-Saving Engine) -->
   <div class="content-area">
     
     <div id="p1" class="page-container active">
-      <iframe src="editor.html"></iframe>
+      <iframe src="site.html"></iframe>
     </div>
 
     <div id="p2" class="page-container">
-      <iframe src="spots.html"></iframe>
+      <iframe src="editor.html"></iframe>
     </div>
 
     <div id="p3" class="page-container">
-      <iframe src="tours.html"></iframe>
+      <iframe src="spots.html"></iframe>
     </div>
 
     <div id="p4" class="page-container">
-      <iframe src="boundary.html"></iframe>
+      <iframe src="tours.html"></iframe>
     </div>
 
     <div id="p5" class="page-container">
-      <iframe src="overlays.html"></iframe>
+      <iframe src="boundary.html"></iframe>
     </div>
 
     <div id="p6" class="page-container">
-      <iframe src="passport.html"></iframe>
+      <iframe src="overlays.html"></iframe>
     </div>
 
     <div id="p7" class="page-container">
-      <iframe src="25dgenerator.html"></iframe>
+      <iframe src="passport.html"></iframe>
     </div>
 
     <div id="p8" class="page-container">
+      <iframe src="25dgenerator.html"></iframe>
+    </div>
+
+      <div id="p9" class="page-container">
       <iframe src="Demo2.html"></iframe>
     </div>
     <!-- Add containers for p4 through p7 identically here -->
