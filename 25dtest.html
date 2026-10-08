@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"> 
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -61,7 +61,6 @@
         canvas {
             position: absolute;
             cursor: crosshair;
-            display: none;
         }
         button {
             background-color: #007bff;
@@ -105,9 +104,12 @@
             <input type="file" id="upload" accept="image/*">
             <div class="canvas-container" id="canvasBox">
                 <span id="uploadPrompt" style="color: #666;">Upload an image to begin</span>
-                <canvas id="bgCanvas"></canvas>
-                <canvas id="maskCanvas"></canvas>
-                <canvas id="viewCanvas"></canvas>
+                <!-- Bottom Layer: Displays the base photo guide -->
+                <canvas id="bgCanvas" style="display: none; z-index: 1;"></canvas>
+                <!-- Top Layer: Freshly transparent canvas for clean mask storage -->
+                <canvas id="maskCanvas" style="display: none; z-index: 2;"></canvas>
+                <!-- Preview Layer: Plays back the completed 2.5D animation loops -->
+                <canvas id="viewCanvas" style="display: none; z-index: 3;"></canvas>
             </div>
             <div id="statusMsg" class="status"></div>
         </div>
@@ -133,11 +135,11 @@
             <div id="animSliders" class="hidden" style="display:flex; flex-direction:column; gap:15px;">
                 <div class="control-group">
                     <label>Background Zoom Speed</label>
-                    <input type="range" id="bgZoom" min="0" max="40" value="15">
+                    <input type="range" id="bgZoom" min="0" max="40" value="25">
                 </div>
                 <div class="control-group">
                     <label>Foreground Zoom Speed</label>
-                    <input type="range" id="fgZoom" min="0" max="40" value="5">
+                    <input type="range" id="fgZoom" min="0" max="40" value="0">
                 </div>
                 <div class="control-group">
                     <label>Animation Duration (Seconds)</label>
@@ -193,7 +195,6 @@
             brushVal.textContent = e.target.value + 'px';
         });
 
-        // FIXED UPLOADER LOGIC: Selects index [0] explicitly and re-instantiates variables safely
         upload.addEventListener('change', (e) => {
             if (!e.target.files || e.target.files.length === 0) return;
             const file = e.target.files[0]; 
@@ -224,14 +225,12 @@
                 return;
             }
 
-            // Downscale engine calculations
             const maxW = 650;
             const maxH = 450;
             let scale = Math.min(maxW / imgWidth, maxH / imgHeight);
             imgWidth = Math.floor(imgWidth * scale);
             imgHeight = Math.floor(imgHeight * scale);
 
-            // Re-map constraints across all elements synchronously
             [maskCanvas, bgCanvas, viewCanvas, fgTempCanvas, bgTempCanvas].forEach(canvas => {
                 canvas.width = imgWidth;
                 canvas.height = imgHeight;
@@ -239,29 +238,27 @@
                 canvas.style.height = imgHeight + "px";
             });
 
-            // Paint canvas layers immediately
+            // FIX 1: Paint ONLY the guide image canvas layer
+            bgCtx.clearRect(0, 0, imgWidth, imgHeight);
             bgCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-            maskCtx.clearRect(0, 0, imgWidth, imgHeight);
-            maskCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-
-            // Interface visibility adjustments
-            uploadPrompt.style.display = 'none';
             
+            // FIX 2: Leave the mask drawing canvas completely clear/transparent
+            maskCtx.clearRect(0, 0, imgWidth, imgHeight);
+
+            uploadPrompt.style.display = 'none';
+            bgCanvas.style.display = 'block';
             maskCanvas.style.display = 'block';
-            bgCanvas.style.display = 'none';
             viewCanvas.style.display = 'none';
             
             clearMaskBtn.classList.remove('hidden');
             generateBtn.removeAttribute('disabled');
             exportBtn.setAttribute('disabled', 'true');
             editBtn.classList.add('hidden');
-            generateBtn.classList.remove('hidden');
-            animSliders.classList.add('hidden');
-            
-statusMsg.textContent = "Success! Paint a visible red mask over your foreground subject.";
+generateBtn.classList.remove('hidden');
+animSliders.classList.add('hidden');
+statusMsg.textContent = "Success! Paint a visible red mask over the whiter building.";
 statusMsg.style.color = "#28a745";
 }
-// Painting Engine
 maskCanvas.addEventListener('mousedown', startPaint);
 maskCanvas.addEventListener('mousemove', paintMove);
 window.addEventListener('mouseup', stopPaint);
@@ -275,8 +272,7 @@ const rect = maskCanvas.getBoundingClientRect();
 const x = (e.clientX - rect.left) * (imgWidth / rect.width);
 const y = (e.clientY - rect.top) * (imgHeight / rect.height);
 maskCtx.save();
-maskCtx.globalCompositeOperation = 'source-over';
-maskCtx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+maskCtx.fillStyle = 'rgba(255, 0, 0, 0.6)'; // Solid red overlay shape parameters
 maskCtx.beginPath();
 maskCtx.arc(x, y, brushSize.value / 2, 0, Math.PI * 2);
 maskCtx.fill();
@@ -286,10 +282,10 @@ function stopPaint() { isDrawing = false; }
 clearMaskBtn.addEventListener('click', () => {
 if (confirm("Reset current mask pathing?")) setupWorkspace();
 });
-// Separation Layer Computations
 generateBtn.addEventListener('click', prepareAndAnimate);
 editBtn.addEventListener('click', () => {
 stopAnimation();
+bgCanvas.style.display = 'block';
 maskCanvas.style.display = 'block';
 viewCanvas.style.display = 'none';
 editBtn.classList.add('hidden');
@@ -299,48 +295,39 @@ exportBtn.setAttribute('disabled', 'true');
 statusMsg.textContent = "Adjust mask positioning.";
 statusMsg.style.color = "#ffc107";
 });
-        function prepareAndAnimate() {
-            statusMsg.textContent = "Processing layout separations...";
-            
-            // 1. Build crisp Foreground Cutout Layer
-            fgTempCtx.clearRect(0, 0, imgWidth, imgHeight);
-            fgTempCtx.save();
-            fgTempCtx.drawImage(maskCanvas, 0, 0);
-            fgTempCtx.globalCompositeOperation = 'source-in';
-            fgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-            fgTempCtx.restore();
-
-            // 2. Build Separated Background Layer (FIXED CONTEXT)
-            bgTempCtx.clearRect(0, 0, imgWidth, imgHeight);
-            bgTempCtx.save();
-            bgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-            
-            // Remove the foreground mask area from the background image
-            bgTempCtx.globalCompositeOperation = 'destination-out';
-            bgTempCtx.drawImage(fgTempCanvas, 0, 0);
-            bgTempCtx.restore();
-            
-            // 3. Fill the empty hole in the background so it doesn't look blank when zooming
-            bgTempCtx.save();
-            bgTempCtx.globalCompositeOperation = 'destination-over';
-            bgTempCtx.filter = 'blur(8px)'; // Creates a soft backdrop behind the cutout edges
-            bgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-            bgTempCtx.restore(); // CRITICAL: Safely ejects the blur matrix context immediately
-
-            // Toggle view panels
-            maskCanvas.style.display = 'none';
-            viewCanvas.style.display = 'block';
-            generateBtn.classList.add('hidden');
-            editBtn.classList.remove('hidden');
-            animSliders.classList.remove('hidden');
-            exportBtn.removeAttribute('disabled');
-
-            // Fire up animation engine
-            isAnimating = true;
-            startTime = performance.now();
-            renderParallaxFrame();
-        }
-
+function prepareAndAnimate() {
+statusMsg.textContent = "Processing layout separations...";
+// FIX 3: Isolate Foreground properly by intersecting the clean brush strokes with the source image
+fgTempCtx.clearRect(0,0, imgWidth, imgHeight);
+fgTempCtx.save();
+fgTempCtx.drawImage(maskCanvas, 0, 0);
+fgTempCtx.globalCompositeOperation = 'source-in';
+fgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
+fgTempCtx.restore();
+// FIX 4: Build pristine background backdrop by subtracting the cutout area cleanly
+bgTempCtx.clearRect(0,0, imgWidth, imgHeight);
+bgTempCtx.save();
+bgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
+bgTempCtx.globalCompositeOperation = 'destination-out';
+bgTempCtx.drawImage(fgTempCanvas, 0, 0);
+bgTempCtx.restore();
+// Soft-blur backup overlay behind cutout hole to smoothly patch edge zooming
+bgTempCtx.save();
+bgTempCtx.globalCompositeOperation = 'destination-over';
+bgTempCtx.filter = 'blur(8px)';
+bgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
+bgTempCtx.restore();
+bgCanvas.style.display = 'none';
+maskCanvas.style.display = 'none';
+viewCanvas.style.display = 'block';
+generateBtn.classList.add('hidden');
+editBtn.classList.remove('hidden');
+animSliders.classList.remove('hidden');
+exportBtn.removeAttribute('disabled');
+isAnimating = true;
+startTime = performance.now();
+renderParallaxFrame();
+}
 function stopAnimation() {
 isAnimating = false;
 if (animFrameId) cancelAnimationFrame(animFrameId);
@@ -356,11 +343,13 @@ let progress = elapsed / dur;
 let ease = Math.sin(progress * Math.PI);
 let bgS = 1.0 + (ease * bgMax);
 let fgS = 1.0 + (ease * fgMax);
+// Draw Background Layer
 viewCtx.save();
 viewCtx.translate(imgWidth / 2, imgHeight / 2);
 viewCtx.scale(bgS, bgS);
 viewCtx.drawImage(bgTempCanvas, -imgWidth / 2, -imgHeight / 2);
 viewCtx.restore();
+// Draw Foreground Layer (The whiter building)
 viewCtx.save();
 viewCtx.translate(imgWidth / 2, imgHeight / 2);
 viewCtx.scale(fgS, fgS);
@@ -370,7 +359,6 @@ statusMsg.textContent = "Live preview active.";
 statusMsg.style.color = "#007bff";
 animFrameId = requestAnimationFrame(renderParallaxFrame);
 }
-// Export Payload Encoder
 exportBtn.addEventListener('click', () => {
 stopAnimation();
 exportBtn.setAttribute('disabled', 'true');
@@ -401,7 +389,7 @@ captureCtx.translate(imgWidth / 2, imgHeight / 2);
 captureCtx.scale(fgS, fgS);
 captureCtx.drawImage(fgTempCanvas, -imgWidth / 2, -imgHeight / 2);
 captureCtx.restore();
-imageFramesArray.push(captureCanvas.toDataURL('image/jpeg', 0.8)); // Compression optimization
+imageFramesArray.push(captureCanvas.toDataURL('image/jpeg', 0.8));
 }
 gifshot.createGIF({
 images: imageFramesArray,
@@ -429,6 +417,6 @@ startTime = performance.now();
 renderParallaxFrame();
 });
 });
-    </script>
+  </script>
 </body>
 </html>
