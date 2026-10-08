@@ -1,5 +1,5 @@
 STAMP_ID,TITLE,VEHICLE,STAR1,STAR2,STAR3,RANK1,RANK2,RANK3,GRAND_RANK,TASKS
 RAILROAD,Railroad,TRAIN,3,6,9,Honorary Junior Engineer,Honorary Engineer,Honorary Senior Engineer,Local Junior Historian,find-story|ride-any|any-rail
-CANAL,Canal,BOAT,3,6,9,Honorary Deckhand,Honorary Lock Keeper,Honorary Captain,Local Junior Historian,
-DOWNTOWN,Downtown,CAR,3,6,9,Honorary Clerk,Honorary Director,Honorary Mayor,Local Junior Historian,
-INDUSTRIAL,Industries,FACTORY,3,6,9,Honorary Line Leader,Honorary Manager,Honorary Supervisor,Local Junior Historian,
+CANAL,Canal,BOAT,3,6,9,Honorary Deckhand,Honorary Lock Keeper,Honorary Captain,Local Junior Historian,find-story|find-spot|any-canal
+DOWNTOWN,Downtown,CAR,3,6,9,Honorary Clerk,Honorary Director,Honorary Mayor,Local Junior Historian,ride-any|find-spot|any-ind
+INDUSTRIAL,Industries,FACTORY,3,6,9,Honorary Line Leader,Honorary Manager,Honorary Supervisor,Local Junior Historian,find-spot|ride-downtown|any-comm
