@@ -129,12 +129,22 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 .stamp-card.unlocked{background:#fff8f0;border:2px solid #E47303;color:#333;font-weight:bold;animation:stampIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards}
 .stamp-card.unlocked img{filter:none;opacity:1}
 
-/* 3D PARALLAX LIGHTBOX */
-#imgView{position:fixed;inset:0;z-index:99998;background:#000e;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:zoom-out}
+/* PHOTO LIGHTBOX (still + optional animation) */
+#imgView{position:fixed;inset:0;z-index:99998;background:#000e;display:flex;align-items:center;justify-content:center;cursor:zoom-out;overflow:hidden}
 #imgView[hidden]{display:none}
-#depthCanvas{border-radius:12px;box-shadow:0 20px 40px rgba(0,0,0,.6)}
-#imgView .caption{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.75);color:#fff;padding:12px;font-size:14px;text-align:center}
+#imgView .stage{position:relative;max-width:96vw;max-height:92vh;line-height:0}
+#imgView img,
+#imgView video{max-width:96vw;max-height:92vh;object-fit:contain;border-radius:12px;box-shadow:0 20px 40px rgba(0,0,0,.6);display:block}
+#imgView video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none}
+#imgView video[hidden]{display:none}
+#imgView .caption{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.75);color:#fff;padding:12px;font-size:14px;text-align:center;border-radius:0 0 12px 12px;pointer-events:none}
 #imgView button.close-lightbox{position:absolute;top:15px;right:20px;font-size:36px;color:#fff;background:none;border:0;cursor:pointer;z-index:99999}
+
+/* Shared still+video wrapper used in the spot card and tour card */
+.photo-anim{position:relative;display:block;line-height:0}
+.photo-anim img{width:100%;display:block;border-radius:6px}
+.photo-anim video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:6px;pointer-events:none}
+.photo-anim video[hidden]{display:none}
 
 @media(prefers-reduced-motion:reduce){
   #welcomeSite.in #wsPhoto,#welcomeSite.in #wsBox,#welcomeSite.in #wsLine{animation:none}
@@ -208,15 +218,24 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
   </div>
 </div>
 
-<!-- 3D LIGHTBOX -->
+<!-- PHOTO LIGHTBOX -->
 <div id="imgView" hidden role="dialog" aria-label="Enlarged photo">
   <button type="button" class="close-lightbox" aria-label="Close">&times;</button>
-  <canvas id="depthCanvas"></canvas>
-  <div class="caption" style="display:none"></div>
+  <div class="stage">
+    <img id="lightboxImg" alt="">
+    <video id="lightboxVid" muted playsinline preload="metadata" hidden></video>
+    <div class="caption" style="display:none"></div>
+  </div>
 </div>
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script>
+  // Fallback: if the primary CDN fails, try unpkg
+  if (typeof Papa === "undefined") {
+    document.write('<script src="https://unpkg.com/papaparse@5.4.1/dist/papaparse.min.js"><\/script>');
+  }
+</script>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -226,9 +245,9 @@ const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
 }[c]));
 
 const key = s => String(s || "").trim().toLowerCase();
-  
+
 /* ============================================================
-   PASSPORT & ACHIEVEMENTS SYSTEM
+   PASSPORT & ACHIEVEMENTS SYSTEM (visit tracker)
    ============================================================ */
 
 const UNLOCKED_KEY = "connersville_unlocked_stamps";
@@ -257,7 +276,7 @@ function updatePassportUI() {
   const allSpots = places.concat(kids);
   const total = allSpots.length || 1;
   const foundCount = allSpots.filter(s => unlocked.includes(String(s.id))).length;
-  
+
   const countEl = $("passportCount");
   if (countEl) countEl.textContent = `${foundCount}/${total}`;
 
@@ -275,16 +294,6 @@ function updatePassportUI() {
     `;
   }).join("");
 }
-
-$("passportBtn").onclick = () => {
-  updatePassportUI();
-  $("passportDrawer").classList.add("open");
-};
-
-$("closePassport").onclick = () => {
-  $("passportDrawer").classList.remove("open");
-};
-
 
 /* ============================================================
    WELCOME GIF INTRO
@@ -466,8 +475,10 @@ const SITE = {
   maxBounds: [[-85.40,39.45],[-84.95,39.80]],
   childZoom: 16,
   colors: {
-    IND:"#AF350A", CIV:"#E2E1E0", TRANS:"#91AF45",
-    COMM:"#E47303", RES:"#BDD76B", default:"#E47303"
+    IND:"#AF350A", CIV:"#E2E1E0",
+    COMM:"#E47303", RES:"#BDD76B",
+    RAIL:"#8B6F47", CANAL:"#4A7C8C",
+    default:"#E47303"
   },
   yearMin: 1850,
   yearMax: 2030,
@@ -490,8 +501,6 @@ const SITE = {
     boundary: "connersville.geojson"
   }
 };
-
-
 
 /* ============================================================
    MAP
@@ -551,7 +560,7 @@ function thumb(id){
   im.alt = "";
   let i = 0;
 
-  const go = () => { im.src = "thumbs/" + encodeURIComponent(id) + "." + EXT[i]; };
+  const go = () => { im.src = "photos/" + encodeURIComponent(id) + "." + EXT[i]; };
 
   im.onerror = () => {
     if (++i < EXT.length) { go(); }
@@ -577,6 +586,38 @@ function load(file){
       error: () => { console.warn("Could not load " + file); resolve([]); }
     })
   );
+}
+
+/* ============================================================
+   PASSPORT DATA (stamps.csv + tasks.csv)
+   ============================================================ */
+
+let STAMPS = [];
+let TASKS  = [];
+
+async function loadPassportData(){
+  try {
+    const [S, T] = await Promise.all([
+      fetch("stamps.csv", { cache:"no-store" }).then(r => r.ok ? r.text() : "").catch(() => ""),
+      fetch("tasks.csv",  { cache:"no-store" }).then(r => r.ok ? r.text() : "").catch(() => "")
+    ]);
+    if (S) {
+      const parsed = Papa.parse(S, { header:true, skipEmptyLines:"greedy" });
+      STAMPS = parsed.data
+        .filter(r => key(r.STAMP_ID))
+        .map(r => ({
+          row: r,
+          tasks: String(r.TASKS||"").split("|").map(s => s.trim()).filter(Boolean)
+        }));
+    }
+    if (T) {
+      const parsed = Papa.parse(T, { header:true, skipEmptyLines:"greedy" });
+      TASKS = parsed.data.filter(r => key(r.TASK_ID)).map(r => ({ row: r }));
+    }
+    console.info("Passport data loaded:", STAMPS.length, "stamps,", TASKS.length, "tasks");
+  } catch (e) {
+    console.warn("Couldn't load passport data:", e);
+  }
 }
 
 /* ============================================================
@@ -653,9 +694,10 @@ map.on("load", async () => {
 
   $("tour").hidden = !stops.length;
 
-  await initOverlays();
+  await Promise.all([ loadPassportData(), initOverlays() ]);
   update();
   updatePassportUI();
+  if (window.renderStampCards) renderStampCards();
 });
 
 /* ============================================================
@@ -846,6 +888,22 @@ const VEHICLE_SVG = {
       <circle cx="16" cy="24" r="4" fill="#1c1c1c"/>
       <circle cx="44" cy="24" r="4" fill="#1c1c1c"/>
       <rect x="6" y="18" width="48" height="1.5" fill="#E47303"/>
+    </svg>`,
+  factory: `
+    <svg viewBox="0 0 60 30" width="60" height="30" aria-hidden="true">
+      <path d="M4 24 L4 14 L14 18 L14 12 L24 16 L24 10 L34 14 L34 24 Z" fill="#4a4a4a"/>
+      <rect x="4" y="22" width="30" height="4" fill="#2a2a2a"/>
+      <rect x="42" y="6" width="8" height="20" fill="#3a3a3a"/>
+      <rect x="41" y="4" width="10" height="3" fill="#2a2a2a"/>
+      <rect x="8" y="19" width="4" height="3" fill="#f5e6c8"/>
+      <rect x="16" y="19" width="4" height="3" fill="#f5e6c8"/>
+      <rect x="24" y="19" width="4" height="3" fill="#f5e6c8"/>
+      <g opacity="0.75">
+        <circle cx="46" cy="2" r="2.2" fill="#cfd6df"/>
+        <circle cx="50" cy="-1" r="1.6" fill="#cfd6df"/>
+        <circle cx="43" cy="-1" r="1.4" fill="#cfd6df"/>
+      </g>
+      <rect x="4" y="16" width="30" height="1.5" fill="#E47303"/>
     </svg>`
 };
 
@@ -913,8 +971,12 @@ function select(it){
   sel = it;
   places.concat(kids).forEach(i => i.el.classList.toggle("sel", i === it));
 
-  // Unlock passport stamp upon viewing a location!
   unlockStamp(it.id);
+  if (window.passportEvent) passportEvent("view", {
+    id: it.id,
+    category: (it.d && it.d.CATEGORY) || null,
+    source: it.parent ? "childmarkers" : "locations"
+  });
 
   if (it.kids && it.kids.length) {
     focus = it;
@@ -1030,7 +1092,7 @@ $("panel").onclick = async e => {
 map.on("click", () => { $("res").hidden = true; deselect(); });
 map.on("resize", update);
 
-  function tourGo(n){
+function tourGo(n){
   tourI = n;
   select(stops[n]);
   if (n === stops.length - 1 && window.passportEvent) {
@@ -1070,7 +1132,6 @@ $("yr").oninput = e => {
    ============================================================ */
 
 async function initOverlays(){
-  // Load overlays.json; fall back to whatever was hardcoded in SITE.overlays
   try {
     const res = await fetch("overlays.json", { cache:"no-store" });
     if (res.ok) {
@@ -1220,10 +1281,13 @@ $("res").onclick = e => {
     $("sp-text").textContent = r.DETAILS || "";
     $("sp-credit").textContent = r.CREDIT ? "Photo: " + r.CREDIT : "";
     box.hidden = false;
-    
-    // Unlock stamp for QR spot
+
     unlockStamp(id);
-    if (window.passportEvent) passportEvent(key(r.KIND) === "story" ? "story" : "spot");
+    if (window.passportEvent) passportEvent(key(r.KIND) === "story" ? "story" : "spot", {
+      id: id,
+      category: r.CATEGORY || null,
+      source: "qr"
+    });
   });
 })();
 
@@ -1262,19 +1326,19 @@ $("res").onclick = e => {
   let ring = null;
 
   const box = $("spotBox");
-  function setSpotUrl(id) {
-  try {
-    const q = new URLSearchParams(location.search);
-    if (id) q.set("spot", id); else q.delete("spot");
-    const s = q.toString();
-    history.replaceState(null, "", location.pathname + (s ? "?" + s : ""));
-  } catch (e) {}
-}
 
-// Clears ?spot= when the card closes, however it was closed.
-new MutationObserver(() => { if (box.hidden) setSpotUrl(null); })
-  .observe(box, { attributes: true, attributeFilter: ["hidden"] });
-  
+  function setSpotUrl(id) {
+    try {
+      const q = new URLSearchParams(location.search);
+      if (id) q.set("spot", id); else q.delete("spot");
+      const s = q.toString();
+      history.replaceState(null, "", location.pathname + (s ? "?" + s : ""));
+    } catch (e) {}
+  }
+
+  new MutationObserver(() => { if (box.hidden) setSpotUrl(null); })
+    .observe(box, { attributes: true, attributeFilter: ["hidden"] });
+
   if (!new URLSearchParams(location.search).has("spot")) {
     $("sp-x").onclick = $("sp-go").onclick = () => { box.hidden = true; };
     box.onclick = e => { if (e.target === box) box.hidden = true; };
@@ -1284,8 +1348,42 @@ new MutationObserver(() => { if (box.hidden) setSpotUrl(null); })
 
   function showSpot(it) {
     const r = it.r;
-    $("sp-img").hidden = !r.PHOTO;
-    if (r.PHOTO) $("sp-img").src = r.PHOTO;
+
+    const holder = $("sp-img").parentNode;
+    let wrap = holder.querySelector(".photo-anim");
+    if (!wrap) {
+      wrap = document.createElement("div");
+      wrap.className = "photo-anim";
+      $("sp-img").parentNode.insertBefore(wrap, $("sp-img"));
+      wrap.appendChild($("sp-img"));
+      const v = document.createElement("video");
+      v.muted = true;
+      v.playsInline = true;
+      v.preload = "metadata";
+      v.hidden = true;
+      wrap.appendChild(v);
+    }
+    const vid = wrap.querySelector("video");
+    vid.pause();
+    vid.hidden = true;
+    vid.removeAttribute("src");
+
+    if (r.PHOTO) {
+      $("sp-img").hidden = false;
+      $("sp-img").src = r.PHOTO;
+      const anim = /(?:^|\/)([^/]+)\.(jpe?g|png|webp)$/i.exec(r.PHOTO || "");
+      if (anim) {
+        const path = "anims/" + anim[1] + ".mp4";
+        vid.onloadeddata = () => { vid.hidden = false; vid.play().catch(() => { vid.hidden = true; }); };
+        vid.onended      = () => { vid.hidden = true; };
+        vid.onerror      = () => { vid.hidden = true; };
+        vid.src = path;
+        vid.load();
+      }
+    } else {
+      $("sp-img").hidden = true;
+    }
+
     $("sp-title").textContent = r.TITLE || "";
     $("sp-when").textContent = r.YEAR || "";
     $("sp-text").textContent = r.DETAILS || "";
@@ -1294,10 +1392,13 @@ new MutationObserver(() => { if (box.hidden) setSpotUrl(null); })
         .filter(Boolean).join(" · ");
     box.hidden = false;
     setSpotUrl(it.id);
-    
-    // Unlock stamp for photo spot / story
+
     unlockStamp(it.id);
-    if (window.passportEvent) passportEvent(it.kind);
+    if (window.passportEvent) passportEvent(it.kind, {
+      id: it.id,
+      category: it.r.CATEGORY || null,
+      source: "spots"
+    });
   }
 
   const vis = () => {
@@ -1333,8 +1434,29 @@ new MutationObserver(() => { if (box.hidden) setSpotUrl(null); })
       text = r.DETAILS || "";
       ll = it.ll;
       if (r.PHOTO) {
-        img = new Image(); img.alt = ""; img.src = r.PHOTO;
-        img.onerror = () => { img.remove(); };
+        const wrap = document.createElement("div");
+        wrap.className = "photo-anim";
+        const still = new Image();
+        still.alt = "";
+        still.src = r.PHOTO;
+        still.onerror = () => { still.remove(); };
+        wrap.appendChild(still);
+
+        const m = /(?:^|\/)([^/]+)\.(jpe?g|png|webp)$/i.exec(r.PHOTO);
+        if (m) {
+          const v = document.createElement("video");
+          v.muted = true;
+          v.playsInline = true;
+          v.preload = "metadata";
+          v.hidden = true;
+          v.onloadeddata = () => { v.hidden = false; v.play().catch(() => { v.hidden = true; }); };
+          v.onended      = () => { v.hidden = true; };
+          v.onerror      = () => { v.hidden = true; };
+          v.src = "anims/" + m[1] + ".mp4";
+          wrap.appendChild(v);
+        }
+
+        img = wrap;
       }
       credit = [r.CREDIT ? "Photo: " + r.CREDIT : "", r.SOURCE ? "Source: " + r.SOURCE : ""]
         .filter(Boolean).join(" · ");
@@ -1379,13 +1501,14 @@ new MutationObserver(() => { if (box.hidden) setSpotUrl(null); })
 
     if (img) card.insertBefore(img, card.firstChild);
     card.hidden = false;
-   if (n === T.stops.length - 1 && window.passportEvent) {
-  passportEvent("tour", {
-    id: T.id,
-    category: T.category || null,
-    source: "tours"
-  });
-}
+
+    if (n === T.stops.length - 1 && window.passportEvent) {
+      passportEvent("tour", {
+        id: T.id,
+        category: T.category || null,
+        source: "tours"
+      });
+    }
   }
 
   function listTours() {
@@ -1501,260 +1624,90 @@ new MutationObserver(() => { if (box.hidden) setSpotUrl(null); })
 })();
 
 /* ============================================================
-   3D PARALLAX LIGHTBOX & INITIALIZATION
+   PHOTO LIGHTBOX & INITIALIZATION
    ============================================================ */
 (function () {
 
-/* ============================================================
-   DEPTH PARALLAX LIGHTBOX
-   Paste this in place of everything inside the lightbox IIFE
-   from "const view = ..." down to and including the capture-phase
-   Escape keydown handler. KEEP the "if (!new URLSearchParams(...)
-   .has('spot'))" camera-fit block that comes after it.
-   ============================================================ */
+  const view    = document.getElementById("imgView");
+  const imgEl   = document.getElementById("lightboxImg");
+  const vidEl   = document.getElementById("lightboxVid");
+  const caption = view.querySelector(".caption");
 
-const view    = document.getElementById("imgView");
-const canvas  = document.getElementById("depthCanvas");
-const caption = view.querySelector(".caption");
+  let currentSrc = null;
+  let playing    = false;
 
-const STRENGTH = 0.03;   // how far near things slide against far things (0.02 subtle, 0.08 strong)
-const TILT_DEG = 20;     // degrees of phone tilt that gives full effect
-const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-/* ---------- WebGL setup ---------- */
-
-const gl = canvas.getContext("webgl", { antialias: false });
-const loc = {};
-let texes = [];
-
-const VERT = `
-attribute vec2 p;
-varying vec2 uv;
-void main(){
-  uv = p * 0.5 + 0.5;
-  uv.y = 1.0 - uv.y;
-  gl_Position = vec4(p, 0.0, 1.0);
-}`;
-
-// For each pixel: look up its depth, slide the sample point by (depth * tilt),
-// and repeat 3 times so the depth is read from where we actually landed.
-const FRAG = `
-precision mediump float;
-uniform sampler2D img;
-uniform sampler2D depth;
-uniform vec2 tilt;
-uniform float strength;
-varying vec2 uv;
-void main(){
-  vec2 base = (uv - 0.5) * (1.0 - strength) + 0.5;
-  vec2 s = base;
-  for (int i = 0; i < 3; i++) {
-    float d = texture2D(depth, s).r;
-    s = base + tilt * (d - 0.5) * strength;
-  }
-  gl_FragColor = texture2D(img, s);
-}`;
-
-function compile(type, src){
-  const s = gl.createShader(type);
-  gl.shaderSource(s, src);
-  gl.compileShader(s);
-  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.warn(gl.getShaderInfoLog(s));
-  return s;
-}
-
-if (gl) {
-  const prog = gl.createProgram();
-  gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
-  gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FRAG));
-  gl.linkProgram(prog);
-  gl.useProgram(prog);
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
-  const a = gl.getAttribLocation(prog, "p");
-  gl.enableVertexAttribArray(a);
-  gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
-
-  loc.tilt = gl.getUniformLocation(prog, "tilt");
-  gl.uniform1i(gl.getUniformLocation(prog, "img"), 0);
-  gl.uniform1i(gl.getUniformLocation(prog, "depth"), 1);
-  gl.uniform1f(gl.getUniformLocation(prog, "strength"), STRENGTH);
-}
-
-function makeTexture(unit, source){
-  const t = gl.createTexture();
-  gl.activeTexture(gl.TEXTURE0 + unit);
-  gl.bindTexture(gl.TEXTURE_2D, t);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  texes.push(t);
-}
-
-/* ---------- Loading ---------- */
-
-const loadImg = src => new Promise((ok, fail) => {
-  const i = new Image();
-  i.onload = () => ok(i);
-  i.onerror = fail;
-  i.src = src;
-});
-
-// Used when a photo has no depth map: a soft "bulge" (center near, edges far).
-// It gives some motion, but it is NOT real depth. Real depth maps look far better.
-function fakeDepth(){
-  const c = document.createElement("canvas");
-  c.width = c.height = 256;
-  const x = c.getContext("2d");
-  const g = x.createLinearGradient(0, 0, 0, 256);
-  g.addColorStop(0, "#000");   // top = far
-  g.addColorStop(1, "#fff");   // bottom = near
-  x.fillStyle = g;
-  x.fillRect(0, 0, 256, 256);
-  return c;
-}
-
-/* ---------- Tilt input (gyro first, pointer as fallback) ---------- */
-
-const tilt = { x: 0, y: 0 };
-const target = { x: 0, y: 0 };
-let usingGyro = false, gyroAsked = false, g0 = null, b0 = null;
-
-const clamp = v => Math.max(-1, Math.min(1, v));
-
-function onGyro(e){
-  if (view.hidden || e.gamma == null || e.beta == null) return;
-  usingGyro = true;
-
-  let x = e.gamma, y = e.beta;
-  const ang = (screen.orientation && screen.orientation.angle) || 0;
-  if (ang === 90)  { [x, y] = [y, -x]; }
-  if (ang === 270) { [x, y] = [-y, x]; }
-
-  if (g0 === null) { g0 = x; b0 = y; }       // however they hold the phone = "center"
-  g0 += (x - g0) * 0.02;                      // slowly re-center if they shift posture
-  b0 += (y - b0) * 0.02;
-
-  target.x = clamp((x - g0) / TILT_DEG);
-  target.y = clamp((y - b0) / TILT_DEG);
-}
-
-// iPhones make you ask permission, and it only works inside a tap.
-// Android just works. Both need https (GitHub Pages is fine).
-function enableGyro(){
-  if (gyroAsked || reduceMotion) return;
-  gyroAsked = true;
-  if (typeof DeviceOrientationEvent !== "undefined" &&
-      typeof DeviceOrientationEvent.requestPermission === "function") {
-    DeviceOrientationEvent.requestPermission()
-      .then(r => { if (r === "granted") window.addEventListener("deviceorientation", onGyro); })
-      .catch(() => {});
-  } else {
-    window.addEventListener("deviceorientation", onGyro);
-  }
-}
-
-window.addEventListener("orientationchange", () => { g0 = null; });
-
-view.addEventListener("pointermove", e => {
-  if (usingGyro || reduceMotion) return;
-  target.x = (e.clientX / innerWidth  - 0.5) * 2;
-  target.y = (e.clientY / innerHeight - 0.5) * 2;
-});
-
-/* ---------- Open / close ---------- */
-
-let raf = 0, token = 0;
-
-function frame(){
-  tilt.x += (target.x - tilt.x) * 0.12;
-  tilt.y += (target.y - tilt.y) * 0.12;
-  gl.uniform2f(loc.tilt, tilt.x, tilt.y);
-  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-  raf = requestAnimationFrame(frame);
-}
-
-function closeView(){
-  token++;
-  cancelAnimationFrame(raf);
-  view.hidden = true;
-  if (gl) texes.forEach(t => gl.deleteTexture(t));
-  texes = [];
-}
-
-async function openView(photoSrc, fallbackSrc, depthSrc, text){
-  const mine = ++token;
-  cancelAnimationFrame(raf);
-  tilt.x = tilt.y = target.x = target.y = 0;
-  g0 = null;
-
-  caption.textContent = text || "";
-  caption.style.display = text ? "block" : "none";
-  view.hidden = false;
-
-  let img;
-  try { img = await loadImg(photoSrc); }
-  catch { try { img = await loadImg(fallbackSrc); } catch { closeView(); return; } }
-  if (mine !== token) return;
-
-  let depth;
-  try { depth = depthSrc ? await loadImg(depthSrc) : fakeDepth(); }
-  catch { depth = fakeDepth(); }
-  if (mine !== token) return;
-
-  // Fit the photo on screen
-  const k = Math.min(innerWidth * 0.92 / img.naturalWidth, innerHeight * 0.85 / img.naturalHeight);
-  const w = Math.round(img.naturalWidth * k), h = Math.round(img.naturalHeight * k);
-  const dpr = Math.min(devicePixelRatio || 1, 2);
-  canvas.style.width = w + "px";
-  canvas.style.height = h + "px";
-  canvas.width = Math.round(w * dpr);
-  canvas.height = Math.round(h * dpr);
-
-  if (!gl) {   // no WebGL: show it flat rather than nothing
-    canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-    return;
+  function animPathFor(photoSrc) {
+    const m = /(?:^|\/)([^/]+)\.(jpe?g|png|webp)$/i.exec(photoSrc || "");
+    return m ? "anims/" + m[1] + ".mp4" : null;
   }
 
-  gl.viewport(0, 0, canvas.width, canvas.height);
-  texes.forEach(t => gl.deleteTexture(t));
-  texes = [];
-  makeTexture(0, img);
-  makeTexture(1, depth);
+  function closeView() {
+    view.hidden = true;
+    vidEl.pause();
+    vidEl.removeAttribute("src");
+    vidEl.hidden = true;
+    imgEl.removeAttribute("src");
+    currentSrc = null;
+    playing = false;
+  }
 
-  if (reduceMotion) { frame(); cancelAnimationFrame(raf); }   // one still frame
-  else frame();
-}
+  function openLightbox(photoSrc, fallbackSrc, text) {
+    imgEl.src = photoSrc;
+    imgEl.onerror = () => { imgEl.onerror = null; imgEl.src = fallbackSrc; };
 
-/* ---------- Wiring ---------- */
+    caption.textContent = text || "";
+    caption.style.display = text ? "block" : "none";
 
-document.addEventListener("click", e => {
-  const im = e.target.closest("#panel img, #spotCard img, #tourCard img");
-  if (!im || !im.getAttribute("src")) return;
+    vidEl.hidden = true;
+    vidEl.pause();
+    playing = false;
 
-  enableGyro();   // must run right here, inside the tap
+    view.hidden = false;
+    currentSrc = photoSrc;
 
-  const shown = im.currentSrc || im.src;
-  const photo = shown.replace("/thumbs/", "/photos/");
-  // depth/ must hold a grayscale map with the SAME filename as the photo
-  const depth = /\/(thumbs|photos|spots|stories)\//.test(shown)
-    ? shown.replace(/\/(thumbs|photos|spots|stories)\//, "/depth/")
-    : null;
+    const anim = animPathFor(photoSrc);
+    if (anim) {
+      vidEl.onloadeddata = () => {
+        vidEl.hidden = false;
+        playing = true;
+        vidEl.play().catch(() => { vidEl.hidden = true; playing = false; });
+      };
+      vidEl.onended = () => { vidEl.hidden = true; playing = false; };
+      vidEl.onerror = () => { vidEl.hidden = true; playing = false; };
+      vidEl.src = anim;
+      vidEl.load();
+    }
+  }
 
-  const holder = im.closest("#panel, #spotCard, #tourCard");
-  const h2 = holder && holder.querySelector("h2");
+  document.addEventListener("click", e => {
+    const im = e.target.closest("#panel img, #spotCard img, #tourCard img, .photo-anim img");
+    if (!im) return;
+    const raw = im.getAttribute("src");
+    if (!raw) return;
 
-  openView(photo, shown, depth, h2 ? h2.textContent : "");
-});
+    e.preventDefault();
+    e.stopPropagation();
 
-view.addEventListener("click", closeView);
+    const shown = im.currentSrc || im.src;
+    const photo = shown;
+    const holder = im.closest("#panel, #spotCard, #tourCard");
+    const h2 = holder && holder.querySelector("h2");
+    openLightbox(photo, shown, h2 ? h2.textContent : "");
+  });
 
-document.addEventListener("keydown", e => {
-  if (e.key === "Escape" && !view.hidden) { closeView(); e.stopPropagation(); }
-}, true);
+  view.addEventListener("click", () => {
+    if (playing) { vidEl.pause(); vidEl.hidden = true; playing = false; return; }
+    closeView();
+  });
+
+  view.querySelector(".close-lightbox").addEventListener("click", e => {
+    e.stopPropagation();
+    closeView();
+  });
+
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && !view.hidden) { closeView(); e.stopPropagation(); }
+  }, true);
 
   if (!new URLSearchParams(location.search).has("spot")) {
     let tries = 0;
@@ -1778,48 +1731,75 @@ document.addEventListener("keydown", e => {
     }, 100);
   }
 
+  window.openLightbox = openLightbox;
 })();
 
-  /* ============================================================
-   PASSPORT DEMO:
-   Needs these from the main script: $, esc, UNLOCKED_KEY, VEHICLE_SVG.
+/* ============================================================
+   PASSPORT — stamps & tasks (reads stamps.csv + tasks.csv)
    ============================================================ */
 (function () {
 
-  /* ---------- Settings: edit these ---------- */
+  const STAMP_KEY = "connersville_stamps_v2";
+  const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const LAST_STARS_KEY = "connersville_last_stars";
 
-  const PASSPORT = {
-    vehicle: "train",   // train, boat or car
-    title: "Railroad",  // printed on the stamp
-    ranks: ["Honorary Junior Engineer", "Honorary Engineer", "Honorary Senior Engineer"],
-    grand: "Connersville Junior Historian",
-    finale: "Show this screen at the museum to claim your certificate.",  // "" to hide
-    tasks: [
-      { id: "tour",  label: "Take a Tour",  hint: "Ride any tour to its last stop.",              btn: "Tours" },
-      { id: "story", label: "Find a Story", hint: "Tap any sparkle on the map.",                  btn: "Show" },
-      { id: "spot",  label: "Visit a Spot", hint: "Tap a camera on the map, or scan a QR sign.",  btn: "Show" }
-    ]
-  };
+  const loadProgress = () => { try { return JSON.parse(localStorage.getItem(STAMP_KEY)) || {}; } catch { return {}; } };
+  const saveProgress = p => { try { localStorage.setItem(STAMP_KEY, JSON.stringify(p)); } catch {} };
 
-  const KEY = "connersville_demo_passport";
+  function starsFor(row, n){
+    const t1 = +row.STAR1||Infinity, t2 = +row.STAR2||Infinity, t3 = +row.STAR3||Infinity;
+    if (n >= t3) return 3;
+    if (n >= t2) return 2;
+    if (n >= t1) return 1;
+    return 0;
+  }
 
-  /* ---------- Reset: open the page with ?resetpassport ---------- */
+  function rankFor(row, stars){
+    if (stars === 3) return row.RANK3 || "";
+    if (stars === 2) return row.RANK2 || "";
+    if (stars === 1) return row.RANK1 || "";
+    return "";
+  }
+
+  function countFor(stamp){
+    const p = loadProgress();
+    const bucket = p[String(stamp.row.STAMP_ID).trim()] || {};
+    return stamp.tasks.filter(id => bucket[id]).length;
+  }
+
+  function taskMatches(task, type, context){
+    const scope  = String(task.SCOPE||"").trim().toLowerCase();
+    const target = String(task.TARGET||"").trim().toLowerCase();
+    if (scope === "behavior"){
+      const t = target.replace(/s$/, "");
+      return t === type;
+    }
+    if (scope === "item"){
+      return !!context.id && target === String(context.id).trim().toLowerCase();
+    }
+    if (scope === "category"){
+      return !!context.category && target === String(context.category).trim().toLowerCase();
+    }
+    return false;
+  }
 
   const qs = new URLSearchParams(location.search);
   if (qs.has("resetpassport")) {
-    try { localStorage.removeItem(KEY); localStorage.removeItem(UNLOCKED_KEY); } catch {}
+    try {
+      localStorage.removeItem(STAMP_KEY);
+      localStorage.removeItem(UNLOCKED_KEY);
+      localStorage.removeItem(LAST_STARS_KEY);
+      localStorage.removeItem("connersville_demo_passport");
+    } catch {}
     qs.delete("resetpassport");
     const rest = qs.toString();
     history.replaceState(null, "", location.pathname + (rest ? "?" + rest : ""));
   }
 
-  /* ---------- Saved progress ---------- */
-
-  const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
-  const save = p => { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch {} };
-  const count = p => PASSPORT.tasks.filter(t => p[t.id]).length;
-
-  /* ---------- CSS ---------- */
+  window.__lastStars = (() => {
+    try { return JSON.parse(localStorage.getItem(LAST_STARS_KEY)) || {}; }
+    catch { return {}; }
+  })();
 
   document.head.insertAdjacentHTML("beforeend", `<style>
 #passportBtn{position:relative}
@@ -1833,6 +1813,34 @@ document.addEventListener("keydown", e => {
 }
 #passportBtn.nudge{animation:pNudge 6s ease-in-out 4}
 #passportBtn.nudge::after{content:"";position:absolute;top:-3px;right:-3px;width:11px;height:11px;border-radius:50%;background:#d40000;box-shadow:0 0 0 2px #fff}
+
+#pStamps{margin-bottom:18px}
+#pStamps h3{margin:0 0 8px;font-size:16px}
+.p-featured{background:linear-gradient(180deg,#fffdf6,#fff);border:3px solid #D55E00;border-radius:14px;padding:16px 14px;text-align:center;box-shadow:0 3px 12px #D55E0022;cursor:pointer;transition:transform .15s}
+.p-featured:active{transform:scale(.99)}
+.p-featured .emblem{width:100px;height:100px;border-radius:50%;background:#fffdf6;border:6px solid #D55E00;box-shadow:inset 0 0 0 3px #fffdf6,inset 0 0 0 5px #D55E00;display:flex;flex-direction:column;align-items:center;justify-content:center;margin:0 auto 10px}
+.p-featured .emblem svg{width:60%;height:auto}
+.p-featured .emblem b{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#D55E00;margin-top:2px}
+.p-featured h4{margin:0 0 6px;font-size:20px;color:#D55E00}
+.p-featured .stars{display:flex;gap:6px;justify-content:center;margin:6px 0}
+.p-featured .stars svg{width:40px;height:40px;display:block}
+.p-featured .stars .on path{fill:#FFC20E;stroke:#c98a00;stroke-width:1.2}
+.p-featured .stars .off path{fill:#fff;stroke:#ccc;stroke-width:1.5}
+.p-featured .rank{font-size:17px;font-weight:600;margin-top:6px}
+.p-featured .prog{font-size:12px;color:#7a5c00;margin-top:6px}
+.p-featured .grand{font-size:14px;color:#D55E00;font-weight:600;margin-top:8px}
+
+.p-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.p-tile{background:#fafbfd;border:2px solid #eef1f5;border-radius:10px;padding:10px 6px;text-align:center;cursor:pointer;transition:border-color .12s,transform .12s}
+.p-tile:hover{border-color:#cfe0f3}
+.p-tile.sel{border-color:#D55E00;background:#fff8f0}
+.p-tile .emblem{width:44px;height:44px;border-radius:50%;background:#fffdf6;border:3px solid #D55E00;display:flex;align-items:center;justify-content:center;margin:0 auto 6px}
+.p-tile .emblem svg{width:70%;height:auto}
+.p-tile .name{font-size:11px;font-weight:600;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.p-tile .stars{display:flex;gap:2px;justify-content:center;margin-top:3px}
+.p-tile .stars svg{width:14px;height:14px;display:block}
+.p-tile .stars .on path{fill:#FFC20E;stroke:#c98a00;stroke-width:1.2}
+.p-tile .stars .off path{fill:#fff;stroke:#ccc;stroke-width:1.5}
 
 #pSlam{position:fixed;inset:0;z-index:100001;display:none;align-items:center;justify-content:center;background:#000b;overflow:hidden;cursor:pointer;text-align:center;color:#fff;font-family:Arial,sans-serif}
 #pSlam.on{display:flex}
@@ -1868,29 +1876,23 @@ document.addEventListener("keydown", e => {
 #pSlam .note{font-size:15px;animation:pFade .5s 2s both}
 #pSlam .tap{font-size:12px;letter-spacing:.05em;opacity:.8;margin-top:6px}
 @keyframes pFade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-
-#pTasks{margin-bottom:16px}
-#pTasks h3{margin:0 0 4px;font-size:16px}
-#pTasks .mini{display:flex;gap:4px;margin:2px 0 8px}
-#pTasks .mini svg{width:26px;height:26px;display:block}
-#pTasks .mini .on path{fill:#FFC20E;stroke:#c98a00;stroke-width:1}
-#pTasks .mini .off path{fill:#eee;stroke:#bbb;stroke-width:1}
-.ptask{display:flex;gap:10px;align-items:center;padding:10px;border:1px solid #ddd;border-radius:8px;background:#fff;margin:6px 0}
-.ptask.done{border-color:#E47303;background:#fff8f0}
-.ptask .mark{font-size:20px;width:22px;text-align:center}
-.ptask b{display:block;font-size:14px}
-.ptask small{color:#666}
-.pbtn{margin-left:auto;padding:6px 10px;border:0;border-radius:4px;background:#E47303;color:#fff;cursor:pointer;font-size:13px}
-#pTasks .pbtn.alone{margin:6px 0 0}
-#pTasks .pgrand{margin:8px 0 0;font-weight:bold;color:#AF350A}
+#pSlam.plain{background:#0006}
 
 @media(prefers-reduced-motion:reduce){
   #pSlam *{animation:none!important}
   #passportBtn.nudge{animation:none;outline:3px solid #fff}
 }
-</style>`);
 
-  /* ---------- Markup ---------- */
+#pSlam.plain .rays{display:none}
+#pSlam.plain.hit .box{animation:none}
+#pSlam.plain .seal{animation:pSlamPlain .45s cubic-bezier(.3,1.4,.5,1) both}
+@keyframes pSlamPlain{
+  0%{transform:scale(2.6) rotate(-14deg);opacity:0}
+  60%{transform:scale(.94) rotate(-5deg);opacity:1}
+  100%{transform:scale(1) rotate(-6deg);opacity:1}
+}
+#pSlam.plain .stars .new{animation:none}
+</style>`);
 
   const STAR = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/></svg>`;
   const starRow = (n, newest) =>
@@ -1906,16 +1908,11 @@ document.addEventListener("keydown", e => {
   <div class="box"></div>
 </div>`);
 
-  document.querySelector(".passport-body").insertAdjacentHTML("afterbegin", `<div id="pTasks"></div>`);
+  document.querySelector(".passport-body").insertAdjacentHTML("afterbegin", `<div id="pStamps"></div>`);
 
   const slam = document.getElementById("pSlam");
-  const btn = $("passportBtn");
-  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  /* ---------- Confetti ---------- */
 
   let stopConfetti = null;
-
   function confetti(canvas) {
     const ctx = canvas.getContext("2d");
     const W = canvas.width = innerWidth, H = canvas.height = innerHeight;
@@ -1946,54 +1943,56 @@ document.addEventListener("keydown", e => {
     return () => { cancelAnimationFrame(id); ctx.clearRect(0, 0, W, H); };
   }
 
-  /* ---------- The slam screen ---------- */
-
   let queue = [], showing = false, autoTimer = 0;
 
-  function celebrate(n, replay) {
-    queue.push({ n, replay });
+  function celebrateStamp(stamp, stars, replay, kind){
+    queue.push({ stamp, stars, replay, kind: kind || "star" });
     pump();
   }
 
-  function pump() {
+  function pump(){
     if (showing || !queue.length) return;
-    // Never fight the welcome sequence
     if (document.getElementById("welcomeOverlay")) { setTimeout(pump, 500); return; }
     showing = true;
     const job = queue.shift();
-    // Short pause so the card the person just opened can appear first
-    setTimeout(() => render(job.n, job.replay), job.replay ? 0 : 600);
+    setTimeout(() => render(job), job.replay ? 0 : 600);
   }
 
-  function render(n, replay) {
-    const done = n >= PASSPORT.tasks.length;
-    const rank = PASSPORT.ranks[Math.min(n, PASSPORT.ranks.length) - 1] || "";
+  function render(job){
+    const { stamp, stars, replay, kind } = job;
+    const row = stamp.row;
+    const rank = rankFor(row, stars);
+    const done = stars >= 3;
+    const isStar = kind === "star";
+
+    slam.classList.toggle("plain", !isStar);
+
+    const taskLabel = job.taskLabel || "";
 
     slam.querySelector(".box").innerHTML =
-      `<div class="seal">${VEHICLE_SVG[PASSPORT.vehicle] || VEHICLE_SVG.train}<b>${esc(PASSPORT.title)}</b></div>` +
-      `<div class="stars">${starRow(n, replay ? 0 : n)}</div>` +
-      `<div class="rank" id="pRank" aria-live="polite">${esc(rank)}</div>` +
-      (done
-        ? `<div class="grand">${esc(PASSPORT.grand)}</div>` +
-          (PASSPORT.finale ? `<div class="note">${esc(PASSPORT.finale)}</div>` : "")
-        : "") +
+      `<div class="seal">${VEHICLE_SVG[String(row.VEHICLE||"train").toLowerCase()] || VEHICLE_SVG.train}<b>${esc(row.TITLE||"")}</b></div>` +
+      (isStar
+        ? `<div class="stars">${starRow(stars, replay ? 0 : stars)}</div>` +
+          `<div class="rank" id="pRank" aria-live="polite">${esc(rank)}</div>` +
+          (done ? `<div class="grand">${esc(row.GRAND_RANK || "")}</div>` : "")
+        : `<div class="rank" style="font-size:20px">${esc(taskLabel || "Task complete!")}</div>`) +
       `<div class="tap">TAP TO CONTINUE</div>`;
 
-    slam.classList.add("on", "hit");
+    slam.classList.add("on");
+    if (isStar) slam.classList.add("hit");
     slam.focus();
 
-    if (done && !reduceMotion) stopConfetti = confetti(slam.querySelector("canvas"));
-    if (!done) autoTimer = setTimeout(() => dismiss(replay), 6000);   // the final one waits for a tap
+    if (isStar && done && !REDUCED) stopConfetti = confetti(slam.querySelector("canvas"));
+    autoTimer = setTimeout(() => dismiss(replay), isStar && done ? 10000 : (isStar ? 6000 : 2600));
   }
 
-  function dismiss(replay) {
+  function dismiss(replay){
     if (!slam.classList.contains("on")) return;
     clearTimeout(autoTimer);
     if (stopConfetti) { stopConfetti(); stopConfetti = null; }
-    slam.classList.remove("on", "hit");
-    showing = false;
-    if (replay !== true) btn.classList.add("nudge");
-    renderTasks();
+    slam.classList.remove("on", "hit", "plain");
+    if (replay !== true) $("passportBtn").classList.add("nudge");
+    renderStampCards();
     pump();
   }
 
@@ -2002,77 +2001,140 @@ document.addEventListener("keydown", e => {
     if (e.key === "Escape" && slam.classList.contains("on")) { dismiss(); e.stopPropagation(); }
   }, true);
 
-  /* ---------- The task list inside the passport drawer ---------- */
+  let featuredId = null;
 
-  function renderTasks() {
-    const p = load();
-    const n = count(p);
+  window.renderStampCards = function(){
+    const box = document.getElementById("pStamps");
+    if (!box) return;
 
-    $("pTasks").innerHTML =
-      `<h3>${esc(PASSPORT.title)} stamp: ${n} of ${PASSPORT.tasks.length}</h3>` +
-      `<div class="mini">${starRow(n, 0)}</div>` +
-      PASSPORT.tasks.map(t => `
-        <div class="ptask ${p[t.id] ? "done" : ""}">
-          <span class="mark" aria-hidden="true">${p[t.id] ? "&#10004;" : "&#9675;"}</span>
-          <div><b>${esc(t.label)}</b><small>${esc(t.hint)}</small></div>
-          ${p[t.id] ? "" : `<button type="button" class="pbtn" data-do="${esc(t.id)}">${esc(t.btn)}</button>`}
-        </div>`).join("") +
-      (n ? `<button type="button" class="pbtn alone" data-do="replay">Show my stamp</button>` : "") +
-      (p.done ? `<p class="pgrand">${esc(PASSPORT.grand)}</p>` : "");
-  }
-
-  $("pTasks").addEventListener("click", e => {
-    const b = e.target.closest("[data-do]");
-    if (!b) return;
-    const what = b.dataset.do;
-
-    $("passportDrawer").classList.remove("open");
-
-    if (what === "replay") { celebrate(count(load()), true); return; }
-
-    if (what === "tour") {
-      const t = $("tours"), o = $("tour");
-      if (t && !t.hidden) t.click();
-      else if (o && !o.hidden) o.click();
-    } else {
-      const s = $("stories");   // shows every story and spot on the map
-      if (s && s.getAttribute("aria-pressed") !== "true") s.click();
+    if (!STAMPS.length){
+      box.innerHTML = `<h3>Stamps</h3><p style="color:#9aa3ad;font-size:13px;margin:0">Loading stamps…</p>`;
+      return;
     }
-  });
 
-  btn.addEventListener("click", () => {
-    btn.classList.remove("nudge");
-    const p = load();
-    if (!p.seen) { p.seen = true; save(p); }
-    renderTasks();
-  });
+    if (!featuredId || !STAMPS.find(s => key(s.row.STAMP_ID) === key(featuredId))){
+      let best = STAMPS[0], bestCount = -1;
+      STAMPS.forEach(s => { const c = countFor(s); if (c > bestCount){ best = s; bestCount = c; } });
+      featuredId = best.row.STAMP_ID;
+    }
 
-  /* ---------- Called from the four hooks ---------- */
+    const featured = STAMPS.find(s => key(s.row.STAMP_ID) === key(featuredId)) || STAMPS[0];
+    const fr = featured.row;
+    const fCount = countFor(featured);
+    const fStars = starsFor(fr, fCount);
+    const fRank = rankFor(fr, fStars);
+    const fMax = Math.max(+fr.STAR3||0, +fr.STAR2||0, +fr.STAR1||0, 1);
+    const nextStar = fStars === 0 ? +fr.STAR1||0 : fStars === 1 ? +fr.STAR2||0 : fStars === 2 ? +fr.STAR3||0 : +fr.STAR3||0;
 
-  window.passportEvent = type => {
-    if (!PASSPORT.tasks.some(t => t.id === type)) return;
-    const p = load();
-    if (p[type]) return;           // each task only counts once
-    p[type] = true;
-    const n = count(p);
-    if (n >= PASSPORT.tasks.length) p.done = true;
-    save(p);
-    renderTasks();
-    celebrate(n, false);
+    box.innerHTML = `
+      <h3>Stamps</h3>
+      <div class="p-featured" data-id="${esc(fr.STAMP_ID)}">
+        <div class="emblem">
+          ${VEHICLE_SVG[String(fr.VEHICLE||"train").toLowerCase()] || VEHICLE_SVG.train}
+          <b>${esc(fr.TITLE||"")}</b>
+        </div>
+        <h4>${esc(fr.TITLE||"")}</h4>
+        <div class="stars">${starRow(fStars, 0)}</div>
+        <div class="rank">${esc(fRank || "Not started yet")}</div>
+        <div class="prog">${fCount} of ${fMax} tasks · need ${Math.max(0, nextStar - fCount)} more for next star</div>
+        ${fStars >= 3 && fr.GRAND_RANK ? `<div class="grand">${esc(fr.GRAND_RANK)}</div>` : ""}
+      </div>
+      <div class="p-tiles">
+        ${STAMPS.map(s => {
+          const r = s.row;
+          const c = countFor(s);
+          const st = starsFor(r, c);
+          const sel = key(r.STAMP_ID) === key(fr.STAMP_ID);
+          return `
+            <div class="p-tile ${sel?"sel":""}" data-id="${esc(r.STAMP_ID)}">
+              <div class="emblem">${VEHICLE_SVG[String(r.VEHICLE||"train").toLowerCase()] || VEHICLE_SVG.train}</div>
+              <div class="name">${esc(r.TITLE||"")}</div>
+              <div class="stars">${starRow(st, 0)}</div>
+            </div>`;
+        }).join("")}
+      </div>
+    `;
+
+    box.querySelectorAll("[data-id]").forEach(el => {
+      el.onclick = () => {
+        featuredId = el.dataset.id;
+        renderStampCards();
+      };
+    });
   };
 
-  /* ---------- First-visit nudge, after the welcome sequence ---------- */
+  $("passportBtn").onclick = () => {
+    $("passportBtn").classList.remove("nudge");
+    updatePassportUI();
+    renderStampCards();
+    $("passportDrawer").classList.add("open");
+  };
 
-  function nudgeWhenReady() {
+  window.passportEvent = (type, context = {}) => {
+    if (!STAMPS.length || !TASKS.length) return;
+
+    const progress = loadProgress();
+    const advanced = [];
+
+    for (const stamp of STAMPS){
+      const sid = String(stamp.row.STAMP_ID).trim();
+      const bucket = progress[sid] || (progress[sid] = {});
+      let changed = false;
+      let matchedTaskId = null;
+
+      for (const taskId of stamp.tasks){
+        const task = TASKS.find(t => key(t.row.TASK_ID) === key(taskId));
+        if (!task) continue;
+        if (!taskMatches(task.row, type, context)) continue;
+        if (bucket[taskId]) continue;
+        bucket[taskId] = true;
+        changed = true;
+        matchedTaskId = taskId;
+      }
+
+      if (changed) advanced.push({ stamp, matchedTaskId });
+    }
+
+    saveProgress(progress);
+
+    for (const entry of advanced){
+      const { stamp, matchedTaskId } = entry;
+      const sid = String(stamp.row.STAMP_ID).trim();
+      const total = stamp.tasks.filter(id => progress[sid][id]).length;
+      const stars = starsFor(stamp.row, total);
+      const prev = (window.__lastStars || {})[sid] || 0;
+
+      if (stars > prev){
+        celebrateStamp(stamp, stars, false, "star");
+      } else {
+        const task = TASKS.find(t => key(t.row.TASK_ID) === key(matchedTaskId));
+        const label = task ? task.row.LABEL : "Task Complete!";
+        queue.push({ stamp, stars, replay: false, kind: "plain", taskLabel: label });
+        pump();
+      }
+
+      window.__lastStars = window.__lastStars || {};
+      window.__lastStars[sid] = stars;
+      try { localStorage.setItem(LAST_STARS_KEY, JSON.stringify(window.__lastStars)); } catch {}
+    }
+
+    renderStampCards();
+  };
+
+  function nudgeWhenReady(){
     if (document.getElementById("welcomeOverlay")) { setTimeout(nudgeWhenReady, 2000); return; }
-    btn.classList.add("nudge");
+    if (!localStorage.getItem(STAMP_KEY)) $("passportBtn").classList.add("nudge");
   }
-  if (!load().seen) setTimeout(nudgeWhenReady, 8000);
-
-  renderTasks();
+  setTimeout(nudgeWhenReady, 8000);
 
 })();
 
+/* ============================================================
+   CLOSE PASSPORT DRAWER
+   ============================================================ */
+$("closePassport").onclick = () => {
+  $("passportDrawer").classList.remove("open");
+};
 
 </script>
 </body>
