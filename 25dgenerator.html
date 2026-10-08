@@ -55,7 +55,7 @@ h2{font-size:14px;margin:0 0 10px}
         <canvas id="maskF" class="m"></canvas>
       </div>
     </div>
-    <div class="hint">Left-drag paints. <b>Right-drag (or middle-drag) pans</b> the image when zoomed in.</div>
+    <div class="hint">Left-drag paints. <b>Scroll wheel zooms</b> toward the cursor. <b>Right-drag (or middle-drag) pans</b>.</div>
     <div class="status" id="status"></div>
   </div>
 
@@ -70,7 +70,7 @@ h2{font-size:14px;margin:0 0 10px}
       <label>Brush size</label>
       <div class="row"><input type="range" id="brush" min="3" max="120" value="30"><span id="brushV">30</span></div>
       <label style="margin-top:10px">View zoom</label>
-      <div class="row"><input type="range" id="vz" min="1" max="4" step="0.1" value="1"><span id="vzV">1x</span></div>
+      <div class="row"><input type="range" id="vz" min="1" max="8" step="any" value="1"><span id="vzV">1x</span></div>
       <div class="btns" style="margin-top:12px">
         <button id="paintBtn" class="on">Paint</button>
         <button id="eraseBtn">Erase</button>
@@ -125,7 +125,7 @@ let layersBuilt = null;
 const status = t => $('status').textContent = t;
 const active = () => layer === 'f' ? [maskF, mctxF, '#ff2d2d'] : [maskM, mctxM, '#2d7dff'];
 
-[['brush','px'],['vz','x'],['fgZ','%'],['mdZ','%'],['bgZ','%'],['drift','%'],['dur','s']].forEach(([id, u]) => {
+[['brush','px'],['fgZ','%'],['mdZ','%'],['bgZ','%'],['drift','%'],['dur','s']].forEach(([id, u]) => {
   const upd = () => $(id + 'V').textContent = $(id).value + u;
   $(id).addEventListener('input', upd); upd();
 });
@@ -165,7 +165,30 @@ function applyViewZoom() {
   const base = Math.min(W, scroller.clientWidth - 2);
   stage.style.width = (base * parseFloat($('vz').value)) + 'px';
 }
-$('vz').addEventListener('input', applyViewZoom);
+// Zoom while keeping the point under (cx, cy) fixed on screen
+function setZoom(z, cx, cy) {
+  z = Math.max(1, Math.min(8, z));
+  const r = stage.getBoundingClientRect();
+  const fx = Math.max(0, Math.min(1, (cx - r.left) / r.width));
+  const fy = Math.max(0, Math.min(1, (cy - r.top) / r.height));
+  $('vz').value = z;
+  $('vzV').textContent = z.toFixed(1) + 'x';
+  applyViewZoom();
+  const n = stage.getBoundingClientRect();
+  scroller.scrollLeft += (n.left + fx * n.width) - cx;
+  scroller.scrollTop  += (n.top  + fy * n.height) - cy;
+}
+// Slider zooms around the middle of the visible box
+$('vz').addEventListener('input', () => {
+  const r = scroller.getBoundingClientRect();
+  setZoom(parseFloat($('vz').value), r.left + r.width / 2, r.top + r.height / 2);
+});
+// Mouse wheel / trackpad zooms toward the cursor
+scroller.addEventListener('wheel', e => {
+  if (!img) return;
+  e.preventDefault();
+  setZoom(parseFloat($('vz').value) * Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY);
+}, { passive: false });
 window.addEventListener('resize', () => img && applyViewZoom());
 
 // ---------- pointer: paint (left) / pan (right or middle) ----------
