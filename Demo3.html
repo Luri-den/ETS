@@ -1817,6 +1817,7 @@ document.addEventListener("keydown", e => {
 
   const STAMP_KEY = "connersville_stamps_v2";
   const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const LAST_STARS_KEY = "connersville_last_stars";
 
   const loadProgress = () => { try { return JSON.parse(localStorage.getItem(STAMP_KEY)) || {}; } catch { return {}; } };
   const saveProgress = p => { try { localStorage.setItem(STAMP_KEY, JSON.stringify(p)); } catch {} };
@@ -1859,13 +1860,21 @@ document.addEventListener("keydown", e => {
   }
 
   const qs = new URLSearchParams(location.search);
-  if (qs.has("resetpassport")) {
-    try { localStorage.removeItem(STAMP_KEY); localStorage.removeItem(UNLOCKED_KEY); localStorage.removeItem("connersville_demo_passport"); } catch {}
+if (qs.has("resetpassport")) {
+  try {
+    localStorage.removeItem(STAMP_KEY);
+    localStorage.removeItem(UNLOCKED_KEY);
+    localStorage.removeItem(LAST_STARS_KEY);
+    localStorage.removeItem("connersville_demo_passport");
+  } catch {}
     qs.delete("resetpassport");
     const rest = qs.toString();
     history.replaceState(null, "", location.pathname + (rest ? "?" + rest : ""));
   }
-
+window.__lastStars = (() => {
+  try { return JSON.parse(localStorage.getItem(LAST_STARS_KEY)) || {}; }
+  catch { return {}; }
+})();
   document.head.insertAdjacentHTML("beforeend", `<style>
 #passportBtn{position:relative}
 @keyframes pNudge{
@@ -2173,24 +2182,23 @@ window.passportEvent = (type, context = {}) => {
     const stars = starsFor(stamp.row, total);
     const prev = (window.__lastStars || {})[sid] || 0;
 
-   if (stars > prev){
-  celebrateStamp(stamp, stars, false, "star");
-} else {
-  const task = TASKS.find(t => key(t.row.TASK_ID) === key(matchedTaskId));
-  const label = task ? task.row.LABEL : "Task Complete!";
-  // Push with the label baked in
-  queue.push({ stamp, stars, replay: false, kind: "plain", taskLabel: label });
-  pump();
-}
+    if (stars > prev){
+      celebrateStamp(stamp, stars, false, "star");
+    } else {
+      const task = TASKS.find(t => key(t.row.TASK_ID) === key(matchedTaskId));
+      const label = task ? task.row.LABEL : "Task Complete!";
+      queue.push({ stamp, stars, replay: false, kind: "plain", taskLabel: label });
+      pump();
     }
 
-    window.__lastStars = window.__lastStars || {};
+       window.__lastStars = window.__lastStars || {};
     window.__lastStars[sid] = stars;
+    try { localStorage.setItem(LAST_STARS_KEY, JSON.stringify(window.__lastStars)); } catch {}
   }
 
   renderStampCards();
 };
-
+  
   function nudgeWhenReady(){
     if (document.getElementById("welcomeOverlay")) { setTimeout(nudgeWhenReady, 2000); return; }
     if (!localStorage.getItem(STAMP_KEY)) $("passportBtn").classList.add("nudge");
