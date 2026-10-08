@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>2.5D Photo Animator Tool (With Work-Space Zoom)</title>
-    <script src="https://cloudflare.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gifshot/0.3.2/gifshot.min.js"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -274,7 +274,7 @@ if (imgWidth * zoomLevel <= containerW) panX = (containerW - imgWidth * zoomLeve
 if (imgHeight * zoomLevel <= containerH) panY = (containerH - imgHeight * zoomLevel) / 2;
 }
 function updateViewportTransform() {
-viewport.style.transform = translate(${panX}px, ${panY}px) scale(${zoomLevel});
+viewport.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
 }
 upload.addEventListener('change', (e) => {
 if (!e.target.files || e.target.files.length === 0) return;
@@ -369,7 +369,8 @@ const rect = maskCanvas.getBoundingClientRect();
 const x = (e.clientX - rect.left) * (imgWidth / rect.width);
 const y = (e.clientY - rect.top) * (imgHeight / rect.height);
 maskCtx.save();
-maskCtx.fillStyle = 'rgba(255, 0, 0, 0.6)';
+maskCtx.fillStyle = 'rgb(255,0,0)';          // in paintMove
+maskCanvas.style.opacity = '0.6';            // once, at setup
 maskCtx.beginPath();
 maskCtx.arc(x, y, brushSize.value / 2, 0, Math.PI * 2);
 maskCtx.fill();
@@ -394,39 +395,15 @@ statusMsg.style.color = "#ffc107";
 });
 function prepareAndAnimate() {
 statusMsg.textContent = "Isolating canvas layout layers...";
-// Create crisp Foreground Cutout Layer
+// Foreground cutout with softened edge
+// Foreground cutout with softened edge
 fgTempCtx.clearRect(0, 0, imgWidth, imgHeight);
-fgTempCtx.save();
-fgTempCtx.drawImage(maskCanvas, 0, 0);
-fgTempCtx.globalCompositeOperation = 'source-in';
 fgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-fgTempCtx.restore();
-// Apply advanced Alpha-Feathering Pass to eliminate raw scissor seam artifacts
-fgTempCtx.save();
-fgTempCtx.globalCompositeOperation = 'destination-out';
-fgTempCtx.filter = 'blur(1.5px)'; // Dissolves boundary edge matrix softly
+fgTempCtx.globalCompositeOperation = 'destination-in';
+fgTempCtx.filter = 'blur(1.5px)';
 fgTempCtx.drawImage(maskCanvas, 0, 0);
-fgTempCtx.restore();
-// Fill inner core structures cleanly to keep content crisp inside bounds
-fgTempCtx.save();
-fgTempCtx.globalCompositeOperation = 'destination-over';
-fgTempCtx.drawImage(maskCanvas, 0, 0);
-fgTempCtx.globalCompositeOperation = 'source-in';
-fgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-fgTempCtx.restore();
-// Create Background Layer backdrop hole cutouts
-bgTempCtx.clearRect(0,0, imgWidth, imgHeight);
-bgTempCtx.save();
-bgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-bgTempCtx.globalCompositeOperation = 'destination-out';
-bgTempCtx.drawImage(fgTempCanvas, 0, 0);
-bgTempCtx.restore();
-// Soft blend underlying base behind the cutout area to eliminate blank spaces
-bgTempCtx.save();
-bgTempCtx.globalCompositeOperation = 'destination-over';
-bgTempCtx.filter = 'blur(5px)';
-bgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-bgTempCtx.restore();
+fgTempCtx.filter = 'none';
+fgTempCtx.globalCompositeOperation = 'source-over';
 // Force visibility setups to block interactions and activate timeline previews
 bgCanvas.style.display = 'none';
 maskCanvas.style.display = 'none';
@@ -534,6 +511,6 @@ startTime = performance.now();
 renderParallaxFrame();
 });
 });
-</style>
+</script>
     </body>
     </html>
