@@ -178,13 +178,13 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const key = s => String(s||"").trim().toLowerCase();
 
-/* Category colors — mirrors SITE.colors in Demo2.html */
 const CATEGORIES = {
   CIV:   { label:"Civic",          color:"#E2E1E0" },
-  TRANS: { label:"Transportation", color:"#91AF45" },
   COMM:  { label:"Commercial",     color:"#E47303" },
   RES:   { label:"Residential",    color:"#BDD76B" },
-  IND:   { label:"Industry",       color:"#AF350A" }
+  IND:   { label:"Industry",       color:"#AF350A" },
+  RAIL:  { label:"Rail",           color:"#8B6F47" },  // ← your choice
+  CANAL: { label:"Canal",          color:"#4A7C8C" }   // ← your choice
 };
 const DEFAULT_CAT = "COMM";
 
