@@ -188,13 +188,13 @@ const uid = () => Math.random().toString(36).slice(2,6);
 const STAMP_COLS = ["STAMP_ID","TITLE","VEHICLE","STAR1","STAR2","STAR3","RANK1","RANK2","RANK3","GRAND_RANK","TASKS"];
 const TASK_COLS  = ["TASK_ID","LABEL","HINT","BTN","SCOPE","TARGET"];
 
-/* Categories from the site */
 const CATEGORIES = {
-  CIV:   "Civic",
-  TRANS: "Transportation",
-  COMM:  "Commercial",
-  RES:   "Residential",
-  IND:   "Industry"
+  CIV:   { label:"Civic",          color:"#E2E1E0" },
+  COMM:  { label:"Commercial",     color:"#E47303" },
+  RES:   { label:"Residential",    color:"#BDD76B" },
+  IND:   { label:"Industry",       color:"#AF350A" },
+  RAIL:  { label:"Rail",           color:"#8B6F47" },  // ← your choice
+  CANAL: { label:"Canal",          color:"#4A7C8C" }   // ← your choice
 };
 
 /* Behaviors the site currently fires — one per passportEvent() call */
