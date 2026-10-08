@@ -33,7 +33,9 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 .pin:focus-visible{outline:3px solid #ff9800}
 .pin.sel{border-color:#ff9800}
 .pin.gone{border-style:dashed}
-.pin.gone img{filter:grayscale(1)}
+.pin.gone {filter:grayscale(1)}
+.pin img.is-default{object-fit:contain;padding:18%;background:#fffdf6;box-sizing:border-box}
+#panel img.is-default,#tourCard img.is-default{width:110px;height:110px;max-height:none;object-fit:contain;padding:10px;background:#fffdf6;box-sizing:border-box;cursor:default;border-radius:8px}
 
 #tools{display:flex;gap:6px;flex-wrap:wrap;font-size:13px;align-items:center}
 #tools button{padding:6px 10px;border:0;border-radius:4px;background:#fff;color:#000;cursor:pointer}
@@ -41,7 +43,7 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 #tools input[type=range]{flex:1}
 
 #panel{position:absolute;z-index:6;left:0;right:0;bottom:0;max-height:55vh;overflow:auto;background:#fff;padding:12px 14px calc(14px + env(safe-area-inset-bottom));box-shadow:0 -2px 8px #0005;box-sizing:border-box}
-#panel img{width:100%;max-height:240px;object-fit:cover;border-radius:6px;cursor:zoom-in}
+#panel {width:100%;max-height:240px;object-fit:cover;border-radius:6px;cursor:zoom-in}
 #panel h2{margin:8px 0 4px;font-size:19px}
 #panel h3{margin:12px 0 4px;font-size:15px}
 #x{position:absolute;right:8px;top:6px;font-size:26px;border:0;background:none;cursor:pointer}
@@ -63,7 +65,7 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 #spotBox{position:fixed;inset:0;z-index:9000;background:#000a;display:flex;align-items:center;justify-content:center;padding:14px}
 #spotBox[hidden]{display:none}
 #spotCard{position:relative;background:#fff;border:6px solid #D55E00;border-radius:18px;max-width:560px;max-height:92vh;overflow:auto;padding:14px}
-#spotCard img{width:100%;max-height:52vh;object-fit:contain;border-radius:8px;background:#eee;cursor:zoom-in}
+#spotCard {width:100%;max-height:52vh;object-fit:contain;border-radius:8px;background:#eee;cursor:zoom-in}
 #spotCard h2{margin:10px 0 4px}
 #sp-x{position:absolute;right:8px;top:2px;font-size:30px;border:0;background:none;cursor:pointer}
 #sp-go{display:block;margin-top:12px;padding:10px 14px;border:0;border-radius:6px;background:#D55E00;color:#fff;font-size:16px;cursor:pointer}
@@ -285,7 +287,7 @@ function updatePassportUI() {
 
   grid.innerHTML = allSpots.map(s => {
     const isUnlocked = unlocked.includes(String(s.id));
-    const thumbSrc = PHOTO_SRC[s.id] || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40'><rect width='40' height='40' fill='%23ddd'/></svg>";
+    const thumbSrc = PHOTO_SRC[s.id] || iconFor(s.d && s.d.CATEGORY);
     return `
       <div class="stamp-card ${isUnlocked ? 'unlocked' : ''}" data-id="${esc(s.id)}">
         <img src="${esc(thumbSrc)}" alt="" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'40\' height=\'40\'><rect width=\'40\' height=\'40\' fill=\'%23ddd\'/></svg>'">
@@ -555,7 +557,7 @@ let travelInProgress = false;
 const EXT = ["jpg","jpeg","png","webp","JPG","PNG"];
 const PHOTO_SRC = {};
 
-function thumb(id){
+function thumb(id, category){
   const im = new Image();
   im.alt = "";
   let i = 0;
@@ -563,15 +565,46 @@ function thumb(id){
   const go = () => { im.src = "photos/" + encodeURIComponent(id) + "." + EXT[i]; };
 
   im.onerror = () => {
-    if (++i < EXT.length) { go(); }
-    else { im.remove(); console.warn("No thumbnail found for " + id); }
+    if (++i < EXT.length) { go(); return; }
+    console.warn("No photo for " + id + ", using category icon");
+    im.onerror = null;
+    im.classList.add("is-default");
+    im.src = iconFor(category);
   };
 
-  im.onload = () => { PHOTO_SRC[id] = im.currentSrc || im.src; updatePassportUI(); };
+  im.onload = () => {
+    if (im.classList.contains("is-default")) return;   // the icon is not a photo
+    PHOTO_SRC[id] = im.currentSrc || im.src;
+    updatePassportUI();
+  };
   go();
   return im;
 }
-
+// Default icon for places with no photo (reuses the vehicle art further down)
+const CATEGORY_VEHICLE = {
+  RAIL: "train", RAILROAD: "train",
+  CANAL: "boat",
+  IND: "factory", INDUSTRY: "factory", INDUSTRIES: "factory",
+  COMM: "car", DOWNTOWN: "car"
+};
+const GENERIC_SVG = `<svg viewBox="0 0 60 30">
+  <path d="M12 28V12L30 3l18 9v16z" fill="#8a6f4d"/>
+  <rect x="18" y="14" width="6" height="8" fill="#f5e6c8"/>
+  <rect x="36" y="14" width="6" height="8" fill="#f5e6c8"/>
+  <rect x="26" y="18" width="8" height="10" fill="#4a3a28"/>
+  <rect x="12" y="26" width="36" height="3" fill="#E47303"/>
+</svg>`;
+const iconCache = {};
+function iconFor(cat){
+  const k = CATEGORY_VEHICLE[String(cat || "").trim().toUpperCase()] || "generic";
+  if (!iconCache[k]) {
+    const art = (k === "generic" ? GENERIC_SVG : VEHICLE_SVG[k])
+      .replace(/<svg[^>]*>/, '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 -15 60 60">');
+    iconCache[k] = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(art);
+  }
+  return iconCache[k];
+}
+  
 /* ============================================================
    CSV LOADING
    ============================================================ */
@@ -632,7 +665,7 @@ function makePin(item, cls){
   if (/\d{4}/.test(item.d.CLSD || "")) b.classList.add("gone");
 
   b.setAttribute("aria-label", item.name);
-  b.appendChild(thumb(item.id));
+  b.appendChild(thumb(item.id, item.d.CATEGORY));
 
   item.r = cls === "parent" ? 29 : 22;
   item.color = SITE.colors[String(item.d.CATEGORY || "").trim().toUpperCase()] || SITE.colors.default;
@@ -1002,7 +1035,7 @@ function select(it){
         it.kids.map(k => `<button class="kid" data-id="${esc(k.id)}">${esc(k.name)}</button>`).join("")
       : "");
 
-  panel.insertBefore(thumb(it.id), panel.querySelector("h2"));
+  panel.insertBefore(thumb(it.id, d.CATEGORY), panel.querySelector("h2"));
 
   const e = yr4(d.EST);
   const c = yr4(d.CLSD);
@@ -1465,7 +1498,7 @@ $("res").onclick = e => {
       name = it.name;
       text = it.d.DETAILS || "";
       ll = it.ll;
-      img = thumb(it.id);
+      img = thumb(it.id, it.d.CATEGORY);
       unlockStamp(it.id);
     }
 
@@ -1683,7 +1716,7 @@ $("res").onclick = e => {
     const im = e.target.closest("#panel img, #spotCard img, #tourCard img, .photo-anim img");
     if (!im) return;
     const raw = im.getAttribute("src");
-    if (!raw) return;
+    if (im.classList.contains("is-default")) return;   // icons don't open the lightbox
 
     e.preventDefault();
     e.stopPropagation();
