@@ -238,7 +238,7 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
     document.write('<script src="https://unpkg.com/papaparse@5.4.1/dist/papaparse.min.js"><\/script>');
   }
 </script>
-
+<script src="icons.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 
@@ -619,29 +619,12 @@ function thumb(id, category){
   go();
   return im;
 }
-// Default icon for places with no photo (reuses the vehicle art further down)
-const CATEGORY_VEHICLE = {
-  RAIL: "train", RAILROAD: "train",
-  CANAL: "boat",
-  IND: "factory", INDUSTRY: "factory", INDUSTRIES: "factory",
-  COMM: "car", DOWNTOWN: "car"
-};
-const GENERIC_SVG = `<svg viewBox="0 0 60 30">
-  <path d="M12 28V12L30 3l18 9v16z" fill="#8a6f4d"/>
-  <rect x="18" y="14" width="6" height="8" fill="#f5e6c8"/>
-  <rect x="36" y="14" width="6" height="8" fill="#f5e6c8"/>
-  <rect x="26" y="18" width="8" height="10" fill="#4a3a28"/>
-  <rect x="12" y="26" width="36" height="3" fill="#E47303"/>
-</svg>`;
-const iconCache = {};
+// Default icon for places with no photo. Each category's icon comes from categories.csv (ICON column);
+// these are the fallbacks when that file or column is missing.
+const DEFAULT_CATEGORY_ICON = { CIV:"courthouse", COMM:"store", RES:"house", IND:"factory", RAIL:"train", RAILROAD:"train", CANAL:"boat" };
 function iconFor(cat){
-  const k = CATEGORY_VEHICLE[String(cat || "").trim().toUpperCase()] || "generic";
-  if (!iconCache[k]) {
-    const art = (k === "generic" ? GENERIC_SVG : VEHICLE_SVG[k])
-      .replace(/<svg[^>]*>/, '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 -15 60 60">');
-    iconCache[k] = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(art);
-  }
-  return iconCache[k];
+  const code = String(cat || "").trim().toUpperCase();
+  return iconUrl((SITE.icons && SITE.icons[code]) || DEFAULT_CATEGORY_ICON[code] || "generic");
 }
   
 /* ============================================================
@@ -732,11 +715,21 @@ map.on("load", async () => {
   });
 
   await applySettingsToMap();
-  const [L,C] = await Promise.all([
-    load(SITE.files.locations),
-    load(SITE.files.children)
-  ]);
+const [L,C,CATS] = await Promise.all([
+  load(SITE.files.locations),
+  load(SITE.files.children),
+  load("categories.csv")
+]);
 
+SITE.icons = {};
+CATS.forEach(r => {
+  const code = String(r.CODE || "").trim().toUpperCase();
+  const color = String(r.COLOR || "").trim();
+  const icon = String(r.ICON || "").trim();
+  if (!code) return;
+  if (/^#[0-9a-f]{3,8}$/i.test(color)) SITE.colors[code === "DEFAULT" ? "default" : code] = color;
+  if (icon && ICONS[icon]) SITE.icons[code] = icon;
+});
   L.forEach(r => {
     const ll = [parseFloat(r.LONG), parseFloat(r.LAT)];
     if (!key(r.ID) || ll.some(isNaN)) { console.warn("Skipped location row:", r); return; }
