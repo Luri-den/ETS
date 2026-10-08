@@ -1,7 +1,8 @@
 TASK_ID,LABEL,HINT,BTN,SCOPE,TARGET
 find-story,Find a Story,Find a sparkle on the map!,Show Stories,behavior,story
 ride-any,Ride Any Tour,Take any tour to its last stop!,Take a Tour,behavior,tour
-scan-qr,Scan a QR Code,Scan any QR Sign around town!,Show Spots,behavior,spot
+find-spot,Scan a QR Code or find a camera on the map!,Scan any QR Sign around town!,Show Spots,behavior,spot
 ride-downtown,Ride Through Downtown,Complete the Downtown Tour!,Take a Tour,item,TOUR-DOWNTOWN
-any-trans,Explore Transportation Sites,Visit Any Railroad Site!,Show All,category,RAIL
+any-rail,Explore Railroad Sites,Visit Any Railroad Site!,Show All,category,RAIL
 any-commerce,Visit a Business,Visit Any Commercial Business!,Show Spots,category,COMM
+any-canal,Explore Canal Sites,Visit Any Canal Site!,Show All,category,CANAL
