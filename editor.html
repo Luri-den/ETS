@@ -96,8 +96,8 @@
   .catrow .sw{width:22px;height:22px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--line);flex:none}
 
   .photo{margin-top:6px;display:flex;gap:10px;align-items:flex-start}
-  .photo .thumb{width:80px;height:80px;border-radius:8px;background:#f1f3f7;border:1px solid var(--line);object-fit:cover;flex:none;display:block}
-  .photo .thumb.missing{display:flex;align-items:center;justify-content:center;font-size:11px;color:#9aa3ad;text-align:center;padding:6px}
+  .photo .photos{width:80px;height:80px;border-radius:8px;background:#f1f3f7;border:1px solid var(--line);object-fit:cover;flex:none;display:block}
+  .photo .photos.missing{display:flex;align-items:center;justify-content:center;font-size:11px;color:#9aa3ad;text-align:center;padding:6px}
   .photo .meta{flex:1;font-size:12px;color:var(--muted);line-height:1.5;min-width:0}
   .photo .meta code{font:11px ui-monospace,Menlo,monospace;color:#4a5568;background:#f1f3f7;padding:1px 4px;border-radius:3px;word-break:break-all}
   .photo .meta .actions{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
@@ -428,13 +428,13 @@ function makePinEl(o, kind){
   b.style.setProperty("--c", color);
   b.title = (o.row.NAME || o.row.ID || o.row.CHILD_ID || "");
 
-  // try a thumbnail from /thumbs/{id}.{ext} — same probe the live site uses
+  // try a thumbnail from /photos/{id}.{ext} — same probe the live site uses
   const id = kind === "parent" ? o.row.ID : o.row.CHILD_ID;
   const img = new Image();
   img.alt = "";
   const EXT = ["jpg","jpeg","png","webp","JPG","PNG"];
   let i = 0;
-  const tryNext = () => { img.src = "thumbs/" + encodeURIComponent(id) + "." + EXT[i]; };
+  const tryNext = () => { img.src = "photos/" + encodeURIComponent(id) + "." + EXT[i]; };
   img.onerror = () => { if (++i < EXT.length) tryNext(); else { img.remove(); b.classList.add("nophoto"); } };
   tryNext();
   b.appendChild(img);
@@ -837,9 +837,9 @@ function photoBlock(id){
   const safe = esc(id || "");
   return `
     <div class="photo">
-      <div class="thumb missing" id="photoThumb">loading…</div>
+      <div class="photos missing" id="photoThumb">loading…</div>
       <div class="meta">
-        <div>Looking for <code>thumbs/${safe}.jpg</code> (or png/webp/JPG/PNG)</div>
+        <div>Looking for <code>photos/${safe}.jpg</code> (or png/webp/JPG/PNG)</div>
         <div class="actions">
           <button class="small" id="uploadPhoto" type="button">Upload photo…</button>
           <input type="file" id="photoInput" accept="image/*" hidden>
@@ -854,23 +854,23 @@ function wirePhotoBlock(scope, id){
   const input = scope.querySelector("#photoInput");
   if (!thumb || !btn || !input) return;
 
-  // probe thumbs/{id}.{ext}
+  // probe photos/{id}.{ext}
   const EXT = ["jpg","jpeg","png","webp","JPG","PNG"];
   const tryNext = i => {
     if (i >= EXT.length){
-      thumb.classList.add("missing");
-      thumb.textContent = "no photo yet";
+      photos.classList.add("missing");
+      photos.textContent = "no photo yet";
       return;
     }
     const im = new Image();
     im.onload = () => {
-      thumb.classList.remove("missing");
-      thumb.innerHTML = "";
+      photos.classList.remove("missing");
+      photos.innerHTML = "";
       im.style.cssText = "width:100%;height:100%;object-fit:cover;border-radius:8px";
-      thumb.appendChild(im);
+      photos.appendChild(im);
     };
     im.onerror = () => tryNext(i+1);
-    im.src = "thumbs/" + encodeURIComponent(id) + "." + EXT[i];
+    im.src = "photos/" + encodeURIComponent(id) + "." + EXT[i];
   };
   tryNext(0);
 
@@ -883,10 +883,10 @@ function wirePhotoBlock(scope, id){
     // show in the panel
     const im = new Image();
     im.onload = () => {
-      thumb.classList.remove("missing");
-      thumb.innerHTML = "";
+      photos.classList.remove("missing");
+      photos.innerHTML = "";
       im.style.cssText = "width:100%;height:100%;object-fit:cover;border-radius:8px";
-      thumb.appendChild(im);
+      photos.appendChild(im);
     };
     im.src = URL.createObjectURL(f);
     renderStaged();
