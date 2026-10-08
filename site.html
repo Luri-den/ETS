@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Map Settings — Editor</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font-family:Arial,sans-serif;color:#222}
+body{display:flex;flex-direction:column}
+header{background:#333;color:#fff;padding:8px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+header h1{font-size:17px;margin:0 8px 0 0}
+.btn,button{font:inherit;font-size:13px;padding:7px 11px;border:0;border-radius:4px;background:#fff;color:#222;cursor:pointer}
+.btn:hover,button:hover{background:#eee}
+button.go{background:#28a745;color:#fff;font-weight:bold}
+button.go:hover{background:#218838}
+button:disabled{opacity:.4;cursor:not-allowed}
+#status{background:#fff3cd;color:#664d03;padding:6px 12px;font-size:13px;border-bottom:1px solid #e6d9a2}
+main{flex:1;display:flex;min-height:0}
+#map{flex:1;min-width:0}
+#side{width:340px;overflow:auto;padding:12px 14px;border-left:1px solid #ccc;background:#fafafa}
+#side.off{opacity:.45;pointer-events:none}
+#side h2{font-size:14px;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #ddd}
+#side h2:first-child{margin-top:0}
+label{display:block;font-size:12px;font-weight:bold;color:#555;margin:8px 0 3px}
+label.chk{display:flex;gap:8px;align-items:flex-start;font-weight:normal;color:#222;font-size:13px}
+input:not([type=checkbox]):not([type=color]){width:100%;padding:6px;font-size:14px;border:1px solid #bbb;border-radius:4px}
+input[type=color]{width:44px;height:32px;padding:0;border:1px solid #bbb;border-radius:4px;background:none}
+.two{display:flex;gap:8px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+small{color:#777;font-size:11px;display:block;margin-top:3px}
+.row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.row button{background:#e9ecef}
+.row button:hover{background:#dde1e5}
+#pvBar{color:#fff;padding:10px 12px;border-radius:6px;font-weight:bold;font-size:16px}
+#pvTab{font-size:12px;color:#777;margin:4px 0 8px}
+#warn{margin-top:14px;font-size:13px;color:#842029}
+#warn div{background:#f8d7da;border-radius:4px;padding:6px 8px;margin-top:6px}
+.pin-center{width:26px;height:26px;border-radius:50%;border:4px solid #d40000;background:#fff8;box-shadow:0 0 0 2px #fff,0 1px 5px #0008;cursor:grab}
+.handle{width:18px;height:18px;background:#0072B2;border:3px solid #fff;box-shadow:0 1px 4px #0008;cursor:grab}
+@media(max-width:760px){main{flex-direction:column}#side{width:100%;max-height:48%;border-left:0;border-top:1px solid #ccc}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Map Settings — Editor</h1>
+  <label class="btn" style="margin:0;font-weight:normal;color:#222">Load site.csv…<input type="file" id="fSite" accept=".csv,text/csv" hidden></label>
+  <label class="btn" style="margin:0;font-weight:normal;color:#222">Show places (locations.csv)…<input type="file" id="fLocs" accept=".csv,text/csv" hidden></label>
+  <button id="startBtn" type="button">Start from defaults</button>
+  <button id="reloadBtn" type="button" disabled>↻ Reload</button>
+  <button id="dlBtn" type="button" class="go" disabled>Download updated site.csv</button>
+</header>
+<div id="status">Load site.csv to begin, or click Start from defaults.</div>
+
+<main>
+  <div id="map"></div>
+
+  <aside id="side" class="off">
+    <h2>Page name and color</h2>
+    <div id="pvBar"></div>
+    <div id="pvTab"></div>
+
+    <label>Place name</label>
+    <input data-k="PLACE" placeholder="Connersville">
+    <label>Top bar text</label>
+    <input data-k="HEADER">
+    <small>{PLACE} is replaced with the place name above.</small>
+    <label>Browser tab title</label>
+    <input data-k="TAB_TITLE">
+    <label>Top bar color</label>
+    <div class="two"><input type="color" data-k="BAR_COLOR"><input data-k="BAR_COLOR" placeholder="#E47303"></div>
+
+    <h2>Start view (drag the red circle)</h2>
+    <label class="chk"><input type="checkbox" data-k="FIT_TO_MARKERS"> Fit to all markers on load (ignores the start view below)</label>
+    <div class="grid">
+      <div><label>Latitude</label><input data-k="CENTER_LAT" inputmode="decimal"></div>
+      <div><label>Longitude</label><input data-k="CENTER_LNG" inputmode="decimal"></div>
+    </div>
+    <label>Zoom</label>
+    <input data-k="ZOOM" inputmode="decimal">
+    <div class="row">
+      <button type="button" id="useView">Use current map view</button>
+      <button type="button" id="goStart">Go to start view</button>
+    </div>
+
+    <h2>Allowed area (drag the blue squares)</h2>
+    <div class="grid">
+      <div><label>West</label><input data-k="BOUNDS_WEST" inputmode="decimal"></div>
+      <div><label>East</label><input data-k="BOUNDS_EAST" inputmode="decimal"></div>
+      <div><label>South</label><input data-k="BOUNDS_SOUTH" inputmode="decimal"></div>
+      <div><label>North</label><input data-k="BOUNDS_NORTH" inputmode="decimal"></div>
+    </div>
+    <div class="row">
+      <button type="button" id="useBounds">Use current map view as area</button>
+      <button type="button" id="zoomBounds">Zoom to area</button>
+    </div>
+    <div class="grid">
+      <div><label>Min zoom (optional)</label><input data-k="MIN_ZOOM" inputmode="decimal"></div>
+      <div><label>Max zoom (optional)</label><input data-k="MAX_ZOOM" inputmode="decimal"></div>
+    </div>
+    <small>Visitors can't pan or zoom outside the blue area. Leave zoom limits blank for no limit.</small>
+
+    <div id="warn"></div>
+  </aside>
+</main>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const status = t => $('status').textContent = t;
+
+const DEFAULTS = {
+  PLACE: "Connersville",
+  HEADER: "Discover {PLACE}'s Past",
+  TAB_TITLE: "Explore {PLACE}'s Past",
+  BAR_COLOR: "#E47303",
+  CENTER_LAT: "39.647531", CENTER_LNG: "-85.138892", ZOOM: "14",
+  BOUNDS_WEST: "-85.4", BOUNDS_SOUTH: "39.45", BOUNDS_EAST: "-84.95", BOUNDS_NORTH: "39.8",
+  MIN_ZOOM: "", MAX_ZOOM: "",
+  FIT_TO_MARKERS: "yes"
+};
+const ORDER = Object.keys(DEFAULTS);
+
+let S = null;            // current settings (all strings)
+let extra = {};          // keys in the CSV this editor doesn't know about; kept as-is
+let lastText = null;     // last loaded CSV text, for Reload
+let mapLoaded = false;
+let markersAdded = false;
+let locData = { type: 'FeatureCollection', features: [] };
+
+const num = k => { const v = parseFloat(S[k]); return isNaN(v) ? null : v; };
+const r6 = v => String(Math.round(v * 1e6) / 1e6);
+const fill = t => String(t || '').replace(/\{PLACE\}/g, S.PLACE || '');
+const goodColor = c => /^#[0-9a-f]{6}$/i.test(c || '');
+
+// ---------- map ----------
+const map = new maplibregl.Map({
+  container: 'map',
+  style: {
+    version: 8,
+    sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19, attribution: '&copy; OpenStreetMap contributors' } },
+    layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
+  },
+  center: [-85.139, 39.6475], zoom: 11
+});
+map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
+
+const el = cls => { const d = document.createElement('div'); d.className = cls; return d; };
+const centerMk = new maplibregl.Marker({ element: el('pin-center'), draggable: true });
+const swMk = new maplibregl.Marker({ element: el('handle'), draggable: true });
+const neMk = new maplibregl.Marker({ element: el('handle'), draggable: true });
+
+map.on('load', () => {
+  map.addSource('bnd', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({ id: 'bnd-fill', type: 'fill', source: 'bnd', paint: { 'fill-color': '#0072B2', 'fill-opacity': 0.08 } });
+  map.addLayer({ id: 'bnd-line', type: 'line', source: 'bnd', paint: { 'line-color': '#0072B2', 'line-width': 3, 'line-dasharray': [3, 2] } });
+  map.addSource('locs', { type: 'geojson', data: locData });
+  map.addLayer({ id: 'locs', type: 'circle', source: 'locs', paint: { 'circle-radius': 4, 'circle-color': '#E47303', 'circle-stroke-color': '#fff', 'circle-stroke-width': 1.5 } });
+  mapLoaded = true;
+  if (S) { drawMap(); gotoStart(); }
+});
+
+function drawBounds() {
+  if (!mapLoaded) return;
+  const w = num('BOUNDS_WEST'), s = num('BOUNDS_SOUTH'), e = num('BOUNDS_EAST'), n = num('BOUNDS_NORTH');
+  const ok = [w, s, e, n].every(v => v !== null);
+  map.getSource('bnd').setData(ok
+    ? { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[w, s], [e, s], [e, n], [w, n], [w, s]]] } }
+    : { type: 'FeatureCollection', features: [] });
+  if (ok) { swMk.setLngLat([w, s]); neMk.setLngLat([e, n]); }
+}
+
+function drawMap() {
+  if (!S || !mapLoaded) return;
+  const lat = num('CENTER_LAT'), lng = num('CENTER_LNG');
+  if (lat !== null && lng !== null) centerMk.setLngLat([lng, lat]);
+  drawBounds();
+  if (!markersAdded) { centerMk.addTo(map); swMk.addTo(map); neMk.addTo(map); markersAdded = true; }
+}
+
+function gotoStart() {
+  const lat = num('CENTER_LAT'), lng = num('CENTER_LNG'), z = num('ZOOM');
+  if (lat !== null && lng !== null) map.jumpTo({ center: [lng, lat], zoom: z !== null ? z : map.getZoom() });
+}
+
+function fitOff() {
+  if (S.FIT_TO_MARKERS === 'yes') {
+    S.FIT_TO_MARKERS = 'no';
+    status('Turned off "Fit to all markers" so your start view is used.');
+  }
+}
+
+centerMk.on('drag', () => {
+  const ll = centerMk.getLngLat();
+  S.CENTER_LNG = r6(ll.lng); S.CENTER_LAT = r6(ll.lat);
+  fitOff(); syncUI(); validate();
+});
+swMk.on('drag', () => { const ll = swMk.getLngLat(); S.BOUNDS_WEST = r6(ll.lng); S.BOUNDS_SOUTH = r6(ll.lat); syncUI(); drawBounds(); validate(); });
+neMk.on('drag', () => { const ll = neMk.getLngLat(); S.BOUNDS_EAST = r6(ll.lng); S.BOUNDS_NORTH = r6(ll.lat); syncUI(); drawBounds(); validate(); });
+
+// ---------- form <-> state ----------
+function syncUI(except) {
+  document.querySelectorAll('[data-k]').forEach(f => {
+    if (f === except) return;
+    const v = S[f.dataset.k] == null ? '' : S[f.dataset.k];
+    if (f.type === 'checkbox') f.checked = v === 'yes';
+    else if (f.type === 'color') { if (goodColor(v)) f.value = v; }
+    else f.value = v;
+  });
+  preview();
+}
+
+function preview() {
+  const bar = $('pvBar');
+  bar.style.background = goodColor(S.BAR_COLOR) ? S.BAR_COLOR : '#999';
+  bar.textContent = fill(S.HEADER) || ' ';
+  $('pvTab').textContent = 'Tab title: ' + fill(S.TAB_TITLE);
+}
+
+document.querySelectorAll('[data-k]').forEach(f => f.addEventListener('input', () => {
+  if (!S) return;
+  S[f.dataset.k] = f.type === 'checkbox' ? (f.checked ? 'yes' : 'no') : f.value;
+  syncUI(f); drawMap(); validate();
+}));
+
+function boundsOk() {
+  const w = num('BOUNDS_WEST'), s = num('BOUNDS_SOUTH'), e = num('BOUNDS_EAST'), n = num('BOUNDS_NORTH');
+  return [w, s, e, n].every(v => v !== null) && w < e && s < n;
+}
+
+function validate() {
+  const msgs = [];
+  if (!boundsOk()) msgs.push('Allowed area is incomplete or backwards (west must be less than east, south less than north).');
+  else if (S.FIT_TO_MARKERS !== 'yes') {
+    const lat = num('CENTER_LAT'), lng = num('CENTER_LNG');
+    if (lat === null || lng === null) msgs.push('Start view needs a latitude and longitude.');
+    else if (lng < num('BOUNDS_WEST') || lng > num('BOUNDS_EAST') || lat < num('BOUNDS_SOUTH') || lat > num('BOUNDS_NORTH'))
+      msgs.push('The start view is outside the allowed area, so visitors would land on the edge.');
+  }
+  const a = num('MIN_ZOOM'), b = num('MAX_ZOOM'), z = num('ZOOM');
+  if (a !== null && b !== null && a > b) msgs.push('Min zoom is larger than max zoom.');
+  if (S.FIT_TO_MARKERS !== 'yes' && z !== null && ((a !== null && z < a) || (b !== null && z > b))) msgs.push('The start zoom is outside the min/max zoom.');
+  $('warn').innerHTML = msgs.map(m => '<div>' + m + '</div>').join('');
+}
+
+// ---------- buttons ----------
+$('useView').onclick = () => {
+  const c = map.getCenter();
+  S.CENTER_LNG = r6(c.lng); S.CENTER_LAT = r6(c.lat); S.ZOOM = (Math.round(map.getZoom() * 100) / 100).toString();
+  fitOff(); syncUI(); drawMap(); validate();
+};
+$('goStart').onclick = gotoStart;
+$('useBounds').onclick = () => {
+  const b = map.getBounds();
+  S.BOUNDS_WEST = r6(b.getWest()); S.BOUNDS_EAST = r6(b.getEast());
+  S.BOUNDS_SOUTH = r6(b.getSouth()); S.BOUNDS_NORTH = r6(b.getNorth());
+  syncUI(); drawMap(); validate();
+};
+$('zoomBounds').onclick = () => {
+  if (!boundsOk()) return;
+  map.fitBounds([[num('BOUNDS_WEST'), num('BOUNDS_SOUTH')], [num('BOUNDS_EAST'), num('BOUNDS_NORTH')]], { padding: 40 });
+};
+
+// ---------- load / start / reload ----------
+function startFrom(text) {
+  S = {}; extra = {};
+  ORDER.forEach(k => S[k] = DEFAULTS[k]);
+  if (text) {
+    Papa.parse(text, { header: true, skipEmptyLines: 'greedy' }).data.forEach(r => {
+      const k = String(r.KEY || '').trim().toUpperCase();
+      if (!k) return;
+      const v = String(r.VALUE == null ? '' : r.VALUE).trim();
+      if (ORDER.includes(k)) S[k] = v; else extra[k] = v;
+    });
+  }
+  $('side').classList.remove('off');
+  $('dlBtn').disabled = false;
+  $('reloadBtn').disabled = false;
+  syncUI(); drawMap(); validate();
+  if (mapLoaded) gotoStart();
+}
+
+$('fSite').addEventListener('change', async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  lastText = await f.text();
+  startFrom(lastText);
+  status('Loaded ' + f.name + '. Edit, then Download updated site.csv.');
+  e.target.value = '';
+});
+$('startBtn').onclick = () => {
+  if (S && !confirm('Discard what is on screen and start from the built-in defaults?')) return;
+  lastText = null; startFrom(null);
+  status('Started from the Connersville defaults.');
+};
+$('reloadBtn').onclick = () => {
+  if (!confirm('Throw away your edits and reload?')) return;
+  startFrom(lastText);
+  status('Reloaded.');
+};
+
+$('fLocs').addEventListener('change', async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const rows = Papa.parse(await f.text(), { header: true, skipEmptyLines: 'greedy' }).data;
+  const feats = rows
+    .map(r => [parseFloat(r.LONG), parseFloat(r.LAT)])
+    .filter(c => c.every(v => !isNaN(v)))
+    .map(c => ({ type: 'Feature', geometry: { type: 'Point', coordinates: c }, properties: {} }));
+  locData = { type: 'FeatureCollection', features: feats };
+  if (mapLoaded) map.getSource('locs').setData(locData);
+  status('Showing ' + feats.length + ' places from ' + f.name + ' as orange dots.');
+  e.target.value = '';
+});
+
+// ---------- download ----------
+$('dlBtn').onclick = () => {
+  if (!S) return;
+  if (!boundsOk()) { alert('Fix the allowed area first: west must be less than east, and south less than north.'); return; }
+  const rows = ORDER.map(k => ({ KEY: k, VALUE: S[k] }))
+    .concat(Object.entries(extra).map(([KEY, VALUE]) => ({ KEY, VALUE })));
+  const csv = Papa.unparse(rows, { columns: ['KEY', 'VALUE'] });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = 'site.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  status('Downloaded site.csv. Upload it to your site next to the map page, replacing the old one.');
+};
+</script>
+</body>
+</html>
