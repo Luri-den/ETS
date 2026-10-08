@@ -920,58 +920,16 @@ function clearTourLine(){
    VEHICLE TRAVEL
    ============================================================ */
 
-const VEHICLE_SVG = {
-  train: `
-    <svg viewBox="0 0 60 30" width="60" height="30" aria-hidden="true">
-      <rect x="6" y="8" width="34" height="12" fill="#3a3a3a" rx="2"/>
-      <rect x="34" y="4" width="16" height="16" fill="#3a3a3a" rx="2"/>
-      <rect x="36" y="7" width="6" height="5" fill="#f5e6c8"/>
-      <rect x="44" y="7" width="4" height="5" fill="#f5e6c8"/>
-      <rect x="4" y="18" width="4" height="5" fill="#3a3a3a"/>
-      <circle cx="14" cy="22" r="4" fill="#1c1c1c"/>
-      <circle cx="24" cy="22" r="4" fill="#1c1c1c"/>
-      <circle cx="34" cy="22" r="4" fill="#1c1c1c"/>
-      <circle cx="44" cy="22" r="3" fill="#1c1c1c"/>
-      <rect x="16" y="2" width="4" height="6" fill="#3a3a3a"/>
-      <rect x="6" y="11" width="30" height="2" fill="#E47303"/>
-    </svg>`,
-  boat: `
-    <svg viewBox="0 0 60 30" width="60" height="30" aria-hidden="true">
-      <path d="M4 20 L10 16 L50 16 L56 20 L56 24 L4 24 Z" fill="#5a3a1a"/>
-      <rect x="14" y="10" width="30" height="6" fill="#8a5a2a"/>
-      <rect x="18" y="12" width="6" height="4" fill="#f5e6c8"/>
-      <rect x="30" y="12" width="6" height="4" fill="#f5e6c8"/>
-      <rect x="4" y="8" width="4" height="8" fill="#3a3a3a"/>
-      <path d="M6 10 Q 20 4 40 8" stroke="#3a3a3a" stroke-width="1.5" fill="none"/>
-      <path d="M6 16 Q 20 20 40 16" stroke="#E47303" stroke-width="1.5" fill="none"/>
-    </svg>`,
-  car: `
-    <svg viewBox="0 0 60 30" width="60" height="30" aria-hidden="true">
-      <path d="M6 18 L14 12 L44 12 L54 18 L54 24 L6 24 Z" fill="#8b1a1a"/>
-      <rect x="16" y="9" width="24" height="6" fill="#8b1a1a" rx="2"/>
-      <rect x="18" y="10" width="8" height="4" fill="#f5e6c8"/>
-      <rect x="30" y="10" width="8" height="4" fill="#f5e6c8"/>
-      <circle cx="16" cy="24" r="4" fill="#1c1c1c"/>
-      <circle cx="44" cy="24" r="4" fill="#1c1c1c"/>
-      <rect x="6" y="18" width="48" height="1.5" fill="#E47303"/>
-    </svg>`,
-  factory: `
-    <svg viewBox="0 0 60 30" width="60" height="30" aria-hidden="true">
-      <path d="M4 24 L4 14 L14 18 L14 12 L24 16 L24 10 L34 14 L34 24 Z" fill="#4a4a4a"/>
-      <rect x="4" y="22" width="30" height="4" fill="#2a2a2a"/>
-      <rect x="42" y="6" width="8" height="20" fill="#3a3a3a"/>
-      <rect x="41" y="4" width="10" height="3" fill="#2a2a2a"/>
-      <rect x="8" y="19" width="4" height="3" fill="#f5e6c8"/>
-      <rect x="16" y="19" width="4" height="3" fill="#f5e6c8"/>
-      <rect x="24" y="19" width="4" height="3" fill="#f5e6c8"/>
-      <g opacity="0.75">
-        <circle cx="46" cy="2" r="2.2" fill="#cfd6df"/>
-        <circle cx="50" cy="-1" r="1.6" fill="#cfd6df"/>
-        <circle cx="43" cy="-1" r="1.4" fill="#cfd6df"/>
-      </g>
-      <rect x="4" y="16" width="30" height="1.5" fill="#E47303"/>
-    </svg>`
-};
+// Tour vehicles and passport emblems now come from icons.js (one list for everything)
+function vehicleSVG(key){
+  const i = ICONS[key] || ICONS.train;
+  return `<svg viewBox="${i.vb}" width="60" height="30" aria-hidden="true">${i.art}</svg>`;
+}
+// Keeps the old VEHICLE_SVG["train"] style lookups working everywhere else in the page
+const VEHICLE_SVG = new Proxy({}, {
+  get: (_, k) => (typeof k === "string" && Object.prototype.hasOwnProperty.call(ICONS, k)) ? vehicleSVG(k) : undefined
+});
+const SCENE_CLASS = { rail: "rail", water: "boat", road: "car" };   // icons.js "scene" -> the scenery CSS you already have
 
 const VEHICLE_PUFF = `
   <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
@@ -987,16 +945,17 @@ function travelTo(fromLl, toLl, vehicleKey){
       return;
     }
 
-    const v = VEHICLE_SVG[vehicleKey] ? vehicleKey : "train";
+       const v = ICONS[vehicleKey] ? vehicleKey : "train";
+    const meta = ICONS[v];
     const wrap = document.createElement("div");
-    wrap.className = "travel-clip " + v;
+    wrap.className = "travel-clip " + (SCENE_CLASS[meta.scene] || "");
     wrap.innerHTML = `
       <div class="scene">
         <div class="env"></div>
-        <div class="vehicle">${VEHICLE_SVG[v]}</div>
-        ${v === "train" ? `<div class="puff">${VEHICLE_PUFF}</div>` : ""}
+        <div class="vehicle">${vehicleSVG(v)}</div>
+        ${meta.puff ? `<div class="puff">${VEHICLE_PUFF}</div>` : ""}
       </div>`;
-
+    
     const marker = new maplibregl.Marker({ element: wrap, anchor: "center" })
       .setLngLat(fromLl)
       .addTo(map);
