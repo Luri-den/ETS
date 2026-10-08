@@ -416,24 +416,6 @@ function render(){
   renderStaged();
 }
 
-let CATEGORIES = {
-  CIV:   { label:"Civic",       color:"#E2E1E0", icon:"courthouse" },
-  COMM:  { label:"Commercial",  color:"#E47303", icon:"store" },
-  RES:   { label:"Residential", color:"#BDD76B", icon:"house" },
-  IND:   { label:"Industry",    color:"#AF350A", icon:"factory" },
-  RAIL:  { label:"Rail",        color:"#8B6F47", icon:"train" },
-  CANAL: { label:"Canal",       color:"#4A7C8C", icon:"boat" }
-};
-const iconKeyFor = cat => {
-  const c = CATEGORIES[String(cat || "").trim().toUpperCase() || DEFAULT_CAT];
-  return (c && c.icon) || "generic";
-};
-function pinColor(cat){
-  const c = CATEGORIES[String(cat||"").trim().toUpperCase()];
-  const d = CATEGORIES[DEFAULT_CAT];
-  return c ? c.color : (d ? d.color : "#E47303");
-}
-
 function renderPins(){
   // tear down
   parents.concat(children).forEach(o => { if (o.marker) o.marker.remove(); o.marker = null; o.el = null; });
