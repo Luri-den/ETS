@@ -1,516 +1,318 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2.5D Photo Animator Tool (With Work-Space Zoom)</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gifshot/0.3.2/gifshot.min.js"></script>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background-color: #1a1a1a;
-            color: #e0e0e0;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        h1 { margin-bottom: 5px; color: #fff; }
-        .container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            max-width: 1100px;
-            width: 1100px;
-            margin-top: 20px;
-        }
-        .workspace, .controls {
-            background-color: #262626;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-        }
-        .workspace {
-            flex: 2;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-width: 500px;
-        }
-        .controls {
-            flex: 1;
-            min-width: 300px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-        .canvas-container {
-            position: relative;
-            background-color: #111;
-            border: 2px dashed #444;
-            border-radius: 4px;
-            margin-top: 10px;
-            overflow: hidden;
-            width: 650px;
-            height: 450px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        /* Wrapper viewport used to scale and translate the underlying stack */
-        .canvas-viewport {
-            position: absolute;
-            transform-origin: 0 0;
-            display: none;
-        }
-        canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-        button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            font-size: 14px;
-            font-weight: bold;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        button:hover { background-color: #0056b3; }
-        button:disabled { background-color: #555; cursor: not-allowed; }
-        .btn-success { background-color: #28a745; }
-        .btn-success:hover { background-color: #218838; }
-        .control-group {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-        label { font-size: 13px; color: #aaa; font-weight: bold; }
-        input[type="range"] { width: 100%; cursor: pointer; }
-        .status {
-            font-size: 14px;
-            color: #ffc107;
-            margin-top: 10px;
-            text-align: center;
-            font-weight: bold;
-        }
-        .hidden { display: none !important; }
-        .zoom-tip {
-            font-size: 11px;
-            color: #888;
-            margin-top: 4px;
-            text-align: center;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>2.5D Ken Burns Animator</title>
+<style>
+:root{--bg:#f4f4f2;--panel:#fff;--text:#1c1c1c;--muted:#6b6b6b;--line:#ddd;--accent:#2563eb;--accent-t:#fff;--stage:#e9e9e6;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161616;--panel:#222;--text:#eee;--muted:#999;--line:#3a3a3a;--accent:#3b82f6;--stage:#101010}}
+:root[data-theme="dark"]{--bg:#161616;--panel:#222;--text:#eee;--muted:#999;--line:#3a3a3a;--accent:#3b82f6;--stage:#101010}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:14px;margin:0 0 16px}
+.wrap{display:flex;gap:16px;flex-wrap:wrap;max-width:1200px;margin:auto}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+.left{flex:2 1 520px;min-width:0}
+.right{flex:1 1 280px;display:flex;flex-direction:column;gap:14px}
+.scroller{overflow:auto;max-height:70vh;background:var(--stage);border-radius:6px;border:1px solid var(--line)}
+.stage{position:relative;margin:auto;display:none}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%}
+#mask{opacity:.5;touch-action:none;cursor:crosshair}
+.empty{padding:80px 20px;text-align:center;color:var(--muted)}
+label{display:block;font-size:13px;font-weight:600;margin-bottom:4px}
+.row{display:flex;gap:8px;align-items:center}
+.row span{min-width:40px;text-align:right;font-size:12px;color:var(--muted)}
+input[type=range]{width:100%}
+button,select{font:inherit;font-size:14px;padding:8px 12px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-t);border-color:var(--accent);font-weight:600}
+button.on{outline:2px solid var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.status{font-size:13px;color:var(--muted);margin-top:10px;min-height:18px}
+h2{font-size:14px;margin:0 0 10px}
+.hide{display:none!important}
+</style>
 </head>
 <body>
+<h1>2.5D Ken Burns Animator</h1>
+<p class="sub">Paint over the foreground subject, then watch it zoom at a different speed than the background.</p>
 
-    <h1>2.5D Photo Animator</h1>
-    <p style="margin: 0; color: #888;">Isolate a foreground subject to generate a 3D parallax zoom loop.</p>
+<div class="wrap">
+  <div class="card left">
+    <input type="file" id="file" accept="image/*">
+    <div class="scroller" style="margin-top:12px" id="scroller">
+      <div class="empty" id="empty">Choose an image (or drop one here) to begin</div>
+      <div class="stage" id="stage">
+        <canvas id="view"></canvas>
+        <canvas id="mask"></canvas>
+      </div>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
 
-    <div class="container">
-        <div class="workspace">
-            <input type="file" id="upload" accept="image/*">
-            <div class="canvas-container" id="canvasBox">
-                <span id="uploadPrompt" style="color: #666;">Upload an image to begin</span>
-                
-                <!-- The Viewport wrapper handles the physical zoom matrix transforms -->
-                <div id="viewport" class="canvas-viewport">
-                    <canvas id="bgCanvas" style="z-index: 1;"></canvas>
-                    <canvas id="maskCanvas" style="z-index: 2;"></canvas>
-                    <canvas id="viewCanvas" style="z-index: 3; display: none;"></canvas>
-                </div>
-            </div>
-            <div class="zoom-tip" id="zoomTip">💡 <b>Scroll Wheel</b> to Zoom In/Out. <b>Hold Spacebar + Drag Mouse</b> to Pan around.</div>
-            <div id="statusMsg" class="status"></div>
-        </div>
-
-        <div class="controls">
-            <div class="control-group">
-                <label>1. Brush Settings</label>
-                <div style="display:flex; gap:10px; align-items:center;">
-                    <input type="range" id="brushSize" min="3" max="80" value="20">
-                    <span id="brushVal" style="width:30px;">20px</span>
-                </div>
-                <button id="clearMaskBtn" class="hidden" style="background:#dc3545;">Reset Mask</button>
-            </div>
-
-            <hr style="border: 0; border-top: 1px solid #444; width:100%;">
-
-            <div class="control-group">
-                <label>2. Timeline Preview</label>
-                <button id="generateBtn" disabled>Generate Animation</button>
-                <button id="editBtn" class="hidden">Back to Masking</button>
-            </div>
-
-            <div id="animSliders" class="hidden" style="display:flex; flex-direction:column; gap:15px;">
-                <div class="control-group">
-                    <label>Background Zoom Speed</label>
-                    <input type="range" id="bgZoom" min="0" max="40" value="25">
-                </div>
-                <div class="control-group">
-                    <label>Foreground Zoom Speed</label>
-                    <input type="range" id="fgZoom" min="0" max="40" value="0">
-                </div>
-                <div class="control-group">
-                    <label>Animation Duration (Seconds)</label>
-                    <input type="range" id="duration" min="1" max="5" value="3" step="0.5">
-                </div>
-            </div>
-
-            <hr style="border: 0; border-top: 1px solid #444; width:100%;">
-
-            <div class="control-group">
-                <label>3. Export File</label>
-                <button id="exportBtn" class="btn-success" disabled>Export as GIF</button>
-            </div>
-        </div>
+  <div class="right">
+    <div class="card" id="editCard">
+      <h2>1. Mask the subject</h2>
+      <label>Brush size</label>
+      <div class="row"><input type="range" id="brush" min="3" max="120" value="30"><span id="brushV">30</span></div>
+      <label style="margin-top:10px">View zoom (scroll the box to pan)</label>
+      <div class="row"><input type="range" id="vz" min="1" max="4" step="0.1" value="1"><span id="vzV">1x</span></div>
+      <div class="btns" style="margin-top:12px">
+        <button id="paintBtn" class="on">Paint</button>
+        <button id="eraseBtn">Erase</button>
+        <button id="clearBtn">Clear</button>
+      </div>
     </div>
 
-    <script>
-        const upload = document.getElementById('upload');
-        const uploadPrompt = document.getElementById('uploadPrompt');
-        const canvasBox = document.getElementById('canvasBox');
-        const viewport = document.getElementById('viewport');
-        const maskCanvas = document.getElementById('maskCanvas');
-        const bgCanvas = document.getElementById('bgCanvas');
-        const viewCanvas = document.getElementById('viewCanvas');
-        const brushSize = document.getElementById('brushSize');
-        const brushVal = document.getElementById('brushVal');
-        const generateBtn = document.getElementById('generateBtn');
-        const editBtn = document.getElementById('editBtn');
-        const clearMaskBtn = document.getElementById('clearMaskBtn');
-        const exportBtn = document.getElementById('exportBtn');
-        const animSliders = document.getElementById('animSliders');
-        const bgZoomSlider = document.getElementById('bgZoom');
-        const fgZoomSlider = document.getElementById('fgZoom');
-        const durationSlider = document.getElementById('duration');
-        const statusMsg = document.getElementById('statusMsg');
+    <div class="card">
+      <h2>2. Motion</h2>
+      <div class="btns" style="margin-bottom:12px">
+        <button id="playBtn" class="primary" disabled>Preview animation</button>
+        <button id="backBtn" class="hide">Back to masking</button>
+      </div>
+      <label>Foreground zoom</label>
+      <div class="row"><input type="range" id="fgZ" min="0" max="40" value="15"><span id="fgZV">15%</span></div>
+      <label style="margin-top:8px">Background zoom</label>
+      <div class="row"><input type="range" id="bgZ" min="0" max="40" value="5"><span id="bgZV">5%</span></div>
+      <label style="margin-top:8px">Sideways drift</label>
+      <div class="row"><input type="range" id="drift" min="0" max="8" step="0.5" value="2"><span id="driftV">2%</span></div>
+      <label style="margin-top:8px">Duration</label>
+      <div class="row"><input type="range" id="dur" min="2" max="10" step="0.5" value="5"><span id="durV">5s</span></div>
+      <label style="margin-top:8px">Style</label>
+      <div class="btns">
+        <select id="loopMode"><option value="pp">Seamless loop (in and out)</option><option value="one">One-way push</option></select>
+        <label style="display:flex;gap:6px;align-items:center;margin:0;font-weight:400"><input type="checkbox" id="rev"> Reverse</label>
+      </div>
+    </div>
 
-        const maskCtx = maskCanvas.getContext('2d');
-        const bgCtx = bgCanvas.getContext('2d');
-        const viewCtx = viewCanvas.getContext('2d');
+    <div class="card">
+      <h2>3. Export</h2>
+      <button id="expBtn" class="primary" disabled>Record video (one loop)</button>
+      <div style="font-size:12px;color:var(--muted);margin-top:8px">Exports WebM (MP4 in Safari). Takes as long as the duration, in real time.</div>
+    </div>
+  </div>
+</div>
 
-        let sourceImg = null;
-        let isDrawing = false;
-        let isAnimating = false;
-        let animFrameId = null;
-        let imgWidth = 0;
-        let imgHeight = 0;
-        let startTime = 0;
+<script>
+const $ = id => document.getElementById(id);
+const view = $('view'), mask = $('mask'), vctx = view.getContext('2d'), mctx = mask.getContext('2d');
+const mk = () => { const c = document.createElement('canvas'); return [c, c.getContext('2d')]; };
+const [fgC, fgX] = mk(), [bgC, bgX] = mk();
 
-        // Interactive Workspace Zoom & Pan States
-        let zoomLevel = 1.0;
-        let panX = 0;
-        let panY = 0;
-        let isPanning = false;
-        let startPanX = 0;
-        let startPanY = 0;
-        let isSpacePressed = false;
+let img = null, W = 0, H = 0, mode = 'edit', raf = 0, t0 = 0;
+let painting = false, erasing = false, last = null, painted = false, recording = false;
 
-        const fgTempCanvas = document.createElement('canvas');
-        const fgTempCtx = fgTempCanvas.getContext('2d');
-        const bgTempCanvas = document.createElement('canvas');
-        const bgTempCtx = bgTempCanvas.getContext('2d');
+const status = (t) => $('status').textContent = t;
 
-        brushSize.addEventListener('input', (e) => {
-            brushVal.textContent = e.target.value + 'px';
-        });
-
-        // Track Spacebar layout hooks
-        window.addEventListener('keydown', (e) => {
-            if (e.code === 'Space') {
-                isSpacePressed = true;
-                canvasBox.style.cursor = 'grab';
-                if(e.target == document.body) e.preventDefault(); // Stop page scrolling
-            }
-        });
-        window.addEventListener('keyup', (e) => {
-            if (e.code === 'Space') {
-                isSpacePressed = false;
-                canvasBox.style.cursor = 'crosshair';
-            }
-        });
-
-        // 1. Mouse Wheel Zoom Event Engine
-        canvasBox.addEventListener('wheel', (e) => {
-            if (!sourceImg) return;
-            e.preventDefault();
-
-            const rect = canvasBox.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-
-            // Determine workspace coordinates relative to old zoom matrix scale boundaries
-            const worldX = (mouseX - panX) / zoomLevel;
-            const worldY = (mouseY - panY) / zoomLevel;
-
-            // Zoom bounds limits configuration (1x to 5x magnification)
-            const zoomFactor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
-            zoomLevel = Math.max(1.0, Math.min(5.0, zoomLevel * zoomFactor));
-
-            // Adjust pan metrics synchronously to focus anchor directly onto mouse tip target location
-            panX = mouseX - worldX * zoomLevel;
-            panY = mouseY - worldY * zoomLevel;
-
-            // Bound checking to contain view frame tracking
-clampViewport();
-updateViewportTransform();
+// ---------- slider labels ----------
+[['brush','px'],['vz','x'],['fgZ','%'],['bgZ','%'],['drift','%'],['dur','s']].forEach(([id, u]) => {
+  const upd = () => $(id + 'V').textContent = $(id).value + u;
+  $(id).addEventListener('input', upd); upd();
 });
-function clampViewport() {
-const containerW = 650;
-const containerH = 450;
-// Limit pan displacements safely inside frame container view metrics
-const minX = containerW - imgWidth * zoomLevel;
-const minY = containerH - imgHeight * zoomLevel;
-panX = Math.min(0, Math.max(minX, panX));
-panY = Math.min(0, Math.max(minY, panY));
-// Re-center alignment axis if magnification levels scale out completely
-if (imgWidth * zoomLevel <= containerW) panX = (containerW - imgWidth * zoomLevel) / 2;
-if (imgHeight * zoomLevel <= containerH) panY = (containerH - imgHeight * zoomLevel) / 2;
+
+// ---------- loading ----------
+$('file').addEventListener('change', e => e.target.files[0] && loadFile(e.target.files[0]));
+document.body.addEventListener('dragover', e => e.preventDefault());
+document.body.addEventListener('drop', e => {
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) loadFile(f);
+});
+
+function loadFile(file) {
+  const url = URL.createObjectURL(file);
+  const im = new Image();
+  im.onload = () => { img = im; URL.revokeObjectURL(url); setup(); };
+  im.onerror = () => status('Could not read that image.');
+  im.src = url;
 }
-function updateViewportTransform() {
-viewport.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+
+function setup() {
+  stopLoop();
+  const s = Math.min(1, 1280 / Math.max(img.naturalWidth, img.naturalHeight));
+  W = Math.round(img.naturalWidth * s);
+  H = Math.round(img.naturalHeight * s);
+  [view, mask, fgC, bgC].forEach(c => { c.width = W; c.height = H; });
+  $('empty').classList.add('hide');
+  $('stage').style.display = 'block';
+  $('stage').style.aspectRatio = W + ' / ' + H;
+  $('vz').value = 1; $('vzV').textContent = '1x';
+  applyViewZoom();
+  clearMask();
+  setMode('edit');
 }
-upload.addEventListener('change', (e) => {
-if (!e.target.files || e.target.files.length === 0) return;
-const file = e.target.files[0];
-statusMsg.textContent = "Loading image into memory...";
-statusMsg.style.color = "#ffc107";
-const reader = new FileReader();
-reader.onload = (event) => {
-sourceImg = new Image();
-sourceImg.onload = () => {
-setupWorkspace();
+
+function applyViewZoom() {
+  const base = Math.min(W, $('scroller').clientWidth - 2);
+  $('stage').style.width = (base * parseFloat($('vz').value)) + 'px';
+}
+$('vz').addEventListener('input', applyViewZoom);
+window.addEventListener('resize', () => img && applyViewZoom());
+
+// ---------- masking ----------
+function pos(e) {
+  const r = mask.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height };
+}
+function stroke(a, b) {
+  mctx.save();
+  mctx.globalCompositeOperation = erasing ? 'destination-out' : 'source-over';
+  mctx.strokeStyle = mctx.fillStyle = '#ff2d2d';
+  // brush size is in screen pixels, converted to image pixels
+  const size = $('brush').value * (W / mask.getBoundingClientRect().width);
+  mctx.lineWidth = size; mctx.lineCap = mctx.lineJoin = 'round';
+  mctx.beginPath(); mctx.moveTo(a.x, a.y); mctx.lineTo(b.x, b.y); mctx.stroke();
+  mctx.restore();
+}
+mask.addEventListener('pointerdown', e => {
+  if (mode !== 'edit') return;
+  mask.setPointerCapture(e.pointerId);
+  painting = true; last = pos(e); stroke(last, last);
+  if (!erasing) painted = true;
+  $('playBtn').disabled = !painted;
+});
+mask.addEventListener('pointermove', e => {
+  if (!painting) return;
+  const p = pos(e); stroke(last, p); last = p;
+});
+['pointerup', 'pointercancel'].forEach(t => mask.addEventListener(t, () => painting = false));
+
+function clearMask() {
+  mctx.clearRect(0, 0, W, H);
+  painted = false;
+  $('playBtn').disabled = true;
+  status('Paint over the subject you want to pop forward. Zoom in for tight edges.');
+}
+$('clearBtn').onclick = () => { if (!painted || confirm('Clear the mask?')) clearMask(); };
+$('paintBtn').onclick = () => { erasing = false; $('paintBtn').classList.add('on'); $('eraseBtn').classList.remove('on'); };
+$('eraseBtn').onclick = () => { erasing = true; $('eraseBtn').classList.add('on'); $('paintBtn').classList.remove('on'); };
+
+// ---------- modes ----------
+function setMode(m) {
+  mode = m;
+  const edit = m === 'edit';
+  mask.style.display = edit ? 'block' : 'none';
+  $('playBtn').classList.toggle('hide', !edit);
+  $('backBtn').classList.toggle('hide', edit);
+  $('expBtn').disabled = edit;
+  if (edit) {
+    stopLoop();
+    vctx.clearRect(0, 0, W, H);
+    vctx.drawImage(img, 0, 0, W, H);
+  }
+}
+$('backBtn').onclick = () => { if (!recording) { setMode('edit'); status('Back to masking.'); } };
+
+// ---------- layer building ----------
+function buildLayers() {
+  // Grow the mask a little so the background hole covers the subject's edge
+  const [dil, dx] = mk(); dil.width = W; dil.height = H;
+  const r = Math.max(3, W / 250);
+  for (let i = 0; i < 16; i++) {
+    const a = i / 16 * Math.PI * 2;
+    dx.drawImage(mask, Math.cos(a) * r, Math.sin(a) * r);
+  }
+  dx.drawImage(mask, 0, 0);
+
+  // Foreground: image cut out with a slightly blurred mask (soft edge)
+  fgX.clearRect(0, 0, W, H);
+  fgX.globalCompositeOperation = 'source-over';
+  fgX.drawImage(img, 0, 0, W, H);
+  fgX.globalCompositeOperation = 'destination-in';
+  fgX.filter = 'blur(1.5px)';
+  fgX.drawImage(mask, 0, 0);
+  fgX.filter = 'none';
+  fgX.globalCompositeOperation = 'source-over';
+
+  // Background with a hole where the subject was
+  const [hole, hx] = mk(); hole.width = W; hole.height = H;
+  hx.drawImage(img, 0, 0, W, H);
+  hx.globalCompositeOperation = 'destination-out';
+  hx.drawImage(dil, 0, 0);
+
+  // Fill the hole by stacking progressively blurrier copies underneath
+  bgX.clearRect(0, 0, W, H);
+  bgX.imageSmoothingQuality = 'high';
+  for (let k = 7; k >= 1; k--) {
+    const [c, cx] = mk();
+    c.width = Math.max(2, Math.ceil(W / 2 ** k));
+    c.height = Math.max(2, Math.ceil(H / 2 ** k));
+    cx.imageSmoothingQuality = 'high';
+    cx.drawImage(hole, 0, 0, c.width, c.height);
+    bgX.drawImage(c, 0, 0, W, H);
+  }
+  bgX.drawImage(hole, 0, 0);
+}
+
+// ---------- rendering ----------
+function ease(p) {
+  let e = $('loopMode').value === 'pp' ? 0.5 - 0.5 * Math.cos(p * Math.PI * 2) : p * p * (3 - 2 * p);
+  return $('rev').checked ? 1 - e : e;
+}
+function drawFrame(p) {
+  const e = ease(p);
+  const drift = $('drift').value / 100;
+  const layers = [[bgC, $('bgZ').value / 100, 0.35], [fgC, $('fgZ').value / 100, 1]];
+  vctx.clearRect(0, 0, W, H);
+  for (const [c, zoom, k] of layers) {
+    const s = (1 + 2 * drift) * (1 + e * zoom); // overscan keeps edges covered while drifting
+    const dx = (e - 0.5) * 2 * drift * W * k;
+    vctx.save();
+    vctx.translate(W / 2 + dx, H / 2);
+    vctx.scale(s, s);
+    vctx.drawImage(c, -W / 2, -H / 2);
+    vctx.restore();
+  }
+}
+function loop(now) {
+  const dur = parseFloat($('dur').value);
+  drawFrame(((now - t0) / 1000 % dur) / dur);
+  raf = requestAnimationFrame(loop);
+}
+function stopLoop() { cancelAnimationFrame(raf); raf = 0; }
+
+$('playBtn').onclick = () => {
+  if (!painted) return;
+  buildLayers();
+  setMode('play');
+  t0 = performance.now();
+  raf = requestAnimationFrame(loop);
+  status('Live preview. Drag the sliders to adjust the motion.');
 };
-sourceImg.src = event.target.result;
+
+// ---------- export ----------
+$('expBtn').onclick = () => {
+  if (typeof MediaRecorder === 'undefined') { status('This browser cannot record video from a canvas.'); return; }
+  const types = ['video/mp4;codecs=avc1', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+  const mime = types.find(t => MediaRecorder.isTypeSupported(t));
+  if (!mime) { status('No supported video format found.'); return; }
+  const dur = parseFloat($('dur').value);
+  const rec = new MediaRecorder(view.captureStream(30), { mimeType: mime, videoBitsPerSecond: 10e6 });
+  const chunks = [];
+  rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+  rec.onstop = () => {
+    const blob = new Blob(chunks, { type: mime });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'parallax-loop.' + (mime.includes('mp4') ? 'mp4' : 'webm');
+    document.body.appendChild(a); a.click(); a.remove();
+    recording = false; $('expBtn').disabled = false;
+    status('Saved. Check your downloads folder.');
+  };
+  recording = true; $('expBtn').disabled = true;
+  status('Recording ' + dur + 's...');
+  t0 = performance.now();
+  rec.start();
+  setTimeout(() => rec.stop(), dur * 1000);
 };
-reader.readAsDataURL(file);
-});
-function setupWorkspace() {
-stopAnimation();
-// Reset zoom matrix layouts completely
-zoomLevel = 1.0;
-panX = 0;
-panY = 0;
-imgWidth = sourceImg.naturalWidth || sourceImg.width;
-imgHeight = sourceImg.naturalHeight || sourceImg.height;
-const maxW = 650;
-const maxH = 450;
-let scale = Math.min(maxW / imgWidth, maxH / imgHeight);
-imgWidth = Math.floor(imgWidth * scale);
-imgHeight = Math.floor(imgHeight * scale);
-// Configure initial positioning setups
-panX = (maxW - imgWidth) / 2;
-panY = (maxH - imgHeight) / 2;
-[maskCanvas, bgCanvas, viewCanvas, fgTempCanvas, bgTempCanvas].forEach(canvas => {
-canvas.width = imgWidth;
-canvas.height = imgHeight;
-canvas.style.width = imgWidth + "px";
-canvas.style.height = imgHeight + "px";
-});
-bgCtx.clearRect(0, 0, imgWidth, imgHeight);
-bgCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-maskCtx.clearRect(0, 0, imgWidth, imgHeight);
-uploadPrompt.style.display = 'none';
-viewport.style.display = 'block';
-bgCanvas.style.display = 'block';
-maskCanvas.style.display = 'block';
-viewCanvas.style.display = 'none';
-updateViewportTransform();
-clearMaskBtn.classList.remove('hidden');
-generateBtn.removeAttribute('disabled');
-exportBtn.setAttribute('disabled', 'true');
-editBtn.classList.add('hidden');
-generateBtn.classList.remove('hidden');
-animSliders.classList.add('hidden');
-statusMsg.textContent = "Zoom & Pan active. Trace your foreground building mask precisely!";
-statusMsg.style.color = "#28a745";
+
+if (!('filter' in CanvasRenderingContext2D.prototype)) {
+  status('Note: this browser ignores canvas blur, so the subject edge will be hard.');
 }
-// 2. Mouse Input Vector Controls (Handles Drawing VS Workspace Panning)
-canvasBox.addEventListener('mousedown', (e) => {
-if (!sourceImg || isAnimating) return;
-if (isSpacePressed || e.button === 1) { // Middle click or Space+Click activates workspace Pan
-isPanning = true;
-canvasBox.style.cursor = 'grabbing';
-startPanX = e.clientX - panX;
-startPanY = e.clientY - panY;
-e.preventDefault();
-} else if (e.button === 0) { // Left click activates Paint
-isDrawing = true;
-paintMove(e);
-}
-});
-canvasBox.addEventListener('mousemove', (e) => {
-if (isPanning) {
-panX = e.clientX - startPanX;
-panY = e.clientY - startPanY;
-clampViewport();
-updateViewportTransform();
-} else if (isDrawing) {
-paintMove(e);
-}
-});
-window.addEventListener('mouseup', () => {
-isDrawing = false;
-if (isPanning) {
-isPanning = false;
-canvasBox.style.cursor = isSpacePressed ? 'grab' : 'crosshair';
-}
-});
-function paintMove(e) {
-if (!isDrawing) return;
-const rect = maskCanvas.getBoundingClientRect();
-// Mathematical conversion calculation to find precise tracing pixels under current zoom/pan state
-const x = (e.clientX - rect.left) * (imgWidth / rect.width);
-const y = (e.clientY - rect.top) * (imgHeight / rect.height);
-maskCtx.save();
-maskCtx.fillStyle = 'rgb(255,0,0)';          // in paintMove
-maskCanvas.style.opacity = '0.6';            // once, at setup
-maskCtx.beginPath();
-maskCtx.arc(x, y, brushSize.value / 2, 0, Math.PI * 2);
-maskCtx.fill();
-maskCtx.restore();
-}
-clearMaskBtn.addEventListener('click', () => {
-if (confirm("Clear trace mask?")) setupWorkspace();
-});
-// 3. 2.5D Layer Isolation Engine With Seam Feathering Passes
-generateBtn.addEventListener('click', prepareAndAnimate);
-editBtn.addEventListener('click', () => {
-stopAnimation();
-bgCanvas.style.display = 'block';
-maskCanvas.style.display = 'block';
-viewCanvas.style.display = 'none';
-editBtn.classList.add('hidden');
-generateBtn.classList.remove('hidden');
-animSliders.classList.add('hidden');
-exportBtn.setAttribute('disabled', 'true');
-statusMsg.textContent = "Returned to workspace.";
-statusMsg.style.color = "#ffc107";
-});
-function prepareAndAnimate() {
-statusMsg.textContent = "Isolating canvas layout layers...";
-// Foreground cutout with softened edge
-// Foreground cutout with softened edge
-fgTempCtx.clearRect(0, 0, imgWidth, imgHeight);
-fgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-fgTempCtx.globalCompositeOperation = 'destination-in';
-fgTempCtx.filter = 'blur(1.5px)';
-fgTempCtx.drawImage(maskCanvas, 0, 0);
-fgTempCtx.filter = 'none';
-fgTempCtx.globalCompositeOperation = 'source-over';
-// Force visibility setups to block interactions and activate timeline previews
-bgCanvas.style.display = 'none';
-maskCanvas.style.display = 'none';
-viewCanvas.style.display = 'block';
-generateBtn.classList.add('hidden');
-editBtn.classList.remove('hidden');
-animSliders.classList.remove('hidden');
-exportBtn.removeAttribute('disabled');
-// Reset zoom matrix layouts back to baseline center point for pristine animation viewing
-zoomLevel = 1.0;
-panX = (650 - imgWidth) / 2;
-panY = (450 - imgHeight) / 2;
-updateViewportTransform();
-isAnimating = true;
-startTime = performance.now();
-renderParallaxFrame();
-}
-function stopAnimation() {
-isAnimating = false;
-if (animFrameId) cancelAnimationFrame(animFrameId);
-}
-function renderParallaxFrame(time = performance.now()) {
-if (!isAnimating) return;
-viewCtx.clearRect(0, 0, imgWidth, imgHeight);
-const bgMax = parseFloat(bgZoomSlider.value) / 200;
-const fgMax = parseFloat(fgZoomSlider.value) / 200;
-const dur = parseFloat(durationSlider.value);
-let elapsed = ((time - startTime) / 1000) % dur;
-let progress = elapsed / dur;
-let ease = Math.sin(progress * Math.PI);
-let bgS = 1.0 + (ease * bgMax);
-let fgS = 1.0 + (ease * fgMax);
-// Draw Background Layer Matrix
-viewCtx.save();
-viewCtx.translate(imgWidth / 2, imgHeight / 2);
-viewCtx.scale(bgS, bgS);
-viewCtx.drawImage(bgTempCanvas, -imgWidth / 2, -imgHeight / 2);
-viewCtx.restore();
-// Draw Feathered Subject Layer Matrix
-viewCtx.save();
-viewCtx.translate(imgWidth / 2, imgHeight / 2);
-viewCtx.scale(fgS, fgS);
-viewCtx.drawImage(fgTempCanvas, -imgWidth / 2, -imgHeight / 2);
-viewCtx.restore();
-statusMsg.textContent = "Live parallax preview loop active.";
-statusMsg.style.color = "#007bff";
-animFrameId = requestAnimationFrame(renderParallaxFrame);
-}
-// 4. Sequence Capture Array & GIF Compilation Processing Loop
-exportBtn.addEventListener('click', () => {
-stopAnimation();
-exportBtn.setAttribute('disabled', 'true');
-statusMsg.textContent = "Encoding layout assets into looping GIF. Please wait...";
-statusMsg.style.color = "#ffc107";
-const bgMax = parseFloat(bgZoomSlider.value) / 200;
-const fgMax = parseFloat(fgZoomSlider.value) / 200;
-const dur = parseFloat(durationSlider.value);
-const totalFrames = 25;
-const imageFramesArray = [];
-const captureCanvas = document.createElement('canvas');
-captureCanvas.width = imgWidth;
-captureCanvas.height = imgHeight;
-const captureCtx = captureCanvas.getContext('2d');
-for (let i = 0; i < totalFrames; i++) {
-let progress = i / totalFrames;
-let ease = Math.sin(progress * Math.PI);
-let bgS = 1.0 + (ease * bgMax);
-let fgS = 1.0 + (ease * fgMax);
-captureCtx.clearRect(0, 0, imgWidth, imgHeight);
-captureCtx.save();
-captureCtx.translate(imgWidth / 2, imgHeight / 2);
-captureCtx.scale(bgS, bgS);
-captureCtx.drawImage(bgTempCanvas, -imgWidth / 2, -imgHeight / 2);
-captureCtx.restore();
-captureCtx.save();
-captureCtx.translate(imgWidth / 2, imgHeight / 2);
-captureCtx.scale(fgS, fgS);
-captureCtx.drawImage(fgTempCanvas, -imgWidth / 2, -imgHeight / 2);
-captureCtx.restore();
-imageFramesArray.push(captureCanvas.toDataURL('image/jpeg', 0.8));
-}
-gifshot.createGIF({
-images: imageFramesArray,
-gifWidth: imgWidth,
-gifHeight: imgHeight,
-interval: dur / totalFrames,
-numFrames: totalFrames,
-loop: 0
-}, function (obj) {
-if (!obj.error) {
-const downloadLink = document.createElement('a');
-downloadLink.href = obj.image;
-downloadLink.download = 'feathered-parallax.gif';
-document.body.appendChild(downloadLink);
-downloadLink.click();
-document.body.removeChild(downloadLink);
-statusMsg.textContent = "GIF successfully saved!";
-statusMsg.style.color = "#28a745";
-} else {
-statusMsg.textContent = "Error compiling file payload metrics.";
-statusMsg.style.color = "#dc3545";
-}
-isAnimating = true;
-startTime = performance.now();
-renderParallaxFrame();
-});
-});
 </script>
-    </body>
-    </html>
+</body>
+</html>
