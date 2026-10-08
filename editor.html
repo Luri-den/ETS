@@ -55,7 +55,13 @@
 
   .hint{padding:10px 14px;font-size:11px;line-height:1.5;color:var(--muted)}
   .hint b{color:#333}
-
+.cicon{width:20px;height:20px;object-fit:contain;flex:none}
+.icongrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.icongrid .ic{padding:4px;border:2px solid var(--line);border-radius:8px;background:#fffdf6}
+.icongrid .ic img{width:100%;aspect-ratio:1;object-fit:contain;display:block}
+.icongrid .ic.on{border-color:var(--accent);background:#e6effa}
+.pin img.is-default{object-fit:contain;padding:18%;background:#fffdf6;box-sizing:border-box}
+  
   /* ---------- stage ---------- */
   #stage{position:relative;min-width:0}
   #map{position:absolute;inset:0}
@@ -139,6 +145,15 @@
 <div id="layout">
   <aside id="left">
     <div class="sec">
+  <h2>Categories <span id="catCount" style="color:#9aa3ad"></span></h2>
+</div>
+<div class="list" id="catList"></div>
+<div class="palette" style="margin-top:6px">
+  <button class="small" id="addCat" type="button">＋ Add category</button>
+  <button class="small" id="loadCats" type="button">Load categories.csv…</button>
+  <input id="fileCats" type="file" accept=".csv,text/csv" hidden>
+</div>
+    <div class="sec">
       <h2>Add</h2>
       <div class="palette">
         <div class="chip parent" draggable="true" data-add="parent">
@@ -185,7 +200,7 @@
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
-
+<script src="icons.js"></script>
 <script>
 /* ============================================================
    Connersville Map — CSV Editor (Slice 1: places)
@@ -199,10 +214,12 @@ const uid = () => Math.random().toString(36).slice(2,8);
   /* ---------- Auto-load from the same folder (GitHub Pages) ---------- */
 (async () => {
   try {
-    const [locRes, chiRes] = await Promise.all([
+        const [locRes, chiRes, catRes] = await Promise.all([
       fetch("locations.csv",     { cache: "no-store" }).catch(() => null),
-      fetch("childmarkers.csv",  { cache: "no-store" }).catch(() => null)
+      fetch("childmarkers.csv",  { cache: "no-store" }).catch(() => null),
+      fetch("categories.csv",    { cache: "no-store" }).catch(() => null)
     ]);
+    if (catRes && catRes.ok) ingestCats(Papa.parse(await catRes.text(), { header:true, skipEmptyLines:"greedy" }));
     if (locRes && locRes.ok) {
       const text = await locRes.text();
       ingest(Papa.parse(text, { header:true, skipEmptyLines:"greedy" }), "loc", "locations.csv");
@@ -217,14 +234,23 @@ const uid = () => Math.random().toString(36).slice(2,8);
 })();
 
 /* Category colors — mirrors SITE.colors in Demo2.html */
-const CATEGORIES = {
-  CIV:   { label:"Civic",          color:"#E2E1E0" },
-  COMM:  { label:"Commercial",     color:"#E47303" },
-  RES:   { label:"Residential",    color:"#BDD76B" },
-  IND:   { label:"Industry",       color:"#AF350A" },
-  RAIL:  { label:"Rail",           color:"#8B6F47" },  // ← your choice
-  CANAL: { label:"Canal",          color:"#4A7C8C" }   // ← your choice
+let CATEGORIES = {
+  CIV:   { label:"Civic",       color:"#E2E1E0", icon:"courthouse" },
+  COMM:  { label:"Commercial",  color:"#E47303", icon:"store" },
+  RES:   { label:"Residential", color:"#BDD76B", icon:"house" },
+  IND:   { label:"Industry",    color:"#AF350A", icon:"factory" },
+  RAIL:  { label:"Rail",        color:"#8B6F47", icon:"train" },
+  CANAL: { label:"Canal",       color:"#4A7C8C", icon:"boat" }
 };
+const iconKeyFor = cat => {
+  const c = CATEGORIES[String(cat || "").trim().toUpperCase() || DEFAULT_CAT];
+  return (c && c.icon) || "generic";
+};
+function pinColor(cat){
+  const c = CATEGORIES[String(cat||"").trim().toUpperCase()];
+  const d = CATEGORIES[DEFAULT_CAT];
+  return c ? c.color : (d ? d.color : "#E47303");
+}
 const DEFAULT_CAT = "COMM";
 
 /* Preserve exact header order from the source files */
@@ -273,10 +299,12 @@ $("reloadBoth").onclick = () => { $("fileLocations").click(); };
 $("reloadCSVs").onclick = async () => {
   if (!confirm("Reload CSVs from the server? Unsaved edits will be lost.")) return;
   try {
-    const [locRes, chiRes] = await Promise.all([
+      const [locRes, chiRes, catRes] = await Promise.all([
       fetch("locations.csv",    { cache:"no-store" }),
-      fetch("childmarkers.csv", { cache:"no-store" })
+      fetch("childmarkers.csv", { cache:"no-store" }),
+      fetch("categories.csv",   { cache:"no-store" }).catch(() => null)
     ]);
+    if (catRes && catRes.ok) ingestCats(Papa.parse(await catRes.text(), { header:true, skipEmptyLines:"greedy" }));
     if (locRes.ok) ingest(Papa.parse(await locRes.text(), { header:true, skipEmptyLines:"greedy" }), "loc", "locations.csv");
     if (chiRes.ok) ingest(Papa.parse(await chiRes.text(), { header:true, skipEmptyLines:"greedy" }), "child", "childmarkers.csv");
     selected = null;
@@ -383,13 +411,27 @@ function nextChildId(parentId){
 function render(){
   renderPins();
   renderLists();
+  renderCats();
   renderForm();
   renderStaged();
 }
 
+let CATEGORIES = {
+  CIV:   { label:"Civic",       color:"#E2E1E0", icon:"courthouse" },
+  COMM:  { label:"Commercial",  color:"#E47303", icon:"store" },
+  RES:   { label:"Residential", color:"#BDD76B", icon:"house" },
+  IND:   { label:"Industry",    color:"#AF350A", icon:"factory" },
+  RAIL:  { label:"Rail",        color:"#8B6F47", icon:"train" },
+  CANAL: { label:"Canal",       color:"#4A7C8C", icon:"boat" }
+};
+const iconKeyFor = cat => {
+  const c = CATEGORIES[String(cat || "").trim().toUpperCase() || DEFAULT_CAT];
+  return (c && c.icon) || "generic";
+};
 function pinColor(cat){
   const c = CATEGORIES[String(cat||"").trim().toUpperCase()];
-  return c ? c.color : CATEGORIES[DEFAULT_CAT].color;
+  const d = CATEGORIES[DEFAULT_CAT];
+  return c ? c.color : (d ? d.color : "#E47303");
 }
 
 function renderPins(){
@@ -435,7 +477,13 @@ function makePinEl(o, kind){
   const EXT = ["jpg","jpeg","png","webp","JPG","PNG"];
   let i = 0;
   const tryNext = () => { img.src = "photos/" + encodeURIComponent(id) + "." + EXT[i]; };
-  img.onerror = () => { if (++i < EXT.length) tryNext(); else { img.remove(); b.classList.add("nophoto"); } };
+   img.onerror = () => {
+    if (++i < EXT.length) { tryNext(); return; }
+    img.onerror = null;
+    img.classList.add("is-default");
+    img.src = iconUrl(iconKeyFor(cat));
+    b.classList.add("nophoto");
+  };
   tryNext();
   b.appendChild(img);
   return b;
@@ -546,7 +594,8 @@ function renderForm(){
     return;
   }
 
-  if (selected.kind === "parent") renderParentForm(box, selected.ref);
+   if (selected.kind === "category") renderCategoryForm(box, selected.ref);
+  else if (selected.kind === "parent") renderParentForm(box, selected.ref);
   else renderChildForm(box, selected.ref);
 }
 
@@ -989,7 +1038,149 @@ function nearestParent(ll){
   }
   return best;
 }
+/* ============================================================
+   Categories (categories.csv): color + icon per category
+   ============================================================ */
+function usage(code){
+  return parents.concat(children).filter(o => String(o.row.CATEGORY||"").trim().toUpperCase() === code).length;
+}
 
+function renderCats(){
+  const box = $("catList");
+  if (!box) return;
+  box.innerHTML = "";
+  $("catCount").textContent = "(" + Object.keys(CATEGORIES).length + ")";
+  Object.entries(CATEGORIES).forEach(([code, c]) => {
+    const row = document.createElement("div");
+    row.className = "row" + (selected && selected.kind === "category" && selected.ref === code ? " sel" : "");
+    row.innerHTML =
+      `<span class="dot" style="background:${esc(c.color)}"></span>` +
+      `<img class="cicon" src="${iconUrl(c.icon)}" alt="">` +
+      `<span class="name">${esc(code)}</span>` +
+      `<span class="id">${usage(code)}</span>`;
+    row.onclick = () => select("category", code);
+    box.appendChild(row);
+  });
+}
+
+// Update colors in place (no pin rebuild, so photos don't reload while you drag the picker)
+function recolor(){
+  const catOf = o => String(o.row.CATEGORY||"").trim().toUpperCase() || DEFAULT_CAT;
+  parents.concat(children).forEach(o => { if (o.el) o.el.style.setProperty("--c", pinColor(catOf(o))); });
+  renderLists();
+  renderCats();
+}
+
+function renderCategoryForm(box, code){
+  const c = CATEGORIES[code];
+  if (!c){ selected = null; renderForm(); return; }
+  const n = usage(code);
+
+  box.innerHTML = `
+    <div class="form">
+      <span class="badge">Category</span>
+
+      <div class="field">
+        <label>Code</label>
+        <input type="text" class="ro" value="${esc(code)}" readonly>
+        <div class="sub">This is what goes in the CATEGORY column. ${n} place(s) use it.</div>
+      </div>
+
+      <div class="field">
+        <label>Label</label>
+        <input type="text" id="c-label" value="${esc(c.label)}">
+        <div class="sub">Shown in this editor only.</div>
+      </div>
+
+      <div class="field">
+        <label>Color</label>
+        <div class="catrow">
+          <input type="color" id="c-color" value="${esc(c.color)}" style="width:44px;height:32px;padding:0;flex:none">
+          <input type="text" id="c-hex" value="${esc(c.color)}">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Icon (shown when a place has no photo)</label>
+        <div class="icongrid" id="c-icons">
+          ${Object.entries(ICONS).map(([k, i]) =>
+            `<button type="button" class="ic ${k === c.icon ? "on" : ""}" data-icon="${k}" title="${esc(i.label)}"><img src="${iconUrl(k)}" alt="${esc(i.label)}"></button>`).join("")}
+        </div>
+        <div class="sub" id="c-iconname">${esc((ICONS[c.icon] || {}).label || "")}</div>
+      </div>
+
+      <div class="actions">
+        <span class="grow"></span>
+        <button id="c-del" class="small warn" type="button">Delete category</button>
+      </div>
+    </div>`;
+
+  bindText(box, "c-label", v => { c.label = v; });
+
+  const colorIn = box.querySelector("#c-color"), hexIn = box.querySelector("#c-hex");
+  colorIn.oninput = () => { c.color = colorIn.value; hexIn.value = c.color; recolor(); };
+  hexIn.oninput = () => {
+    const v = hexIn.value.trim();
+    if (/^#[0-9a-f]{6}$/i.test(v)){ c.color = v; colorIn.value = v; recolor(); }
+  };
+
+  box.querySelectorAll("#c-icons .ic").forEach(b => b.onclick = () => {
+    c.icon = b.dataset.icon;
+    box.querySelectorAll("#c-icons .ic").forEach(x => x.classList.toggle("on", x === b));
+    box.querySelector("#c-iconname").textContent = ICONS[c.icon].label;
+    renderCats();
+    renderPins();
+  });
+
+  box.querySelector("#c-del").onclick = () => {
+    const msg = n
+      ? `${n} place(s) use ${code}. They will show the default color and a plain building icon. Delete it?`
+      : `Delete ${code}?`;
+    if (!confirm(msg)) return;
+    delete CATEGORIES[code];
+    selected = null;
+    render();
+    toast("Deleted category " + code);
+  };
+}
+
+$("addCat").onclick = () => {
+  const code = (prompt("Short code for the new category (letters and numbers, e.g. SCHOOL):") || "")
+    .trim().toUpperCase().replace(/[^A-Z0-9_]/g, "");
+  if (!code) return;
+  if (CATEGORIES[code]) return toast(code + " already exists.");
+  const label = (prompt("Name for " + code + ":", code) || code).trim();
+  CATEGORIES[code] = { label, color: "#888888", icon: "generic" };
+  select("category", code);
+  toast("Added " + code + ". Pick its color and icon on the right.");
+};
+
+function ingestCats(parsed){
+  const next = {};
+  parsed.data.forEach(r => {
+    const code = String(r.CODE||"").trim().toUpperCase();
+    const color = String(r.COLOR||"").trim();
+    if (!code || !/^#[0-9a-f]{6}$/i.test(color)) return;
+    const icon = String(r.ICON||"").trim();
+    const old = CATEGORIES[code];
+    next[code] = {
+      label: String(r.LABEL||"").trim() || code,
+      color,
+      icon: ICONS[icon] ? icon : ((old && old.icon) || "generic")
+    };
+  });
+  if (!Object.keys(next).length) return;
+  CATEGORIES = next;
+  render();
+}
+
+$("loadCats").onclick = () => $("fileCats").click();
+$("fileCats").onchange = e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  Papa.parse(f, { header:true, skipEmptyLines:"greedy", complete: r => { ingestCats(r); toast("Loaded " + f.name); } });
+};
+  
 /* ============================================================
    Publish — write both CSVs
    ============================================================ */
@@ -1004,6 +1195,8 @@ $("publishBtn").onclick = () => {
 
   download("locations.csv", locCSV);
   download("childmarkers.csv", childCSV);
+    const catRows = Object.entries(CATEGORIES).map(([CODE, c]) => ({ CODE, LABEL: c.label, COLOR: c.color, ICON: c.icon }));
+  download("categories.csv", Papa.unparse({ fields: ["CODE","LABEL","COLOR","ICON"], data: catRows }));
 
   toast(`Downloaded ${parents.length} parents, ${children.length} children.`
         + (stagedPhotos.length ? ` Plus ${stagedPhotos.length} staged photos below.` : ""));
@@ -1049,7 +1242,7 @@ document.addEventListener("keydown", e => {
   if (e.target.matches("input,textarea,select")) return;
   if (e.key === "Escape"){ clearSelection(); return; }
   if (e.key === "Delete" || e.key === "Backspace"){
-    if (!selected) return;
+  if (!selected || selected.kind === "category") return;
     const o = selected.ref;
     if (selected.kind === "parent"){
       if (o.kids.length && !confirm(`Delete ${o.row.ID}? It has ${o.kids.length} children.`)) return;
