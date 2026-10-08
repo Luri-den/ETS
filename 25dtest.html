@@ -299,30 +299,48 @@ exportBtn.setAttribute('disabled', 'true');
 statusMsg.textContent = "Adjust mask positioning.";
 statusMsg.style.color = "#ffc107";
 });
-function prepareAndAnimate() {
-statusMsg.textContent = "Processing layout separations...";
-fgTempCtx.clearRect(0,0, imgWidth, imgHeight);
-fgTempCtx.drawImage(maskCanvas, 0, 0);
-fgTempCtx.globalCompositeOperation = 'source-in';
-fgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-bgTempCtx.clearRect(0,0, imgWidth, imgHeight);
-bgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-bgTempCtx.globalCompositeOperation = 'destination-out';
-bgTempCtx.drawImage(fgTempCanvas, 0, 0);
-bgTempCtx.globalCompositeOperation = 'destination-over';
-bgTempCtx.filter = 'blur(4px)';
-bgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-bgTempCtx.filter = 'none';
-maskCanvas.style.display = 'none';
-viewCanvas.style.display = 'block';
-generateBtn.classList.add('hidden');
-editBtn.classList.remove('hidden');
-animSliders.classList.remove('hidden');
-exportBtn.removeAttribute('disabled');
-isAnimating = true;
-startTime = performance.now();
-renderParallaxFrame();
-}
+        function prepareAndAnimate() {
+            statusMsg.textContent = "Processing layout separations...";
+            
+            // 1. Build crisp Foreground Cutout Layer
+            fgTempCtx.clearRect(0, 0, imgWidth, imgHeight);
+            fgTempCtx.save();
+            fgTempCtx.drawImage(maskCanvas, 0, 0);
+            fgTempCtx.globalCompositeOperation = 'source-in';
+            fgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
+            fgTempCtx.restore();
+
+            // 2. Build Separated Background Layer (FIXED CONTEXT)
+            bgTempCtx.clearRect(0, 0, imgWidth, imgHeight);
+            bgTempCtx.save();
+            bgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
+            
+            // Remove the foreground mask area from the background image
+            bgTempCtx.globalCompositeOperation = 'destination-out';
+            bgTempCtx.drawImage(fgTempCanvas, 0, 0);
+            bgTempCtx.restore();
+            
+            // 3. Fill the empty hole in the background so it doesn't look blank when zooming
+            bgTempCtx.save();
+            bgTempCtx.globalCompositeOperation = 'destination-over';
+            bgTempCtx.filter = 'blur(8px)'; // Creates a soft backdrop behind the cutout edges
+            bgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
+            bgTempCtx.restore(); // CRITICAL: Safely ejects the blur matrix context immediately
+
+            // Toggle view panels
+            maskCanvas.style.display = 'none';
+            viewCanvas.style.display = 'block';
+            generateBtn.classList.add('hidden');
+            editBtn.classList.remove('hidden');
+            animSliders.classList.remove('hidden');
+            exportBtn.removeAttribute('disabled');
+
+            // Fire up animation engine
+            isAnimating = true;
+            startTime = performance.now();
+            renderParallaxFrame();
+        }
+
 function stopAnimation() {
 isAnimating = false;
 if (animFrameId) cancelAnimationFrame(animFrameId);
