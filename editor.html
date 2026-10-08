@@ -415,10 +415,12 @@ function render(){
   renderForm();
   renderStaged();
 }
-
+let pinMarkers = [];
 function renderPins(){
   // tear down
-  parents.concat(children).forEach(o => { if (o.marker) o.marker.remove(); o.marker = null; o.el = null; });
+    pinMarkers.forEach(m => m.remove());
+  pinMarkers = [];
+  parents.concat(children).forEach(o => { o.marker = null; o.el = null; });
 
   // parents first (kids render on top)
   parents.forEach(p => {
@@ -472,6 +474,7 @@ function makePinEl(o, kind){
 }
 
 function wireDrag(o, marker){
+  pinMarkers.push(marker);
   marker.on("dragstart", () => { if (o.el) o.el.classList.add("dragging"); });
   marker.on("dragend", () => {
     if (o.el) o.el.classList.remove("dragging");
