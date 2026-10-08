@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2.5D Photo Animator Tool</title>
+    <title>2.5D Photo Animator Tool (With Work-Space Zoom)</title>
     <script src="https://cloudflare.com"></script>
     <style>
         body {
@@ -58,9 +58,16 @@
             justify-content: center;
             align-items: center;
         }
+        /* Wrapper viewport used to scale and translate the underlying stack */
+        .canvas-viewport {
+            position: absolute;
+            transform-origin: 0 0;
+            display: none;
+        }
         canvas {
             position: absolute;
-            cursor: crosshair;
+            top: 0;
+            left: 0;
         }
         button {
             background-color: #007bff;
@@ -92,6 +99,12 @@
             font-weight: bold;
         }
         .hidden { display: none !important; }
+        .zoom-tip {
+            font-size: 11px;
+            color: #888;
+            margin-top: 4px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -104,13 +117,15 @@
             <input type="file" id="upload" accept="image/*">
             <div class="canvas-container" id="canvasBox">
                 <span id="uploadPrompt" style="color: #666;">Upload an image to begin</span>
-                <!-- Bottom Layer: Displays the base photo guide -->
-                <canvas id="bgCanvas" style="display: none; z-index: 1;"></canvas>
-                <!-- Top Layer: Freshly transparent canvas for clean mask storage -->
-                <canvas id="maskCanvas" style="display: none; z-index: 2;"></canvas>
-                <!-- Preview Layer: Plays back the completed 2.5D animation loops -->
-                <canvas id="viewCanvas" style="display: none; z-index: 3;"></canvas>
+                
+                <!-- The Viewport wrapper handles the physical zoom matrix transforms -->
+                <div id="viewport" class="canvas-viewport">
+                    <canvas id="bgCanvas" style="z-index: 1;"></canvas>
+                    <canvas id="maskCanvas" style="z-index: 2;"></canvas>
+                    <canvas id="viewCanvas" style="z-index: 3; display: none;"></canvas>
+                </div>
             </div>
+            <div class="zoom-tip" id="zoomTip">💡 <b>Scroll Wheel</b> to Zoom In/Out. <b>Hold Spacebar + Drag Mouse</b> to Pan around.</div>
             <div id="statusMsg" class="status"></div>
         </div>
 
@@ -118,8 +133,8 @@
             <div class="control-group">
                 <label>1. Brush Settings</label>
                 <div style="display:flex; gap:10px; align-items:center;">
-                    <input type="range" id="brushSize" min="5" max="100" value="30">
-                    <span id="brushVal" style="width:30px;">30px</span>
+                    <input type="range" id="brushSize" min="3" max="80" value="20">
+                    <span id="brushVal" style="width:30px;">20px</span>
                 </div>
                 <button id="clearMaskBtn" class="hidden" style="background:#dc3545;">Reset Mask</button>
             </div>
@@ -159,6 +174,8 @@
     <script>
         const upload = document.getElementById('upload');
         const uploadPrompt = document.getElementById('uploadPrompt');
+        const canvasBox = document.getElementById('canvasBox');
+        const viewport = document.getElementById('viewport');
         const maskCanvas = document.getElementById('maskCanvas');
         const bgCanvas = document.getElementById('bgCanvas');
         const viewCanvas = document.getElementById('viewCanvas');
@@ -186,6 +203,15 @@
         let imgHeight = 0;
         let startTime = 0;
 
+        // Interactive Workspace Zoom & Pan States
+        let zoomLevel = 1.0;
+        let panX = 0;
+        let panY = 0;
+        let isPanning = false;
+        let startPanX = 0;
+        let startPanY = 0;
+        let isSpacePressed = false;
+
         const fgTempCanvas = document.createElement('canvas');
         const fgTempCtx = fgTempCanvas.getContext('2d');
         const bgTempCanvas = document.createElement('canvas');
@@ -195,93 +221,164 @@
             brushVal.textContent = e.target.value + 'px';
         });
 
-        upload.addEventListener('change', (e) => {
-            if (!e.target.files || e.target.files.length === 0) return;
-            const file = e.target.files[0]; 
-
-            statusMsg.textContent = "Loading image into memory...";
-            statusMsg.style.color = "#ffc107";
-
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                sourceImg = new Image(); 
-                sourceImg.onload = () => {
-                    setupWorkspace();
-                };
-                sourceImg.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
+        // Track Spacebar layout hooks
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                isSpacePressed = true;
+                canvasBox.style.cursor = 'grab';
+                if(e.target == document.body) e.preventDefault(); // Stop page scrolling
+            }
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') {
+                isSpacePressed = false;
+                canvasBox.style.cursor = 'crosshair';
+            }
         });
 
-        function setupWorkspace() {
-            stopAnimation();
+        // 1. Mouse Wheel Zoom Event Engine
+        canvasBox.addEventListener('wheel', (e) => {
+            if (!sourceImg) return;
+            e.preventDefault();
 
-            imgWidth = sourceImg.naturalWidth || sourceImg.width;
-            imgHeight = sourceImg.naturalHeight || sourceImg.height;
+            const rect = canvasBox.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
 
-            if (!imgWidth || !imgHeight) {
-                statusMsg.textContent = "Error: Image dimensions are invalid.";
-                statusMsg.style.color = "#dc3545";
-                return;
-            }
+            // Determine workspace coordinates relative to old zoom matrix scale boundaries
+            const worldX = (mouseX - panX) / zoomLevel;
+            const worldY = (mouseY - panY) / zoomLevel;
 
-            const maxW = 650;
-            const maxH = 450;
-            let scale = Math.min(maxW / imgWidth, maxH / imgHeight);
-            imgWidth = Math.floor(imgWidth * scale);
-            imgHeight = Math.floor(imgHeight * scale);
+            // Zoom bounds limits configuration (1x to 5x magnification)
+            const zoomFactor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+            zoomLevel = Math.max(1.0, Math.min(5.0, zoomLevel * zoomFactor));
 
-            [maskCanvas, bgCanvas, viewCanvas, fgTempCanvas, bgTempCanvas].forEach(canvas => {
-                canvas.width = imgWidth;
-                canvas.height = imgHeight;
-                canvas.style.width = imgWidth + "px";
-                canvas.style.height = imgHeight + "px";
-            });
+            // Adjust pan metrics synchronously to focus anchor directly onto mouse tip target location
+            panX = mouseX - worldX * zoomLevel;
+            panY = mouseY - worldY * zoomLevel;
 
-            // FIX 1: Paint ONLY the guide image canvas layer
-            bgCtx.clearRect(0, 0, imgWidth, imgHeight);
-            bgCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-            
-            // FIX 2: Leave the mask drawing canvas completely clear/transparent
-            maskCtx.clearRect(0, 0, imgWidth, imgHeight);
-
-            uploadPrompt.style.display = 'none';
-            bgCanvas.style.display = 'block';
-            maskCanvas.style.display = 'block';
-            viewCanvas.style.display = 'none';
-            
-            clearMaskBtn.classList.remove('hidden');
-            generateBtn.removeAttribute('disabled');
-            exportBtn.setAttribute('disabled', 'true');
-            editBtn.classList.add('hidden');
+            // Bound checking to contain view frame tracking
+clampViewport();
+updateViewportTransform();
+});
+function clampViewport() {
+const containerW = 650;
+const containerH = 450;
+// Limit pan displacements safely inside frame container view metrics
+const minX = containerW - imgWidth * zoomLevel;
+const minY = containerH - imgHeight * zoomLevel;
+panX = Math.min(0, Math.max(minX, panX));
+panY = Math.min(0, Math.max(minY, panY));
+// Re-center alignment axis if magnification levels scale out completely
+if (imgWidth * zoomLevel <= containerW) panX = (containerW - imgWidth * zoomLevel) / 2;
+if (imgHeight * zoomLevel <= containerH) panY = (containerH - imgHeight * zoomLevel) / 2;
+}
+function updateViewportTransform() {
+viewport.style.transform = translate(${panX}px, ${panY}px) scale(${zoomLevel});
+}
+upload.addEventListener('change', (e) => {
+if (!e.target.files || e.target.files.length === 0) return;
+const file = e.target.files[0];
+statusMsg.textContent = "Loading image into memory...";
+statusMsg.style.color = "#ffc107";
+const reader = new FileReader();
+reader.onload = (event) => {
+sourceImg = new Image();
+sourceImg.onload = () => {
+setupWorkspace();
+};
+sourceImg.src = event.target.result;
+};
+reader.readAsDataURL(file);
+});
+function setupWorkspace() {
+stopAnimation();
+// Reset zoom matrix layouts completely
+zoomLevel = 1.0;
+panX = 0;
+panY = 0;
+imgWidth = sourceImg.naturalWidth || sourceImg.width;
+imgHeight = sourceImg.naturalHeight || sourceImg.height;
+const maxW = 650;
+const maxH = 450;
+let scale = Math.min(maxW / imgWidth, maxH / imgHeight);
+imgWidth = Math.floor(imgWidth * scale);
+imgHeight = Math.floor(imgHeight * scale);
+// Configure initial positioning setups
+panX = (maxW - imgWidth) / 2;
+panY = (maxH - imgHeight) / 2;
+[maskCanvas, bgCanvas, viewCanvas, fgTempCanvas, bgTempCanvas].forEach(canvas => {
+canvas.width = imgWidth;
+canvas.height = imgHeight;
+canvas.style.width = imgWidth + "px";
+canvas.style.height = imgHeight + "px";
+});
+bgCtx.clearRect(0, 0, imgWidth, imgHeight);
+bgCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
+maskCtx.clearRect(0, 0, imgWidth, imgHeight);
+uploadPrompt.style.display = 'none';
+viewport.style.display = 'block';
+bgCanvas.style.display = 'block';
+maskCanvas.style.display = 'block';
+viewCanvas.style.display = 'none';
+updateViewportTransform();
+clearMaskBtn.classList.remove('hidden');
+generateBtn.removeAttribute('disabled');
+exportBtn.setAttribute('disabled', 'true');
+editBtn.classList.add('hidden');
 generateBtn.classList.remove('hidden');
 animSliders.classList.add('hidden');
-statusMsg.textContent = "Success! Paint a visible red mask over the whiter building.";
+statusMsg.textContent = "Zoom & Pan active. Trace your foreground building mask precisely!";
 statusMsg.style.color = "#28a745";
 }
-maskCanvas.addEventListener('mousedown', startPaint);
-maskCanvas.addEventListener('mousemove', paintMove);
-window.addEventListener('mouseup', stopPaint);
-function startPaint(e) {
+// 2. Mouse Input Vector Controls (Handles Drawing VS Workspace Panning)
+canvasBox.addEventListener('mousedown', (e) => {
+if (!sourceImg || isAnimating) return;
+if (isSpacePressed || e.button === 1) { // Middle click or Space+Click activates workspace Pan
+isPanning = true;
+canvasBox.style.cursor = 'grabbing';
+startPanX = e.clientX - panX;
+startPanY = e.clientY - panY;
+e.preventDefault();
+} else if (e.button === 0) { // Left click activates Paint
 isDrawing = true;
 paintMove(e);
 }
+});
+canvasBox.addEventListener('mousemove', (e) => {
+if (isPanning) {
+panX = e.clientX - startPanX;
+panY = e.clientY - startPanY;
+clampViewport();
+updateViewportTransform();
+} else if (isDrawing) {
+paintMove(e);
+}
+});
+window.addEventListener('mouseup', () => {
+isDrawing = false;
+if (isPanning) {
+isPanning = false;
+canvasBox.style.cursor = isSpacePressed ? 'grab' : 'crosshair';
+}
+});
 function paintMove(e) {
 if (!isDrawing) return;
 const rect = maskCanvas.getBoundingClientRect();
+// Mathematical conversion calculation to find precise tracing pixels under current zoom/pan state
 const x = (e.clientX - rect.left) * (imgWidth / rect.width);
 const y = (e.clientY - rect.top) * (imgHeight / rect.height);
 maskCtx.save();
-maskCtx.fillStyle = 'rgba(255, 0, 0, 0.6)'; // Solid red overlay shape parameters
+maskCtx.fillStyle = 'rgba(255, 0, 0, 0.6)';
 maskCtx.beginPath();
 maskCtx.arc(x, y, brushSize.value / 2, 0, Math.PI * 2);
 maskCtx.fill();
 maskCtx.restore();
 }
-function stopPaint() { isDrawing = false; }
 clearMaskBtn.addEventListener('click', () => {
-if (confirm("Reset current mask pathing?")) setupWorkspace();
+if (confirm("Clear trace mask?")) setupWorkspace();
 });
+// 3. 2.5D Layer Isolation Engine With Seam Feathering Passes
 generateBtn.addEventListener('click', prepareAndAnimate);
 editBtn.addEventListener('click', () => {
 stopAnimation();
@@ -292,65 +389,61 @@ editBtn.classList.add('hidden');
 generateBtn.classList.remove('hidden');
 animSliders.classList.add('hidden');
 exportBtn.setAttribute('disabled', 'true');
-statusMsg.textContent = "Adjust mask positioning.";
+statusMsg.textContent = "Returned to workspace.";
 statusMsg.style.color = "#ffc107";
 });
-        function prepareAndAnimate() {
-            statusMsg.textContent = "Processing layout separations...";
-            
-            // 1. Build crisp Foreground Cutout Layer
-            fgTempCtx.clearRect(0, 0, imgWidth, imgHeight);
-            fgTempCtx.save();
-            fgTempCtx.drawImage(maskCanvas, 0, 0);
-            fgTempCtx.globalCompositeOperation = 'source-in';
-            fgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-            fgTempCtx.restore();
-
-            // NEW: Anti-aliasing pass to feather the harsh edge where layers meet
-            // This softly dissolves the outer boundary pixels into transparency
-            fgTempCtx.save();
-            fgTempCtx.globalCompositeOperation = 'destination-out';
-            fgTempCtx.filter = 'blur(1.5px)'; // Controls the softness of the blend
-            fgTempCtx.drawImage(maskCanvas, 0, 0);
-            fgTempCtx.restore();
-            
-            // Re-render a soft inner core to keep the center of the cutout crisp
-            fgTempCtx.save();
-            fgTempCtx.globalCompositeOperation = 'destination-over';
-            fgTempCtx.drawImage(maskCanvas, 0, 0);
-            fgTempCtx.globalCompositeOperation = 'source-in';
-            fgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-            fgTempCtx.restore();
-
-            // 2. Build Pristine Background Layer
-            bgTempCtx.clearRect(0, 0, imgWidth, imgHeight);
-            bgTempCtx.save();
-            bgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-            bgTempCtx.globalCompositeOperation = 'destination-out';
-            bgTempCtx.drawImage(fgTempCanvas, 0, 0);
-            bgTempCtx.restore();
-            
-            // Soft backdrop overlay behind the hole to blend the transition zone
-            bgTempCtx.save();
-            bgTempCtx.globalCompositeOperation = 'destination-over';
-            bgTempCtx.filter = 'blur(4px)';
-            bgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-            bgTempCtx.restore();
-
-            bgCanvas.style.display = 'none';
-            maskCanvas.style.display = 'none';
-            viewCanvas.style.display = 'block';
-            
-            generateBtn.classList.add('hidden');
-            editBtn.classList.remove('hidden');
-            animSliders.classList.remove('hidden');
-            exportBtn.removeAttribute('disabled');
-
-            isAnimating = true;
-            startTime = performance.now();
-            renderParallaxFrame();
-        }
-
+function prepareAndAnimate() {
+statusMsg.textContent = "Isolating canvas layout layers...";
+// Create crisp Foreground Cutout Layer
+fgTempCtx.clearRect(0, 0, imgWidth, imgHeight);
+fgTempCtx.save();
+fgTempCtx.drawImage(maskCanvas, 0, 0);
+fgTempCtx.globalCompositeOperation = 'source-in';
+fgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
+fgTempCtx.restore();
+// Apply advanced Alpha-Feathering Pass to eliminate raw scissor seam artifacts
+fgTempCtx.save();
+fgTempCtx.globalCompositeOperation = 'destination-out';
+fgTempCtx.filter = 'blur(1.5px)'; // Dissolves boundary edge matrix softly
+fgTempCtx.drawImage(maskCanvas, 0, 0);
+fgTempCtx.restore();
+// Fill inner core structures cleanly to keep content crisp inside bounds
+fgTempCtx.save();
+fgTempCtx.globalCompositeOperation = 'destination-over';
+fgTempCtx.drawImage(maskCanvas, 0, 0);
+fgTempCtx.globalCompositeOperation = 'source-in';
+fgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
+fgTempCtx.restore();
+// Create Background Layer backdrop hole cutouts
+bgTempCtx.clearRect(0,0, imgWidth, imgHeight);
+bgTempCtx.save();
+bgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
+bgTempCtx.globalCompositeOperation = 'destination-out';
+bgTempCtx.drawImage(fgTempCanvas, 0, 0);
+bgTempCtx.restore();
+// Soft blend underlying base behind the cutout area to eliminate blank spaces
+bgTempCtx.save();
+bgTempCtx.globalCompositeOperation = 'destination-over';
+bgTempCtx.filter = 'blur(5px)';
+bgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
+bgTempCtx.restore();
+// Force visibility setups to block interactions and activate timeline previews
+bgCanvas.style.display = 'none';
+maskCanvas.style.display = 'none';
+viewCanvas.style.display = 'block';
+generateBtn.classList.add('hidden');
+editBtn.classList.remove('hidden');
+animSliders.classList.remove('hidden');
+exportBtn.removeAttribute('disabled');
+// Reset zoom matrix layouts back to baseline center point for pristine animation viewing
+zoomLevel = 1.0;
+panX = (650 - imgWidth) / 2;
+panY = (450 - imgHeight) / 2;
+updateViewportTransform();
+isAnimating = true;
+startTime = performance.now();
+renderParallaxFrame();
+}
 function stopAnimation() {
 isAnimating = false;
 if (animFrameId) cancelAnimationFrame(animFrameId);
@@ -366,26 +459,27 @@ let progress = elapsed / dur;
 let ease = Math.sin(progress * Math.PI);
 let bgS = 1.0 + (ease * bgMax);
 let fgS = 1.0 + (ease * fgMax);
-// Draw Background Layer
+// Draw Background Layer Matrix
 viewCtx.save();
 viewCtx.translate(imgWidth / 2, imgHeight / 2);
 viewCtx.scale(bgS, bgS);
 viewCtx.drawImage(bgTempCanvas, -imgWidth / 2, -imgHeight / 2);
 viewCtx.restore();
-// Draw Foreground Layer (The whiter building)
+// Draw Feathered Subject Layer Matrix
 viewCtx.save();
 viewCtx.translate(imgWidth / 2, imgHeight / 2);
 viewCtx.scale(fgS, fgS);
 viewCtx.drawImage(fgTempCanvas, -imgWidth / 2, -imgHeight / 2);
 viewCtx.restore();
-statusMsg.textContent = "Live preview active.";
+statusMsg.textContent = "Live parallax preview loop active.";
 statusMsg.style.color = "#007bff";
 animFrameId = requestAnimationFrame(renderParallaxFrame);
 }
+// 4. Sequence Capture Array & GIF Compilation Processing Loop
 exportBtn.addEventListener('click', () => {
 stopAnimation();
 exportBtn.setAttribute('disabled', 'true');
-statusMsg.textContent = "Encoding loop layers to GIF. Please wait...";
+statusMsg.textContent = "Encoding layout assets into looping GIF. Please wait...";
 statusMsg.style.color = "#ffc107";
 const bgMax = parseFloat(bgZoomSlider.value) / 200;
 const fgMax = parseFloat(fgZoomSlider.value) / 200;
@@ -425,11 +519,11 @@ loop: 0
 if (!obj.error) {
 const downloadLink = document.createElement('a');
 downloadLink.href = obj.image;
-downloadLink.download = 'parallax-animation.gif';
+downloadLink.download = 'feathered-parallax.gif';
 document.body.appendChild(downloadLink);
 downloadLink.click();
 document.body.removeChild(downloadLink);
-statusMsg.textContent = "GIF successfully downloaded!";
+statusMsg.textContent = "GIF successfully saved!";
 statusMsg.style.color = "#28a745";
 } else {
 statusMsg.textContent = "Error compiling file payload metrics.";
@@ -440,6 +534,6 @@ startTime = performance.now();
 renderParallaxFrame();
 });
 });
-  </script>
-</body>
-</html>
+</style>
+    </body>
+    </html>
