@@ -222,45 +222,55 @@
         });
 
 
-        function setupWorkspace() {
-            // Cancel pending loops
+               function setupWorkspace() {
+            // Cancel any pending animation loops completely
             stopAnimation();
 
             imgWidth = sourceImg.width;
             imgHeight = sourceImg.height;
 
-            // Restrict working grid parameters matching aspect sizes 
+            // Prevent divide-by-zero or infinite scaling issues if the image width or height is corrupted
+            if (!imgWidth || !imgHeight) {
+                statusMsg.textContent = "Error: Image resolution could not be read.";
+                return;
+            }
+
+            // Calculate responsive sizing layout to fit the screen dashboard container
             const maxW = 650;
             const maxH = 450;
             let scale = Math.min(maxW / imgWidth, maxH / imgHeight);
             imgWidth = Math.floor(imgWidth * scale);
             imgHeight = Math.floor(imgHeight * scale);
 
-            // Configure structural canvas dimensions
+            // Force concrete dimension sets across all layers synchronously
             [maskCanvas, bgCanvas, viewCanvas, fgTempCanvas, bgTempCanvas].forEach(canvas => {
                 canvas.width = imgWidth;
                 canvas.height = imgHeight;
             });
 
-            // Set up background template view
+            // Draw our raw image onto the main masking surface
             bgCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-
-            // Set up masking board base elements
             maskCtx.clearRect(0, 0, imgWidth, imgHeight);
             maskCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
 
-            // Display components
-            uploadPrompt.classList.add('hidden');
-            maskCanvas.classList.remove('hidden');
+            // CRITICAL FIX: Explicitly toggle display visibility properties to reveal the canvas layer
+            uploadPrompt.style.display = 'none'; 
+            maskCanvas.style.display = 'block';
+            maskCanvas.classList.remove('hidden'); 
+            
+            // Clean up other layout parameters
             bgCanvas.classList.add('hidden');
             viewCanvas.classList.add('hidden');
             clearMaskBtn.classList.remove('hidden');
+            clearMaskBtn.style.display = 'inline-block';
             generateBtn.removeAttribute('disabled');
             exportBtn.setAttribute('disabled', 'true');
             editBtn.classList.add('hidden');
             generateBtn.classList.remove('hidden');
             animSliders.classList.add('hidden');
-            statusMsg.textContent = "Paint a visible red mask over the foreground subject.";
+            
+            statusMsg.textContent = "Success! Paint a visible red mask over the foreground subject.";
+            statusMsg.style.color = "#28a745"; // Changes text color to green when it works successfully
         }
 
 Use code with caution.
