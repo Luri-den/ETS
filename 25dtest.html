@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>2.5D Photo Animator Tool</title>
-    <!-- Load gifshot via CDN for client-side GIF exporting -->
     <script src="https://cloudflare.com"></script>
     <style>
         body {
@@ -53,7 +52,7 @@
             border-radius: 4px;
             margin-top: 10px;
             overflow: hidden;
-            width: 100%;
+            width: 650px;
             height: 450px;
             display: flex;
             justify-content: center;
@@ -61,9 +60,8 @@
         }
         canvas {
             position: absolute;
-            max-width: 100%;
-            max-height: 100%;
             cursor: crosshair;
+            display: none;
         }
         button {
             background-color: #007bff;
@@ -88,12 +86,13 @@
         label { font-size: 13px; color: #aaa; font-weight: bold; }
         input[type="range"] { width: 100%; cursor: pointer; }
         .status {
-            font-size: 13px;
+            font-size: 14px;
             color: #ffc107;
-            margin-top: 5px;
+            margin-top: 10px;
             text-align: center;
+            font-weight: bold;
         }
-        .hidden { display: none; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
@@ -102,22 +101,17 @@
     <p style="margin: 0; color: #888;">Isolate a foreground subject to generate a 3D parallax zoom loop.</p>
 
     <div class="container">
-        <!-- Main Drawing & Preview Window -->
         <div class="workspace">
             <input type="file" id="upload" accept="image/*">
             <div class="canvas-container" id="canvasBox">
                 <span id="uploadPrompt" style="color: #666;">Upload an image to begin</span>
-                <!-- Background Layer (hidden rendering) -->
-                <canvas id="bgCanvas" class="hidden"></canvas>
-                <!-- Mask Input View -->
-                <canvas id="maskCanvas" class="hidden"></canvas>
-                <!-- Animation Preview View -->
-                <canvas id="viewCanvas" class="hidden"></canvas>
+                <canvas id="bgCanvas"></canvas>
+                <canvas id="maskCanvas"></canvas>
+                <canvas id="viewCanvas"></canvas>
             </div>
             <div id="statusMsg" class="status"></div>
         </div>
 
-        <!-- Tool settings & adjustments -->
         <div class="controls">
             <div class="control-group">
                 <label>1. Brush Settings</label>
@@ -161,7 +155,6 @@
     </div>
 
     <script>
-        // DOM Elements
         const upload = document.getElementById('upload');
         const uploadPrompt = document.getElementById('uploadPrompt');
         const maskCanvas = document.getElementById('maskCanvas');
@@ -179,13 +172,11 @@
         const durationSlider = document.getElementById('duration');
         const statusMsg = document.getElementById('statusMsg');
 
-        // Contexts
         const maskCtx = maskCanvas.getContext('2d');
         const bgCtx = bgCanvas.getContext('2d');
         const viewCtx = viewCanvas.getContext('2d');
 
-        // State variables
-        let sourceImg = new Image();
+        let sourceImg = null;
         let isDrawing = false;
         let isAnimating = false;
         let animFrameId = null;
@@ -193,26 +184,25 @@
         let imgHeight = 0;
         let startTime = 0;
 
-        // Hidden canvases used to dynamically extract isolated layers
         const fgTempCanvas = document.createElement('canvas');
         const fgTempCtx = fgTempCanvas.getContext('2d');
         const bgTempCanvas = document.createElement('canvas');
         const bgTempCtx = bgTempCanvas.getContext('2d');
 
-        // Brush size indicator listener
         brushSize.addEventListener('input', (e) => {
             brushVal.textContent = e.target.value + 'px';
         });
 
-        // 1. Handle image file uploads (FULLY CORRECTED VERSION)
+        // FIXED UPLOADER LOGIC: Selects index [0] explicitly and re-instantiates variables safely
         upload.addEventListener('change', (e) => {
-            // Fix: Explicitly pull the first file from the input array list
+            if (!e.target.files || e.target.files.length === 0) return;
             const file = e.target.files[0]; 
-            if (!file) return;
+
+            statusMsg.textContent = "Loading image into memory...";
+            statusMsg.style.color = "#ffc107";
 
             const reader = new FileReader();
             reader.onload = (event) => {
-                // Completely re-instantiate the source image state payload
                 sourceImg = new Image(); 
                 sourceImg.onload = () => {
                     setupWorkspace();
@@ -225,22 +215,23 @@
         function setupWorkspace() {
             stopAnimation();
 
-            imgWidth = sourceImg.width;
-            imgHeight = sourceImg.height;
+            imgWidth = sourceImg.naturalWidth || sourceImg.width;
+            imgHeight = sourceImg.naturalHeight || sourceImg.height;
 
             if (!imgWidth || !imgHeight) {
-                statusMsg.textContent = "Error: Image resolution could not be determined.";
+                statusMsg.textContent = "Error: Image dimensions are invalid.";
+                statusMsg.style.color = "#dc3545";
                 return;
             }
 
-            // Scale calculations to cleanly fit inside the viewer box boundaries
+            // Downscale engine calculations
             const maxW = 650;
             const maxH = 450;
             let scale = Math.min(maxW / imgWidth, maxH / imgHeight);
             imgWidth = Math.floor(imgWidth * scale);
             imgHeight = Math.floor(imgHeight * scale);
 
-            // Re-map actual resolution metrics across all canvas contexts
+            // Re-map constraints across all elements synchronously
             [maskCanvas, bgCanvas, viewCanvas, fgTempCanvas, bgTempCanvas].forEach(canvas => {
                 canvas.width = imgWidth;
                 canvas.height = imgHeight;
@@ -248,34 +239,29 @@
                 canvas.style.height = imgHeight + "px";
             });
 
-            // Paint the image surfaces immediately
+            // Paint canvas layers immediately
             bgCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
             maskCtx.clearRect(0, 0, imgWidth, imgHeight);
             maskCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
 
-            // Force visibility settings to reveal the workspaces
-            uploadPrompt.style.display = 'none'; 
-            uploadPrompt.classList.add('hidden');
+            // Interface visibility adjustments
+            uploadPrompt.style.display = 'none';
             
             maskCanvas.style.display = 'block';
-            maskCanvas.classList.remove('hidden'); 
+            bgCanvas.style.display = 'none';
+            viewCanvas.style.display = 'none';
             
-            bgCanvas.classList.add('hidden');
-            viewCanvas.classList.add('hidden');
             clearMaskBtn.classList.remove('hidden');
-            clearMaskBtn.style.display = 'inline-block';
             generateBtn.removeAttribute('disabled');
             exportBtn.setAttribute('disabled', 'true');
             editBtn.classList.add('hidden');
             generateBtn.classList.remove('hidden');
             animSliders.classList.add('hidden');
             
-            statusMsg.textContent = "Success! Paint a visible red mask over the foreground subject.";
-            statusMsg.style.color = "#28a745"; 
-        }
-
-Use code with caution.
-// 2. Painting Engine Mechanics
+statusMsg.textContent = "Success! Paint a visible red mask over your foreground subject.";
+statusMsg.style.color = "#28a745";
+}
+// Painting Engine
 maskCanvas.addEventListener('mousedown', startPaint);
 maskCanvas.addEventListener('mousemove', paintMove);
 window.addEventListener('mouseup', stopPaint);
@@ -286,12 +272,11 @@ paintMove(e);
 function paintMove(e) {
 if (!isDrawing) return;
 const rect = maskCanvas.getBoundingClientRect();
-// Translate coordinates dynamically inside bounds
 const x = (e.clientX - rect.left) * (imgWidth / rect.width);
 const y = (e.clientY - rect.top) * (imgHeight / rect.height);
 maskCtx.save();
 maskCtx.globalCompositeOperation = 'source-over';
-maskCtx.fillStyle = 'rgba(255, 0, 0, 0.45)'; // Semi-transparent red path overlay
+maskCtx.fillStyle = 'rgba(255, 0, 0, 0.5)';
 maskCtx.beginPath();
 maskCtx.arc(x, y, brushSize.value / 2, 0, Math.PI * 2);
 maskCtx.fill();
@@ -299,47 +284,41 @@ maskCtx.restore();
 }
 function stopPaint() { isDrawing = false; }
 clearMaskBtn.addEventListener('click', () => {
-if (confirm("Reset layout adjustments and clear mask?")) {
-setupWorkspace();
-}
+if (confirm("Reset current mask pathing?")) setupWorkspace();
 });
-// 3. Separation Layer Computations & Timeline Compilation
+// Separation Layer Computations
 generateBtn.addEventListener('click', prepareAndAnimate);
 editBtn.addEventListener('click', () => {
 stopAnimation();
-maskCanvas.classList.remove('hidden');
-viewCanvas.classList.add('hidden');
+maskCanvas.style.display = 'block';
+viewCanvas.style.display = 'none';
 editBtn.classList.add('hidden');
 generateBtn.classList.remove('hidden');
 animSliders.classList.add('hidden');
 exportBtn.setAttribute('disabled', 'true');
-statusMsg.textContent = "Adjust mask positioning or canvas properties.";
+statusMsg.textContent = "Adjust mask positioning.";
+statusMsg.style.color = "#ffc107";
 });
 function prepareAndAnimate() {
 statusMsg.textContent = "Processing layout separations...";
-// Build Foreground Cutout Layer
 fgTempCtx.clearRect(0,0, imgWidth, imgHeight);
 fgTempCtx.drawImage(maskCanvas, 0, 0);
 fgTempCtx.globalCompositeOperation = 'source-in';
 fgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-// Build Basic Content-Aware Background Layer
 bgTempCtx.clearRect(0,0, imgWidth, imgHeight);
 bgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-// Simple edge feathering / blur step to prevent crisp lines behind subject holes
 bgTempCtx.globalCompositeOperation = 'destination-out';
 bgTempCtx.drawImage(fgTempCanvas, 0, 0);
 bgTempCtx.globalCompositeOperation = 'destination-over';
 bgTempCtx.filter = 'blur(4px)';
 bgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
 bgTempCtx.filter = 'none';
-// UI view configurations
-maskCanvas.classList.add('hidden');
-viewCanvas.classList.remove('hidden');
+maskCanvas.style.display = 'none';
+viewCanvas.style.display = 'block';
 generateBtn.classList.add('hidden');
 editBtn.classList.remove('hidden');
 animSliders.classList.remove('hidden');
 exportBtn.removeAttribute('disabled');
-// Begin Render Loop
 isAnimating = true;
 startTime = performance.now();
 renderParallaxFrame();
@@ -348,49 +327,42 @@ function stopAnimation() {
 isAnimating = false;
 if (animFrameId) cancelAnimationFrame(animFrameId);
 }
-// Mathematical Parallax Frame Calculations
-function getFrameMetrics(time, durationSec, maxBgScale, maxFgScale) {
-let elapsed = ((time - startTime) / 1000) % durationSec;
-let progress = elapsed / durationSec; // Scale factor 0.0 -> 1.0
-// Apply easing curves for smooth back-and-forth loops
-let ease = Math.sin(progress * Math.PI);
-let currentBgScale = 1.0 + (ease * maxBgScale);
-let currentFgScale = 1.0 + (ease * maxFgScale);
-return { bg: currentBgScale, fg: currentFgScale };
-}
 function renderParallaxFrame(time = performance.now()) {
 if (!isAnimating) return;
 viewCtx.clearRect(0, 0, imgWidth, imgHeight);
-const bgMax = parseFloat(bgZoomSlider.value) / 200; // Normalizing slider thresholds
-const fgMax = parseFloat(fgZoomSlider.value) / 200;
-const dur = parseFloat(durationSlider.value);
-const scales = getFrameMetrics(time, dur, bgMax, fgMax);
-// Render Backing Matrix Canvas
-viewCtx.save();
-viewCtx.translate(imgWidth / 2, imgHeight / 2);
-viewCtx.scale(scales.bg, scales.bg);
-viewCtx.drawImage(bgTempCanvas, -imgWidth / 2, -imgHeight / 2);
-viewCtx.restore();
-// Render Separated Subject Component Canvas
-viewCtx.save();
-viewCtx.translate(imgWidth / 2, imgHeight / 2);
-viewCtx.scale(scales.fg, scales.fg);
-viewCtx.drawImage(fgTempCanvas, -imgWidth / 2, -imgHeight / 2);
-viewCtx.restore();
-statusMsg.textContent = "Live looping visualization preview active.";
-animFrameId = requestAnimationFrame(renderParallaxFrame);
-}
-// 4. Compile Array Blocks & Trigger GIF Export Sequence
-exportBtn.addEventListener('click', () => {
-stopAnimation();
-exportBtn.setAttribute('disabled', 'true');
-statusMsg.textContent = "Rendering and encoding frame sequences into a looping GIF file. Please wait...";
 const bgMax = parseFloat(bgZoomSlider.value) / 200;
 const fgMax = parseFloat(fgZoomSlider.value) / 200;
 const dur = parseFloat(durationSlider.value);
-const totalFrames = 30; // Quality sampling frame capture size
+let elapsed = ((time - startTime) / 1000) % dur;
+let progress = elapsed / dur;
+let ease = Math.sin(progress * Math.PI);
+let bgS = 1.0 + (ease * bgMax);
+let fgS = 1.0 + (ease * fgMax);
+viewCtx.save();
+viewCtx.translate(imgWidth / 2, imgHeight / 2);
+viewCtx.scale(bgS, bgS);
+viewCtx.drawImage(bgTempCanvas, -imgWidth / 2, -imgHeight / 2);
+viewCtx.restore();
+viewCtx.save();
+viewCtx.translate(imgWidth / 2, imgHeight / 2);
+viewCtx.scale(fgS, fgS);
+viewCtx.drawImage(fgTempCanvas, -imgWidth / 2, -imgHeight / 2);
+viewCtx.restore();
+statusMsg.textContent = "Live preview active.";
+statusMsg.style.color = "#007bff";
+animFrameId = requestAnimationFrame(renderParallaxFrame);
+}
+// Export Payload Encoder
+exportBtn.addEventListener('click', () => {
+stopAnimation();
+exportBtn.setAttribute('disabled', 'true');
+statusMsg.textContent = "Encoding loop layers to GIF. Please wait...";
+statusMsg.style.color = "#ffc107";
+const bgMax = parseFloat(bgZoomSlider.value) / 200;
+const fgMax = parseFloat(fgZoomSlider.value) / 200;
+const dur = parseFloat(durationSlider.value);
+const totalFrames = 25;
 const imageFramesArray = [];
-// Virtual offline canvas processing layout steps
 const captureCanvas = document.createElement('canvas');
 captureCanvas.width = imgWidth;
 captureCanvas.height = imgHeight;
@@ -401,28 +373,25 @@ let ease = Math.sin(progress * Math.PI);
 let bgS = 1.0 + (ease * bgMax);
 let fgS = 1.0 + (ease * fgMax);
 captureCtx.clearRect(0, 0, imgWidth, imgHeight);
-// Background pass rendering
 captureCtx.save();
 captureCtx.translate(imgWidth / 2, imgHeight / 2);
 captureCtx.scale(bgS, bgS);
 captureCtx.drawImage(bgTempCanvas, -imgWidth / 2, -imgHeight / 2);
 captureCtx.restore();
-// Foreground pass rendering
 captureCtx.save();
 captureCtx.translate(imgWidth / 2, imgHeight / 2);
 captureCtx.scale(fgS, fgS);
 captureCtx.drawImage(fgTempCanvas, -imgWidth / 2, -imgHeight / 2);
 captureCtx.restore();
-imageFramesArray.push(captureCanvas.toDataURL('image/jpeg', 0.85));
+imageFramesArray.push(captureCanvas.toDataURL('image/jpeg', 0.8)); // Compression optimization
 }
-// Fire gifshot encoder engine
 gifshot.createGIF({
 images: imageFramesArray,
 gifWidth: imgWidth,
 gifHeight: imgHeight,
-interval: dur / totalFrames, // Timing step distributions
+interval: dur / totalFrames,
 numFrames: totalFrames,
-loop: 0 // Infinite loops configuration
+loop: 0
 }, function (obj) {
 if (!obj.error) {
 const downloadLink = document.createElement('a');
@@ -431,11 +400,12 @@ downloadLink.download = 'parallax-animation.gif';
 document.body.appendChild(downloadLink);
 downloadLink.click();
 document.body.removeChild(downloadLink);
-statusMsg.textContent = "GIF successfully generated and saved to your computer!";
+statusMsg.textContent = "GIF successfully downloaded!";
+statusMsg.style.color = "#28a745";
 } else {
 statusMsg.textContent = "Error compiling file payload metrics.";
+statusMsg.style.color = "#dc3545";
 }
-// Restore runtime previews
 isAnimating = true;
 startTime = performance.now();
 renderParallaxFrame();
