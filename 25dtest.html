@@ -295,39 +295,62 @@ exportBtn.setAttribute('disabled', 'true');
 statusMsg.textContent = "Adjust mask positioning.";
 statusMsg.style.color = "#ffc107";
 });
-function prepareAndAnimate() {
-statusMsg.textContent = "Processing layout separations...";
-// FIX 3: Isolate Foreground properly by intersecting the clean brush strokes with the source image
-fgTempCtx.clearRect(0,0, imgWidth, imgHeight);
-fgTempCtx.save();
-fgTempCtx.drawImage(maskCanvas, 0, 0);
-fgTempCtx.globalCompositeOperation = 'source-in';
-fgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-fgTempCtx.restore();
-// FIX 4: Build pristine background backdrop by subtracting the cutout area cleanly
-bgTempCtx.clearRect(0,0, imgWidth, imgHeight);
-bgTempCtx.save();
-bgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-bgTempCtx.globalCompositeOperation = 'destination-out';
-bgTempCtx.drawImage(fgTempCanvas, 0, 0);
-bgTempCtx.restore();
-// Soft-blur backup overlay behind cutout hole to smoothly patch edge zooming
-bgTempCtx.save();
-bgTempCtx.globalCompositeOperation = 'destination-over';
-bgTempCtx.filter = 'blur(8px)';
-bgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
-bgTempCtx.restore();
-bgCanvas.style.display = 'none';
-maskCanvas.style.display = 'none';
-viewCanvas.style.display = 'block';
-generateBtn.classList.add('hidden');
-editBtn.classList.remove('hidden');
-animSliders.classList.remove('hidden');
-exportBtn.removeAttribute('disabled');
-isAnimating = true;
-startTime = performance.now();
-renderParallaxFrame();
-}
+        function prepareAndAnimate() {
+            statusMsg.textContent = "Processing layout separations...";
+            
+            // 1. Build crisp Foreground Cutout Layer
+            fgTempCtx.clearRect(0, 0, imgWidth, imgHeight);
+            fgTempCtx.save();
+            fgTempCtx.drawImage(maskCanvas, 0, 0);
+            fgTempCtx.globalCompositeOperation = 'source-in';
+            fgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
+            fgTempCtx.restore();
+
+            // NEW: Anti-aliasing pass to feather the harsh edge where layers meet
+            // This softly dissolves the outer boundary pixels into transparency
+            fgTempCtx.save();
+            fgTempCtx.globalCompositeOperation = 'destination-out';
+            fgTempCtx.filter = 'blur(1.5px)'; // Controls the softness of the blend
+            fgTempCtx.drawImage(maskCanvas, 0, 0);
+            fgTempCtx.restore();
+            
+            // Re-render a soft inner core to keep the center of the cutout crisp
+            fgTempCtx.save();
+            fgTempCtx.globalCompositeOperation = 'destination-over';
+            fgTempCtx.drawImage(maskCanvas, 0, 0);
+            fgTempCtx.globalCompositeOperation = 'source-in';
+            fgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
+            fgTempCtx.restore();
+
+            // 2. Build Pristine Background Layer
+            bgTempCtx.clearRect(0, 0, imgWidth, imgHeight);
+            bgTempCtx.save();
+            bgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
+            bgTempCtx.globalCompositeOperation = 'destination-out';
+            bgTempCtx.drawImage(fgTempCanvas, 0, 0);
+            bgTempCtx.restore();
+            
+            // Soft backdrop overlay behind the hole to blend the transition zone
+            bgTempCtx.save();
+            bgTempCtx.globalCompositeOperation = 'destination-over';
+            bgTempCtx.filter = 'blur(4px)';
+            bgTempCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
+            bgTempCtx.restore();
+
+            bgCanvas.style.display = 'none';
+            maskCanvas.style.display = 'none';
+            viewCanvas.style.display = 'block';
+            
+            generateBtn.classList.add('hidden');
+            editBtn.classList.remove('hidden');
+            animSliders.classList.remove('hidden');
+            exportBtn.removeAttribute('disabled');
+
+            isAnimating = true;
+            startTime = performance.now();
+            renderParallaxFrame();
+        }
+
 function stopAnimation() {
 isAnimating = false;
 if (animFrameId) cancelAnimationFrame(animFrameId);
