@@ -204,14 +204,15 @@
             brushVal.textContent = e.target.value + 'px';
         });
 
-                // 1. Handle image file uploads (FIXED VERSION)
+        // 1. Handle image file uploads (FULLY CORRECTED VERSION)
         upload.addEventListener('change', (e) => {
-            const file = e.target.files[0]; // Fixed array target indexing
+            // Fix: Explicitly pull the first file from the input array list
+            const file = e.target.files[0]; 
             if (!file) return;
 
             const reader = new FileReader();
             reader.onload = (event) => {
-                // Ensure source image completely binds before initializing workspace calculations
+                // Completely re-instantiate the source image state payload
                 sourceImg = new Image(); 
                 sourceImg.onload = () => {
                     setupWorkspace();
@@ -221,44 +222,44 @@
             reader.readAsDataURL(file);
         });
 
-
-               function setupWorkspace() {
-            // Cancel any pending animation loops completely
+        function setupWorkspace() {
             stopAnimation();
 
             imgWidth = sourceImg.width;
             imgHeight = sourceImg.height;
 
-            // Prevent divide-by-zero or infinite scaling issues if the image width or height is corrupted
             if (!imgWidth || !imgHeight) {
-                statusMsg.textContent = "Error: Image resolution could not be read.";
+                statusMsg.textContent = "Error: Image resolution could not be determined.";
                 return;
             }
 
-            // Calculate responsive sizing layout to fit the screen dashboard container
+            // Scale calculations to cleanly fit inside the viewer box boundaries
             const maxW = 650;
             const maxH = 450;
             let scale = Math.min(maxW / imgWidth, maxH / imgHeight);
             imgWidth = Math.floor(imgWidth * scale);
             imgHeight = Math.floor(imgHeight * scale);
 
-            // Force concrete dimension sets across all layers synchronously
+            // Re-map actual resolution metrics across all canvas contexts
             [maskCanvas, bgCanvas, viewCanvas, fgTempCanvas, bgTempCanvas].forEach(canvas => {
                 canvas.width = imgWidth;
                 canvas.height = imgHeight;
+                canvas.style.width = imgWidth + "px";
+                canvas.style.height = imgHeight + "px";
             });
 
-            // Draw our raw image onto the main masking surface
+            // Paint the image surfaces immediately
             bgCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
             maskCtx.clearRect(0, 0, imgWidth, imgHeight);
             maskCtx.drawImage(sourceImg, 0, 0, imgWidth, imgHeight);
 
-            // CRITICAL FIX: Explicitly toggle display visibility properties to reveal the canvas layer
+            // Force visibility settings to reveal the workspaces
             uploadPrompt.style.display = 'none'; 
+            uploadPrompt.classList.add('hidden');
+            
             maskCanvas.style.display = 'block';
             maskCanvas.classList.remove('hidden'); 
             
-            // Clean up other layout parameters
             bgCanvas.classList.add('hidden');
             viewCanvas.classList.add('hidden');
             clearMaskBtn.classList.remove('hidden');
@@ -270,7 +271,7 @@
             animSliders.classList.add('hidden');
             
             statusMsg.textContent = "Success! Paint a visible red mask over the foreground subject.";
-            statusMsg.style.color = "#28a745"; // Changes text color to green when it works successfully
+            statusMsg.style.color = "#28a745"; 
         }
 
 Use code with caution.
