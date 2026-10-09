@@ -2335,9 +2335,29 @@ $("res").onclick = e => {
 
   let queue = [], showing = false, autoTimer = 0;
 
-  function celebrateStamp(stamp, stars, replay, kind){
-    queue.push({ stamp, stars, replay, kind: kind || "star" });
+  function rewardPriority(job){
+    if (job.kind === "grand") return 4;
+    if (job.kind === "star" && job.stars >= 3) return 3;
+    if (job.kind === "star") return 2;
+    return 1;
+  }
+
+  function enqueueRewards(jobs){
+    if (!jobs.length) return;
+    queue.push(...jobs);
+    // Keep the whole pending queue in celebration order, not just this event.
+    queue.sort((a, b) => rewardPriority(a) - rewardPriority(b));
     pump();
+  }
+
+  function celebrateStamp(stamp, stars, replay, kind){
+    enqueueRewards([{ stamp, stars, replay, kind: kind || "star" }]);
+  }
+
+  function allRanksComplete(){
+    const active = STAMPS.filter(stampActive);
+    return active.length > 0 &&
+      active.every(stamp => starsFor(stamp.row, countFor(stamp)) >= 3);
   }
 
   function pump(){
@@ -2354,26 +2374,39 @@ $("res").onclick = e => {
     const rank = rankFor(row, stars);
     const done = stars >= 3;
     const isStar = kind === "star";
-
-    slam.classList.toggle("plain", !isStar);
-
+    const isGrand = kind === "grand";
     const taskLabel = job.taskLabel || "";
 
-    slam.querySelector(".box").innerHTML =
-      `<div class="seal">${VEHICLE_SVG[String(row.VEHICLE||"train").toLowerCase()] || VEHICLE_SVG.train}<b>${esc(row.TITLE||"")}</b></div>` +
-      (isStar
-        ? `<div class="stars">${starRow(stars, replay ? 0 : stars)}</div>` +
-          `<div class="rank" id="pRank" aria-live="polite">${esc(rank)}</div>` +
-          (done ? `<div class="grand">${esc(row.GRAND_RANK || "")}</div>` : "")
-        : `<div class="rank" style="font-size:20px">${esc(taskLabel || "Task complete!")}</div>`) +
-      `<div class="tap">TAP TO CONTINUE</div>`;
+    slam.classList.toggle("plain", !isStar && !isGrand);
+
+    if (isGrand) {
+      slam.querySelector(".box").innerHTML =
+        `<div class="seal">${VEHICLE_SVG.train}<b>MASTER HISTORIAN</b></div>` +
+        `<div class="rank" id="pRank" aria-live="polite">Every category mastered!</div>` +
+        `<div class="grand">Three stars in every active rank</div>` +
+        `<div class="note">You've completed the History Passport challenge!</div>` +
+        `<div class="tap">TAP TO CONTINUE</div>`;
+    } else {
+      slam.querySelector(".box").innerHTML =
+        `<div class="seal">${VEHICLE_SVG[String(row.VEHICLE||"train").toLowerCase()] || VEHICLE_SVG.train}<b>${esc(row.TITLE||"")}</b></div>` +
+        (isStar
+          ? `<div class="stars">${starRow(stars, replay ? 0 : stars)}</div>` +
+            `<div class="rank" id="pRank" aria-live="polite">${esc(rank)}</div>` +
+            (done ? `<div class="grand">${esc(row.GRAND_RANK || "")}</div>` : "")
+          : `<div class="rank" style="font-size:20px">${esc(taskLabel || "Task complete!")}</div>`) +
+        `<div class="tap">TAP TO CONTINUE</div>`;
+    }
 
     slam.classList.add("on");
-    if (isStar) slam.classList.add("hit");
+    if (isStar || isGrand) slam.classList.add("hit");
     slam.focus();
 
-    if (isStar && done && !REDUCED) stopConfetti = confetti(slam.querySelector("canvas"));
-    autoTimer = setTimeout(() => dismiss(replay), isStar && done ? 10000 : (isStar ? 6000 : 2600));
+    // Confetti is reserved for a newly earned third star or the final passport reward.
+    if ((isGrand || (isStar && done)) && !REDUCED) {
+      stopConfetti = confetti(slam.querySelector("canvas"));
+    }
+    const duration = isGrand ? 12000 : (isStar && done ? 10000 : (isStar ? 6000 : 2600));
+    autoTimer = setTimeout(() => dismiss(replay), duration);
   }
 
  
@@ -2517,6 +2550,7 @@ function dismiss(replay){
   window.passportEvent = (type, context = {}) => {
     if (SITE.passport === false || !TASKS.length) return;
 
+    const wasAllRanksComplete = allRanksComplete();
     const progress = loadProgress();
     progress._done = progress._done || {};
     progress._seen = progress._seen || {};
@@ -2527,7 +2561,7 @@ function dismiss(replay){
       if (progress._done[id]) continue;
       if (!taskMatches(t.row, type, context)) continue;
       const need = parseInt(t.row.COUNT, 10) || 1;
-      if (need > 1){                                   // "visit N places in a category"
+      if (need > 1){
         const seen = progress._seen[id] || (progress._seen[id] = []);
         const cid = String(context.id || "");
         if (cid && !seen.includes(cid)) seen.push(cid);
@@ -2537,34 +2571,55 @@ function dismiss(replay){
       hit.push(t);
     }
     saveProgress(progress);
+    if (!hit.length) return;
+
+    const jobs = [];
+    window.__lastStars = window.__lastStars || {};
 
     for (const t of hit){
-      const owners = STAMPS.filter(s => stampActive(s) && s.tasks.some(x => key(x) === key(t.row.TASK_ID)));
+      const owners = STAMPS.filter(s =>
+        stampActive(s) && s.tasks.some(x => key(x) === key(t.row.TASK_ID))
+      );
       const label = t.row.LABEL || "Task complete!";
-      if (!owners.length){                             // a task with no rank: just say it's done
-        queue.push({ stamp: { row: { TITLE: "", VEHICLE: "generic" } }, stars: 0, replay: false, kind: "plain", taskLabel: label });
-        pump();
+
+      if (!owners.length){
+        jobs.push({
+          stamp: { row: { TITLE: "", VEHICLE: "generic" } },
+          stars: 0, replay: false, kind: "plain", taskLabel: label
+        });
         continue;
       }
+
       for (const stamp of owners){
         const sid = String(stamp.row.STAMP_ID).trim();
         const stars = starsFor(stamp.row, countFor(stamp));
-        const prev = (window.__lastStars || {})[sid] || 0;
+        const prev = Number(window.__lastStars[sid] || 0);
+
         if (stars > prev){
-          celebrateStamp(stamp, stars, false, "star");
+          // Only queue one star upgrade at the point the category advances.
+          jobs.push({ stamp, stars, replay: false, kind: "star" });
+          window.__lastStars[sid] = stars;
         } else {
-          queue.push({ stamp, stars, replay: false, kind: "plain", taskLabel: label });
-          pump();
+          jobs.push({ stamp, stars, replay: false, kind: "plain", taskLabel: label });
         }
-        window.__lastStars = window.__lastStars || {};
-        window.__lastStars[sid] = stars;
-        try { localStorage.setItem(LAST_STARS_KEY, JSON.stringify(window.__lastStars)); } catch {}
       }
     }
 
+    try {
+      localStorage.setItem(LAST_STARS_KEY, JSON.stringify(window.__lastStars));
+    } catch {}
+
+    // The overall finale is eligible only on the transition into full completion.
+    if (!wasAllRanksComplete && allRanksComplete()){
+      jobs.push({
+        stamp: { row: { TITLE: "MASTER HISTORIAN", VEHICLE: "train", GRAND_RANK: "" } },
+        stars: 3, replay: false, kind: "grand"
+      });
+    }
+
+    enqueueRewards(jobs);
     renderStampCards();
   };
-
   function nudgeWhenReady(){
     if (document.getElementById("welcomeOverlay")) { setTimeout(nudgeWhenReady, 2000); return; }
     if (!localStorage.getItem(STAMP_KEY)) $("passportBtn").classList.add("nudge");
