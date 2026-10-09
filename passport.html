@@ -78,7 +78,9 @@
   .vehicle-picker input:checked + * + b{color:var(--accent)}
   .vehicle-picker label.on{border-color:var(--accent);background:#f0f6fc}
   .vehicle-picker b{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
-  .vehicle-picker svg{display:block}
+  .vehicle-picker svg{display:block;width:48px;height:38px;object-fit:contain}
+  .row .sw svg{width:22px;height:22px;display:block}
+  .stamp-preview .emblem svg{width:60%;height:auto;max-height:58px}
 
   .divider{height:1px;background:var(--line);margin:20px 0}
 
@@ -172,6 +174,7 @@
 <div id="toast"></div>
 
 <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="icons.js"></script>
 
 <script>
 /* ============================================================
@@ -204,64 +207,22 @@ const BEHAVIORS = {
   tour:  "Player reaches the last stop of a tour"
 };
 
-/* Vehicles available as stamp emblems */
-const VEHICLES = ["TRAIN","BOAT","CAR","FACTORY"];
-
-/* Vehicle SVGs — same shape as the site, with factory added */
-const VEHICLE_SVG = {
-  TRAIN: `<svg viewBox="0 0 60 30" width="60" height="30" aria-hidden="true">
-    <rect x="6" y="8" width="34" height="12" fill="#3a3a3a" rx="2"/>
-    <rect x="34" y="4" width="16" height="16" fill="#3a3a3a" rx="2"/>
-    <rect x="36" y="7" width="6" height="5" fill="#f5e6c8"/>
-    <rect x="44" y="7" width="4" height="5" fill="#f5e6c8"/>
-    <rect x="4" y="18" width="4" height="5" fill="#3a3a3a"/>
-    <circle cx="14" cy="22" r="4" fill="#1c1c1c"/>
-    <circle cx="24" cy="22" r="4" fill="#1c1c1c"/>
-    <circle cx="34" cy="22" r="4" fill="#1c1c1c"/>
-    <circle cx="44" cy="22" r="3" fill="#1c1c1c"/>
-    <rect x="16" y="2" width="4" height="6" fill="#3a3a3a"/>
-    <rect x="6" y="11" width="30" height="2" fill="#E47303"/>
-  </svg>`,
-  BOAT: `<svg viewBox="0 0 60 30" width="60" height="30" aria-hidden="true">
-    <path d="M4 20 L10 16 L50 16 L56 20 L56 24 L4 24 Z" fill="#5a3a1a"/>
-    <rect x="14" y="10" width="30" height="6" fill="#8a5a2a"/>
-    <rect x="18" y="12" width="6" height="4" fill="#f5e6c8"/>
-    <rect x="30" y="12" width="6" height="4" fill="#f5e6c8"/>
-    <rect x="4" y="8" width="4" height="8" fill="#3a3a3a"/>
-    <path d="M6 10 Q 20 4 40 8" stroke="#3a3a3a" stroke-width="1.5" fill="none"/>
-    <path d="M6 16 Q 20 20 40 16" stroke="#E47303" stroke-width="1.5" fill="none"/>
-  </svg>`,
-  CAR: `<svg viewBox="0 0 60 30" width="60" height="30" aria-hidden="true">
-    <path d="M6 18 L14 12 L44 12 L54 18 L54 24 L6 24 Z" fill="#8b1a1a"/>
-    <rect x="16" y="9" width="24" height="6" fill="#8b1a1a" rx="2"/>
-    <rect x="18" y="10" width="8" height="4" fill="#f5e6c8"/>
-    <rect x="30" y="10" width="8" height="4" fill="#f5e6c8"/>
-    <circle cx="16" cy="24" r="4" fill="#1c1c1c"/>
-    <circle cx="44" cy="24" r="4" fill="#1c1c1c"/>
-    <rect x="6" y="18" width="48" height="1.5" fill="#E47303"/>
-  </svg>`,
-  FACTORY: `<svg viewBox="0 0 60 30" width="60" height="30" aria-hidden="true">
-    <!-- main building -->
-    <path d="M4 24 L4 14 L14 18 L14 12 L24 16 L24 10 L34 14 L34 24 Z" fill="#4a4a4a"/>
-    <!-- base -->
-    <rect x="4" y="22" width="30" height="4" fill="#2a2a2a"/>
-    <!-- tall smokestack -->
-    <rect x="42" y="6" width="8" height="20" fill="#3a3a3a"/>
-    <rect x="41" y="4" width="10" height="3" fill="#2a2a2a"/>
-    <!-- little windows -->
-    <rect x="8" y="19" width="4" height="3" fill="#f5e6c8"/>
-    <rect x="16" y="19" width="4" height="3" fill="#f5e6c8"/>
-    <rect x="24" y="19" width="4" height="3" fill="#f5e6c8"/>
-    <!-- puff of smoke -->
-    <g opacity="0.75">
-      <circle cx="46" cy="2" r="2.2" fill="#cfd6df"/>
-      <circle cx="50" cy="-1" r="1.6" fill="#cfd6df"/>
-      <circle cx="43" cy="-1" r="1.4" fill="#cfd6df"/>
-    </g>
-    <!-- accent stripe -->
-    <rect x="4" y="16" width="30" height="1.5" fill="#E47303"/>
-  </svg>`
+/* Passport emblems use the same shared artwork as Demo2.html. */
+const ICON_LIBRARY = typeof ICONS !== "undefined" ? ICONS : {
+  train: { label: "Train", vb: "0 0 60 60", art: '<rect x="8" y="10" width="44" height="32" rx="5" fill="#444"/><circle cx="19" cy="47" r="6" fill="#222"/><circle cx="41" cy="47" r="6" fill="#222"/>' }
 };
+const VEHICLES = Object.keys(ICON_LIBRARY);
+function vehicleSVG(name){
+  const icon = ICON_LIBRARY[String(name || "train").toLowerCase()] || ICON_LIBRARY.train || Object.values(ICON_LIBRARY)[0];
+  return icon ? `<svg viewBox="${esc(icon.vb || "0 0 60 60")}" width="48" height="38" aria-hidden="true">${icon.art || ""}</svg>` : "";
+}
+const VEHICLE_SVG = new Proxy({}, {
+  get: (_, name) => typeof name === "string" ? vehicleSVG(name) : undefined
+});
+function vehicleLabel(name){
+  const icon = ICON_LIBRARY[String(name || "train").toLowerCase()];
+  return icon && icon.label ? icon.label : String(name || "Train");
+}
 
 /* ---------- State ---------- */
 let stamps = [];       // {row, tasks:[taskId...]}
@@ -463,7 +424,7 @@ function renderForm(){
 
 function renderStampForm(box, s){
   const r = s.row;
-  const vehicle = VEHICLES.includes(String(r.VEHICLE||"").toUpperCase()) ? String(r.VEHICLE).toUpperCase() : "TRAIN";
+  const vehicle = VEHICLES.includes(String(r.VEHICLE||"").toLowerCase()) ? String(r.VEHICLE).toLowerCase() : (VEHICLES.includes("train") ? "train" : VEHICLES[0]);
 
   // Simulation
   const maxThreshold = Math.max(+r.STAR1||0, +r.STAR2||0, +r.STAR3||0, 1);
@@ -497,7 +458,7 @@ function renderStampForm(box, s){
             <label class="${v===vehicle?"on":""}" data-v="${v}">
               <input type="radio" name="veh" value="${v}" ${v===vehicle?"checked":""}>
               ${VEHICLE_SVG[v]}
-              <b>${v}</b>
+              <b>${esc(vehicleLabel(v))}</b>
             </label>
           `).join("")}
         </div>
@@ -630,7 +591,7 @@ function renderStampForm(box, s){
 
 function refreshSim(box, s){
   const r = s.row;
-  const vehicle = String(r.VEHICLE||"TRAIN").toUpperCase();
+  const vehicle = String(r.VEHICLE||"train").toLowerCase();
   const maxT = Math.max(+r.STAR1||0, +r.STAR2||0, +r.STAR3||0, 1);
   const slider = box.querySelector("#simSlider");
   if (slider){
@@ -891,7 +852,7 @@ function addStamp(){
   let n = 1, id;
   do { id = "STAMP-" + String(n).padStart(3,"0"); n++; } while (existing.some(x => key(x)===key(id)));
 
-  const row = { STAMP_ID:id, TITLE:"New Stamp", VEHICLE:"TRAIN", STAR1:"3", STAR2:"6", STAR3:"9",
+  const row = { STAMP_ID:id, TITLE:"New Stamp", VEHICLE:(VEHICLES.includes("train") ? "train" : VEHICLES[0]), STAR1:"3", STAR2:"6", STAR3:"9",
                 RANK1:"", RANK2:"", RANK3:"", GRAND_RANK: $("grandInput").value || "", TASKS:"" };
   headers.stamp.forEach(h => { if (!(h in row)) row[h] = ""; });
   const s = { row, tasks: [] };
