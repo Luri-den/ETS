@@ -125,6 +125,9 @@
 
   /* ---------- map tweaks ---------- */
   .maplibregl-ctrl-bottom-right,.maplibregl-ctrl-bottom-left{z-index:6}
+.shapegrid{display:flex;flex-wrap:wrap;gap:6px}
+.sh{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;font-size:11px}
+.sh.on{outline:2px solid #E47303}
 </style>
 </head>
 <body>
@@ -155,6 +158,15 @@
   <button class="small" id="addCat" type="button">＋ Add category</button>
   <button class="small" id="loadCats" type="button">Load categories.csv…</button>
   <input id="fileCats" type="file" accept=".csv,text/csv" hidden>
+</div>
+<div class="sec">
+  <h2>Marker shapes <span id="shapeCount" style="color:#9aa3ad"></span></h2>
+</div>
+<div class="list" id="shapeList"></div>
+<div class="palette" style="margin-top:6px">
+  <button class="small" id="addShape" type="button">＋ Add shape</button>
+  <button class="small" id="loadShapes" type="button">Load shapes.csv…</button>
+  <input id="fileShapes" type="file" accept=".csv,text/csv" hidden>
 </div>
     <div class="sec">
       <h2>Add</h2>
@@ -204,6 +216,7 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="icons.js"></script>
+<script src="marker-shapes.js"></script>
   <script src="publish.js"></script>
 <script>
 /* ============================================================
@@ -261,6 +274,12 @@ function pinColor(cat){
 const DEFAULT_CAT = "COMM";
 
 /* Preserve exact header order from the source files */
+window.MarkerShapes = window.MarkerShapes || {   // stand-in so the editor still works if marker-shapes.js was not uploaded
+  BUILTIN: { circle: { label: "Circle", clip: "" } }, TEMPLATES: {}, clipFor: () => "", apply(){}, parseRows: () => ({}), parsePoints: () => null,
+  pointsToClip: () => "", list: () => [{ code: "circle", label: "Circle", clip: "", custom: false }], slug: s => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-")
+};
+let customShapes = {};     // code -> { label, points:[[x,y],...] }  (shapes.csv)
+let shapesLoaded = false;
 const LOC_COLS  = ["ID","NAME","EST.","LAT","LONG","DETAILS","CATEGORY","MAJOR","RADIUS","PHOTO"];
 const CHILD_COLS= ["CHILD_ID","PARENT_ID","NAME","HIST_NAMES","ADDRESS","DETAILS","LAT","LONG","CONNECTION","CATEGORY","MAJOR","RADIUS","PHOTO"];
 
@@ -449,6 +468,7 @@ function render(){
   renderPins();
   renderLists();
   renderCats();
+  renderShapes();
   renderForm();
   renderStaged();
 }
@@ -510,6 +530,8 @@ function makePinEl(o, kind){
   };
   tryNext();
   b.appendChild(img);
+  const shp = (CATEGORIES[cat] || {}).shape;
+  if (shp) MarkerShapes.apply(b, shp, customShapes);
   return b;
 }
 
@@ -620,7 +642,8 @@ function renderForm(){
     return;
   }
 
-   if (selected.kind === "category") renderCategoryForm(box, selected.ref);
+   if (selected.kind === "shape") renderShapeForm(box, selected.ref);
+  else if (selected.kind === "category") renderCategoryForm(box, selected.ref);
   else if (selected.kind === "parent") renderParentForm(box, selected.ref);
   else renderChildForm(box, selected.ref);
 }
@@ -1195,6 +1218,14 @@ function renderCategoryForm(box, code){
       </div>
 
       <div class="field">
+        <label>Marker shape</label>
+        <div class="shapegrid" id="c-shapes">
+          ${MarkerShapes.list(customShapes).map(s => `<button type="button" class="sh ${(c.shape || "circle") === s.code ? "on" : ""}" data-shape="${esc(s.code)}" title="${esc(s.label)}">${shapePrev(s.code, c.color)}<span>${esc(s.label)}</span></button>`).join("")}
+        </div>
+        <div class="sub">Shape and color together make categories easier to tell apart. Draw your own under Marker shapes on the left.</div>
+      </div>
+
+      <div class="field">
         <label>Icon (shown when a place has no photo)</label>
         <div class="icongrid" id="c-icons">
           ${Object.entries(ICONS).map(([k, i]) =>
@@ -1218,6 +1249,12 @@ function renderCategoryForm(box, code){
     const v = hexIn.value.trim();
     if (/^#[0-9a-f]{6}$/i.test(v)){ c.color = v; colorIn.value = v; recolor(); }
   };
+
+  box.querySelectorAll("#c-shapes .sh").forEach(b => b.onclick = () => {
+    c.shape = b.dataset.shape;
+    box.querySelectorAll("#c-shapes .sh").forEach(x => x.classList.toggle("on", x === b));
+    renderPins();
+  });
 
   box.querySelectorAll("#c-icons .ic").forEach(b => b.onclick = () => {
     c.icon = b.dataset.icon;
@@ -1263,7 +1300,8 @@ function ingestCats(parsed){
       label: String(r.LABEL||"").trim() || code,
       color,
       icon: ICONS[icon] ? icon : ((old && old.icon) || "generic"),
-      ranked: hasRanked ? isYes(r.RANKED) : !!(old && old.ranked)
+      ranked: hasRanked ? isYes(r.RANKED) : !!(old && old.ranked),
+      shape: MarkerShapes.slug(r.SHAPE || "") || (old && old.shape) || ""
     };
   });
   if (!Object.keys(next).length) return;
@@ -1349,6 +1387,150 @@ function renderGalEditor(scope, id){
   };
 }
 
+/* ============================================================
+   Marker shapes  (shapes.csv: CODE, LABEL, POINTS)
+   ============================================================ */
+function shapePrev(code, color){
+  const clip = MarkerShapes.clipFor(code, customShapes);
+  return '<span style="display:block;width:26px;height:26px;background:' + color + ';' + (clip ? "clip-path:" + clip : "border-radius:50%") + '"></span>';
+}
+function renderShapes(){
+  const box = $("shapeList");
+  if (!box) return;
+  const codes = Object.keys(customShapes);
+  $("shapeCount").textContent = "(" + codes.length + ")";
+  box.innerHTML = "";
+  codes.forEach(code => {
+    const used = Object.values(CATEGORIES).filter(c => c.shape === code).length;
+    const row = document.createElement("div");
+    row.className = "row" + (selected && selected.kind === "shape" && selected.ref === code ? " sel" : "");
+    row.innerHTML = '<span style="display:flex;margin-right:6px">' + shapePrev(code, "#E47303") + '</span><span class="name">' + esc(customShapes[code].label) + '</span><span class="id">' + esc(code) + " · " + used + " used</span>";
+    row.onclick = () => select("shape", code);
+    box.appendChild(row);
+  });
+}
+
+function renderShapeForm(box, code){
+  const s = customShapes[code];
+  if (!s){ selected = null; renderForm(); return; }
+  const used = Object.entries(CATEGORIES).filter(([k, c]) => c.shape === code).map(([k]) => k);
+  const tpl = Object.entries(MarkerShapes.TEMPLATES).map(([k, t]) => '<option value="' + k + '">' + esc(t.label) + "</option>").join("");
+  box.innerHTML = `
+    <div class="form">
+      <span class="badge">Marker shape</span>
+      <div class="field">
+        <label>Code</label>
+        <input type="text" class="ro" value="${esc(code)}" readonly>
+        <div class="sub">Goes in the SHAPE column of categories.csv. ${used.length ? "Used by " + esc(used.join(", ")) + "." : "No category uses it yet. Pick it in a category's Marker shape."}</div>
+      </div>
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="s-label" value="${esc(s.label)}">
+      </div>
+      <div class="field">
+        <label>Draw the outline</label>
+        <svg id="s-canvas" viewBox="0 0 100 100" style="width:100%;max-width:300px;aspect-ratio:1;background:#fff;border:1px solid var(--line);border-radius:8px;touch-action:none;cursor:crosshair"></svg>
+        <div class="sub">Click an empty spot to add a corner (near an edge it goes into that edge). Drag a corner to move it. Double-click a corner to remove it. Keep it simple: bold shapes stay readable on a small marker.</div>
+        <div class="actions" style="margin-top:6px"><select id="s-from"><option value="">Start from…</option>${tpl}</select><button class="small" id="s-undo" type="button">Remove last corner</button></div>
+      </div>
+      <div class="field"><label>Preview</label><div id="s-prev"></div></div>
+      <div class="actions"><span class="grow"></span><button id="s-del" class="small warn" type="button">Delete shape</button></div>
+    </div>`;
+
+  const svg = box.querySelector("#s-canvas");
+  const pts = () => s.points;
+  const dist = (x, y, a, b) => {
+    const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
+    const t = l2 ? Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / l2)) : 0;
+    return Math.hypot(x - (a[0] + t * dx), y - (a[1] + t * dy));
+  };
+  const preview = () => {
+    const wrap = box.querySelector("#s-prev");
+    wrap.innerHTML = "";
+    [["", 44], ["parent", 58]].forEach(([cls, size]) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "pin " + cls;
+      b.style.cssText = "position:relative;display:inline-block;margin:6px;pointer-events:none";
+      b.style.setProperty("--c", "#E47303");
+      const im = new Image();
+      im.className = "is-default";
+      im.src = iconUrl("generic");
+      b.appendChild(im);
+      MarkerShapes.apply(b, code, customShapes);
+      wrap.appendChild(b);
+    });
+  };
+  const draw = () => {
+    svg.innerHTML = '<g stroke="#e5e8ec" stroke-width=".4"><path d="M25 0V100M50 0V100M75 0V100M0 25H100M0 50H100M0 75H100"/></g>' +
+      '<polygon points="' + pts().map(p => p.join(",")).join(" ") + '" fill="#E4730355" stroke="#E47303" stroke-width="1"/>' +
+      pts().map((p, i) => '<circle data-i="' + i + '" cx="' + p[0] + '" cy="' + p[1] + '" r="2.8" fill="#fff" stroke="#E47303" stroke-width="1" style="cursor:grab"/>').join("");
+    preview();
+  };
+  const toXY = ev => { const r = svg.getBoundingClientRect(); return [Math.max(0, Math.min(100, +((ev.clientX - r.left) / r.width * 100).toFixed(1))), Math.max(0, Math.min(100, +((ev.clientY - r.top) / r.height * 100).toFixed(1)))]; };
+  let drag = -1;
+  svg.onpointerdown = ev => {
+    const c = ev.target.closest && ev.target.closest("circle");
+    svg.setPointerCapture(ev.pointerId);
+    if (c) { drag = +c.dataset.i; return; }
+    const [x, y] = toXY(ev);
+    let best = { d: 1e9, i: pts().length - 1 };
+    pts().forEach((p, i) => { const d = dist(x, y, p, pts()[(i + 1) % pts().length]); if (d < best.d) best = { d, i }; });
+    pts().splice(best.d < 6 ? best.i + 1 : pts().length, 0, [x, y]);
+    draw(); renderPins(); renderShapes();
+  };
+  svg.onpointermove = ev => { if (drag >= 0) { pts()[drag] = toXY(ev); draw(); } };
+  svg.onpointerup = () => { if (drag >= 0) { drag = -1; renderPins(); renderShapes(); } };
+  svg.ondblclick = ev => {
+    const c = ev.target.closest && ev.target.closest("circle");
+    if (!c) return;
+    if (pts().length <= 3) return toast("A shape needs at least 3 corners.");
+    pts().splice(+c.dataset.i, 1);
+    draw(); renderPins(); renderShapes();
+  };
+  box.querySelector("#s-undo").onclick = () => { if (pts().length <= 3) return toast("A shape needs at least 3 corners."); pts().pop(); draw(); renderPins(); renderShapes(); };
+  box.querySelector("#s-from").onchange = ev => {
+    const t = MarkerShapes.TEMPLATES[ev.target.value];
+    if (!t) return;
+    s.points = JSON.parse(JSON.stringify(t.points));
+    ev.target.value = "";
+    draw(); renderPins(); renderShapes();
+  };
+  bindText(box, "s-label", v => { s.label = v || code; renderShapes(); });
+  box.querySelector("#s-del").onclick = () => {
+    if (!confirm(used.length ? used.join(", ") + " use this shape. They will go back to round markers. Delete it?" : "Delete " + code + "?")) return;
+    used.forEach(k => { CATEGORIES[k].shape = "circle"; });
+    delete customShapes[code];
+    selected = null;
+    render();
+    toast("Deleted shape " + code);
+  };
+  draw();
+}
+
+$("addShape").onclick = () => {
+  const name = (prompt("Name for the new shape:", "") || "").trim();
+  const code = MarkerShapes.slug(name);
+  if (!code) return;
+  if (MarkerShapes.BUILTIN[code] || customShapes[code]) return toast(code + " already exists.");
+  if (!shapesLoaded && !Object.keys(customShapes).length) toast("If you already have a shapes.csv, load it first. Otherwise downloading will replace it.");
+  const t = MarkerShapes.TEMPLATES.hexagon || { points: [[50,0],[100,50],[50,100],[0,50]] };
+  customShapes[code] = { label: name, points: JSON.parse(JSON.stringify(t.points)) };
+  select("shape", code);
+};
+$("loadShapes").onclick = () => $("fileShapes").click();
+$("fileShapes").onchange = ev => {
+  const f = ev.target.files[0];
+  if (!f) return;
+  Papa.parse(f, { header: true, skipEmptyLines: "greedy", complete: r => {
+    customShapes = MarkerShapes.parseRows(r.data);
+    shapesLoaded = true;
+    render();
+    toast("Loaded " + f.name + " (" + Object.keys(customShapes).length + " shapes)");
+  }});
+  ev.target.value = "";
+};
+
 $("loadCats").onclick = () => $("fileCats").click();
 $("fileCats").onchange = e => {
   const f = e.target.files[0];
@@ -1370,8 +1552,12 @@ $("publishBtn").onclick = () => {
 
   download("locations.csv", locCSV);
   download("childmarkers.csv", childCSV);
-    const catRows = Object.entries(CATEGORIES).map(([CODE, c]) => ({ CODE, LABEL: c.label, COLOR: c.color, ICON: c.icon, RANKED: c.ranked ? "yes" : "no" }));
-  download("categories.csv", Papa.unparse({ fields: ["CODE","LABEL","COLOR","ICON","RANKED"], data: catRows }));
+    const catRows = Object.entries(CATEGORIES).map(([CODE, c]) => ({ CODE, LABEL: c.label, COLOR: c.color, ICON: c.icon, RANKED: c.ranked ? "yes" : "no", SHAPE: c.shape || "circle" }));
+  download("categories.csv", Papa.unparse({ fields: ["CODE","LABEL","COLOR","ICON","RANKED","SHAPE"], data: catRows }));
+  if (shapesLoaded || Object.keys(customShapes).length) {
+    const shapeRows = Object.entries(customShapes).map(([CODE, s]) => ({ CODE, LABEL: s.label, POINTS: s.points.map(p => (+p[0].toFixed(1)) + " " + (+p[1].toFixed(1))).join(";") }));
+    download("shapes.csv", Papa.unparse({ fields: ["CODE","LABEL","POINTS"], data: shapeRows }));
+  }
   if (photosLoaded || photoRows.length) {
     const sorted = photoRows.slice().sort((a, b) => a.ITEM_ID.localeCompare(b.ITEM_ID) || (parseFloat(a.ORDER) || 0) - (parseFloat(b.ORDER) || 0));
     download("photos.csv", Papa.unparse({ fields: PHOTO_COLS, data: sorted.map(x => pick(x, PHOTO_COLS)) }));
@@ -1421,7 +1607,7 @@ document.addEventListener("keydown", e => {
   if (e.target.matches("input,textarea,select")) return;
   if (e.key === "Escape"){ clearSelection(); return; }
   if (e.key === "Delete" || e.key === "Backspace"){
-  if (!selected || selected.kind === "category") return;
+  if (!selected || selected.kind === "category" || selected.kind === "shape") return;
     const o = selected.ref;
     if (selected.kind === "parent"){
       if (o.kids.length && !confirm(`Delete ${o.row.ID}? It has ${o.kids.length} children.`)) return;

@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Events: save and switch</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;font-family:Arial,sans-serif;color:#222;background:#fafafa}
+header{background:#333;color:#fff;padding:8px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+header h1{font-size:17px;margin:0 8px 0 0}
+button{font:inherit;font-size:13px;padding:7px 11px;border:1px solid #bbb;border-radius:4px;background:#fff;color:#222;cursor:pointer}
+button:hover{background:#eee}
+button.go{background:#28a745;border-color:#28a745;color:#fff;font-weight:bold}
+button.go:hover{background:#218838}
+button:disabled{opacity:.4;cursor:not-allowed}
+header button{border:0}
+main{max-width:860px;margin:0 auto;padding:14px}
+h2{font-size:16px;margin:22px 0 8px;padding-bottom:4px;border-bottom:1px solid #ddd}
+.intro{font-size:14px;line-height:1.5;color:#444}
+.msg{margin:10px 0;padding:8px 10px;border-radius:4px;font-size:13px;line-height:1.5;background:#fff3cd;color:#664d03}
+.msg.ok{background:#d1e7dd;color:#0f5132}
+.msg.err{background:#f8d7da;color:#842029}
+.msg:empty{display:none}
+label{display:block;font-size:12px;font-weight:bold;margin:10px 0 3px;color:#555}
+label.chk{font-weight:normal;font-size:13px;color:#222;margin:3px 0;display:flex;gap:6px;align-items:center}
+input[type=text]{width:100%;padding:7px;font:inherit;font-size:14px;border:1px solid #bbb;border-radius:4px}
+.sz{color:#777;font-size:12px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:640px){.cols{grid-template-columns:1fr}}
+.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:10px 12px;margin:8px 0}
+.card h3{margin:0 0 2px;font-size:15px}
+.card .sub{font-size:12px;color:#666}
+.card .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.panel{margin-top:10px;padding:10px;background:#f4f6f8;border-radius:6px}
+.preview{font-size:13px;line-height:1.5;margin:8px 0}
+code{background:#eee;padding:1px 4px;border-radius:3px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Events</h1>
+  <button id="refresh" type="button">Refresh</button>
+  <button id="gear" type="button">&#9881; GitHub settings</button>
+</header>
+<main>
+  <p class="intro">An event is a saved copy of the site's data (and, if you want, its photos) kept in <code>events/event-name/</code> in your repository.
+  <b>Applying</b> an event copies it over the live site, so visitors see that event's markers, spots, passport, and settings.
+  GitHub copies files it already has, so nothing is uploaded and nothing is stored twice.</p>
+  <div id="status" class="msg">Reading the repository&hellip;</div>
+
+  <h2>Save the live site as an event</h2>
+  <div class="cols">
+    <div>
+      <label for="evName">Event name</label>
+      <input type="text" id="evName" placeholder="Fried Chicken Trail">
+      <div class="sz" id="slugNote"></div>
+      <label for="evNote">Note (optional)</label>
+      <input type="text" id="evNote" placeholder="Oct 18 and 19, runs from the library to the depot">
+    </div>
+    <div>
+      <label>Data files</label><div id="dataBox"></div>
+      <label>Folders</label><div id="folderBox"></div>
+    </div>
+  </div>
+  <div class="preview" id="savePreview"></div>
+  <button class="go" id="saveBtn" type="button" disabled>Save as event</button>
+
+  <h2>Saved events</h2>
+  <div id="list"><em>Loading&hellip;</em></div>
+</main>
+<script src="publish.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const DATA = ["site.csv","locations.csv","childmarkers.csv","categories.csv","spots.csv","tours.csv","tourstops.csv","stamps.csv","tasks.csv","photos.csv","overlays.json","connersville.geojson"];
+const FOLDERS = ["photos","spots","stories","anims"];
+const SKEY = "ghpublish.settings.v1", TKEY = "ghpublish.token.v1";   // same storage as the editors' Publish button
+
+let branch = "", head = "", baseTree = "", tree = new Map(), meta = {};
+
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+const slugify = s => String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+const fmtSize = b => b >= 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
+const say = (html, cls) => { $("status").className = "msg " + (cls || ""); $("status").innerHTML = html; };
+const settings = () => { const d = { owner: "Luri-den", repo: "ETS", branch: "" }; try { return Object.assign(d, JSON.parse(localStorage.getItem(SKEY) || "{}")); } catch (e) { return d; } };
+const token = () => { try { return sessionStorage.getItem(TKEY) || localStorage.getItem(TKEY) || ""; } catch (e) { return ""; } };
+
+async function api(path, method, body) {
+  const s = settings(), t = token();
+  const headers = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" };
+  if (t) headers.Authorization = "Bearer " + t;
+  if (body) headers["Content-Type"] = "application/json";
+  const res = await fetch("https://api.github.com/repos/" + s.owner + "/" + s.repo + path, { method: method || "GET", headers, body: body ? JSON.stringify(body) : undefined });
+  if (!res.ok) {
+    let m = ""; try { m = (await res.json()).message || ""; } catch (e) {}
+    const err = new Error(res.status + (m ? " " + m : "")); err.status = res.status; throw err;
+  }
+  return res.json();
+}
+
+async function load() {
+  if (!token()) { say("No GitHub token saved yet. Click <b>&#9881; GitHub settings</b> and add one (the same one the editors' Publish button uses)."); return; }
+  say("Reading the repository&hellip;");
+  try {
+    const s = settings();
+    branch = s.branch || (await api("")).default_branch;
+    head = (await api("/git/ref/heads/" + branch)).object.sha;
+    baseTree = (await api("/git/commits/" + head)).tree.sha;
+    const t = await api("/git/trees/" + baseTree + "?recursive=1");
+    if (t.truncated) throw new Error("The repository is too large to list in one go.");
+    tree = new Map(t.tree.filter(x => x.type === "blob").map(x => [x.path, x]));
+    meta = {};
+    for (const slug of eventSlugs()) {
+      const e = tree.get("events/" + slug + "/event.json");
+      if (!e) continue;
+      try {
+        const b = await api("/git/blobs/" + e.sha);
+        const bytes = Uint8Array.from(atob(b.content.replace(/\s/g, "")), c => c.charCodeAt(0));
+        meta[slug] = JSON.parse(new TextDecoder().decode(bytes));
+      } catch (x) {}
+    }
+    say("");
+    renderSave(); renderList();
+  } catch (e) {
+    say(/401|403/.test(e.message) ? "GitHub refused the token (" + esc(e.message) + "). Check &#9881; GitHub settings." : "Could not read the repository: " + esc(e.message), "err");
+  }
+}
+
+function eventSlugs() {
+  const set = new Set();
+  for (const p of tree.keys()) { const m = /^events\/([^/]+)\//.exec(p); if (m) set.add(m[1]); }
+  return [...set].sort();
+}
+const eventFiles = slug => [...tree].filter(([p]) => p.startsWith("events/" + slug + "/") && !p.endsWith("/event.json"));
+
+/* ---------- save ---------- */
+function selected() {
+  return {
+    data: [...document.querySelectorAll(".chkData:checked")].map(x => x.value),
+    folders: [...document.querySelectorAll(".chkFolder:checked")].map(x => x.value)
+  };
+}
+function livePaths(sel) {
+  const out = [];
+  for (const p of tree.keys()) {
+    if (p.startsWith("events/")) continue;
+    if (sel.data.includes(p) || sel.folders.some(f => p.startsWith(f + "/"))) out.push(p);
+  }
+  return out;
+}
+function allSel() { return { data: DATA.filter(f => tree.has(f)), folders: FOLDERS }; }
+
+function renderSave() {
+  const dataHave = DATA.filter(f => tree.has(f));
+  $("dataBox").innerHTML = dataHave.map(f => '<label class="chk"><input type="checkbox" class="chkData" value="' + f + '" checked> ' + f + "</label>").join("") || "<em>No data files found.</em>";
+  const info = FOLDERS.map(f => { let n = 0, b = 0; for (const [p, e] of tree) if (p.startsWith(f + "/")) { n++; b += e.size || 0; } return { f, n, b }; }).filter(x => x.n);
+  $("folderBox").innerHTML = info.map(x => '<label class="chk"><input type="checkbox" class="chkFolder" value="' + x.f + '" checked> ' + x.f + '/ <span class="sz">' + x.n + " files, " + fmtSize(x.b) + "</span></label>").join("") || "<em>No photos, spots, stories or anims folders found.</em>";
+  updateSavePreview();
+}
+function updateSavePreview() {
+  const name = $("evName").value.trim(), slug = slugify(name), sel = selected();
+  const paths = livePaths(sel);
+  let bytes = 0; paths.forEach(p => bytes += tree.get(p).size || 0);
+  $("slugNote").textContent = slug ? "Folder: events/" + slug + "/" : "";
+  const exists = slug && eventSlugs().includes(slug);
+  $("savePreview").innerHTML = paths.length
+    ? paths.length + " files (" + fmtSize(bytes) + ") will be saved into <code>events/" + esc(slug || "…") + "/</code>. Saved copies add about that much to the size of the published site." +
+      (exists ? '<br><b>An event with this name already exists. Saving will replace it.</b>' : "")
+    : "Tick at least one file or folder.";
+  $("saveBtn").disabled = !(slug && paths.length);
+}
+["evName", "evNote"].forEach(id => $(id).addEventListener("input", updateSavePreview));
+$("dataBox").addEventListener("change", updateSavePreview);
+$("folderBox").addEventListener("change", updateSavePreview);
+
+async function snapshotWrites(slug, name, note, sel) {
+  const prefix = "events/" + slug + "/", writes = [], want = new Set();
+  for (const p of livePaths(sel)) {
+    const e = tree.get(p);
+    writes.push({ path: prefix + p, mode: e.mode, type: "blob", sha: e.sha });
+    want.add(prefix + p);
+  }
+  const m = await api("/git/blobs", "POST", { content: JSON.stringify({ name, note, saved: new Date().toISOString(), files: writes.length }, null, 2), encoding: "utf-8" });
+  writes.push({ path: prefix + "event.json", mode: "100644", type: "blob", sha: m.sha });
+  want.add(prefix + "event.json");
+  for (const p of tree.keys()) if (p.startsWith(prefix) && !want.has(p)) writes.push({ path: p, mode: "100644", type: "blob", sha: null });   // left over from an earlier save
+  return writes;
+}
+
+async function commit(writes, message) {
+  const cur = (await api("/git/ref/heads/" + branch)).object.sha;
+  if (cur !== head) throw new Error("The repository changed since this page loaded. Click Refresh and try again.");
+  const t = await api("/git/trees", "POST", { base_tree: baseTree, tree: writes });
+  const c = await api("/git/commits", "POST", { message, tree: t.sha, parents: [head] });
+  await api("/git/refs/heads/" + branch, "PATCH", { sha: c.sha });
+  return c;
+}
+const commitLink = c => ' <a href="https://github.com/' + esc(settings().owner) + "/" + esc(settings().repo) + "/commit/" + c.sha + '" target="_blank" rel="noopener">View commit</a>';
+
+$("saveBtn").onclick = async () => {
+  const name = $("evName").value.trim(), slug = slugify(name), note = $("evNote").value.trim();
+  if (eventSlugs().includes(slug) && !confirm('Replace the saved event "' + slug + '" with what is live now?')) return;
+  $("saveBtn").disabled = true;
+  try {
+    say("Saving&hellip;");
+    const c = await commit(await snapshotWrites(slug, name, note, selected()), "Save event: " + name);
+    await load();
+    say("&#10004; Saved <b>" + esc(name) + "</b> to <code>events/" + esc(slug) + "/</code>." + commitLink(c), "ok");
+  } catch (e) { say("Could not save: " + esc(e.message), "err"); }
+  updateSavePreview();
+};
+
+/* ---------- list + apply ---------- */
+function renderList() {
+  const slugs = eventSlugs();
+  if (!slugs.length) { $("list").innerHTML = "<em>No saved events yet.</em>"; return; }
+  $("list").innerHTML = slugs.map(slug => {
+    const m = meta[slug] || {}, files = eventFiles(slug);
+    let bytes = 0; files.forEach(([, e]) => bytes += e.size || 0);
+    const when = m.saved ? new Date(m.saved).toLocaleDateString() : "";
+    return '<div class="card" data-slug="' + esc(slug) + '"><h3>' + esc(m.name || slug) + '</h3>' +
+      '<div class="sub"><code>events/' + esc(slug) + '/</code> &middot; ' + files.length + " files, " + fmtSize(bytes) + (when ? " &middot; saved " + esc(when) : "") + "</div>" +
+      (m.note ? '<div class="sub">' + esc(m.note) + "</div>" : "") +
+      '<div class="row"><button class="go ap" type="button">Apply to live site</button><button class="rs" type="button">Re-save from live site</button></div>' +
+      '<div class="slot"></div></div>';
+  }).join("");
+  document.querySelectorAll("#list .card").forEach(card => {
+    const slug = card.dataset.slug;
+    card.querySelector(".ap").onclick = () => openApply(card, slug);
+    card.querySelector(".rs").onclick = () => {
+      $("evName").value = (meta[slug] && meta[slug].name) || slug;
+      $("evNote").value = (meta[slug] && meta[slug].note) || "";
+      updateSavePreview();
+      $("evName").scrollIntoView({ behavior: "smooth", block: "center" });
+      $("evName").focus();
+    };
+  });
+}
+
+function applyPlan(slug, o) {
+  const prefix = "events/" + slug + "/", writes = [], removed = [], root = new Set();
+  let replaced = 0, added = 0, bytes = 0;
+  for (const [p, e] of eventFiles(slug)) {
+    const rp = p.slice(prefix.length);
+    root.add(rp);
+    const cur = tree.get(rp);
+    if (cur && cur.sha === e.sha) continue;
+    writes.push({ path: rp, mode: e.mode, type: "blob", sha: e.sha });
+    cur ? replaced++ : added++;
+    bytes += e.size || 0;
+  }
+  if (o.mirrorData) DATA.forEach(f => { if (tree.has(f) && !root.has(f)) { writes.push({ path: f, mode: tree.get(f).mode, type: "blob", sha: null }); removed.push(f); } });
+  if (o.mirrorFolders) {
+    const inEvent = FOLDERS.filter(f => [...root].some(p => p.startsWith(f + "/")));   // only folders the event actually includes
+    for (const [p, e] of tree) {
+      if (p.startsWith("events/") || root.has(p)) continue;
+      if (inEvent.some(f => p.startsWith(f + "/"))) { writes.push({ path: p, mode: e.mode, type: "blob", sha: null }); removed.push(p); }
+    }
+  }
+  return { writes, removed, replaced, added, bytes };
+}
+
+function openApply(card, slug) {
+  const slot = card.querySelector(".slot"), m = meta[slug] || {};
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  slot.innerHTML = '<div class="panel">' +
+    '<label class="chk"><input type="checkbox" class="bk" checked> First save what is live now as an event named</label>' +
+    '<input type="text" class="bkName" value="Before ' + esc(m.name || slug) + " " + stamp + '">' +
+    '<label class="chk"><input type="checkbox" class="mD" checked> Remove live data files this event does not have <span class="sz">(for example stamps.csv if it had no passport)</span></label>' +
+    '<label class="chk"><input type="checkbox" class="mF"> Make the photo, spot, story and anim folders match the event exactly <span class="sz">(removes other files from them)</span></label>' +
+    '<div class="preview"></div><div class="row"><button class="go doIt" type="button">Apply now</button><button class="cx" type="button">Cancel</button></div></div>';
+  const q = s => slot.querySelector(s);
+  const refresh = () => {
+    const p = applyPlan(slug, { mirrorData: q(".mD").checked, mirrorFolders: q(".mF").checked });
+    q(".preview").innerHTML = !p.writes.length ? "The live site already matches this event." :
+      "<b>" + p.replaced + "</b> live files will be replaced, <b>" + p.added + "</b> added, <b>" + p.removed.length + "</b> removed." +
+      (p.removed.length ? '<br><span class="sz">Removed: ' + esc(p.removed.slice(0, 8).join(", ")) + (p.removed.length > 8 ? " and " + (p.removed.length - 8) + " more" : "") + "</span>" : "");
+    q(".doIt").disabled = !p.writes.length || (q(".bk").checked && !slugify(q(".bkName").value));
+  };
+  slot.querySelectorAll("input").forEach(i => i.addEventListener("input", refresh));
+  slot.querySelectorAll("input[type=checkbox]").forEach(i => i.addEventListener("change", refresh));
+  q(".cx").onclick = () => { slot.innerHTML = ""; };
+  q(".doIt").onclick = async () => {
+    const o = { mirrorData: q(".mD").checked, mirrorFolders: q(".mF").checked };
+    const plan = applyPlan(slug, o);
+    if (!confirm('Apply "' + (m.name || slug) + '" to the live site?\n\n' + plan.replaced + " replaced, " + plan.added + " added, " + plan.removed.length + " removed.")) return;
+    q(".doIt").disabled = true;
+    try {
+      say("Applying&hellip;");
+      let writes = plan.writes;
+      if (q(".bk").checked) {
+        const bn = q(".bkName").value.trim(), bs = slugify(bn);
+        if (bs === slug) throw new Error("Give the backup a different name than the event you are applying.");
+        writes = (await snapshotWrites(bs, bn, "Saved automatically before applying " + (m.name || slug), allSel())).concat(writes);
+      }
+      const c = await commit(writes, "Apply event: " + (m.name || slug));
+      await load();
+      say("&#10004; Applied <b>" + esc(m.name || slug) + "</b> to the live site. The page updates in about a minute." + commitLink(c) +
+        "<br>Open the editors again (or reload them) so they pick up the new files.", "ok");
+    } catch (e) { say("Could not apply: " + esc(e.message), "err"); q(".doIt").disabled = false; }
+  };
+  refresh();
+}
+
+$("refresh").onclick = load;
+$("gear").onclick = () => { if (window.GHPublish) GHPublish.settingsDialog(load); else say("publish.js was not found next to this page.", "err"); };
+load();
+</script>
+</body>
+</html>

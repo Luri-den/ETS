@@ -471,6 +471,7 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="welcome-themes.js"></script>
+<script src="marker-shapes.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script>
   // Fallback: if the primary CDN fails, try unpkg
@@ -776,6 +777,8 @@ SITE.overlaySlider = true;    // OVERLAY_SLIDER in site.csv: no = no old-map ove
 SITE.welcomeTheme = "";       // WELCOME_THEME in site.csv: blank = the classic welcome1.gif; or halloween, fall, winter
 SITE.welcomeText = "";        // WELCOME_TEXT in site.csv: "Welcome to|{PLACE}" (| = new line)
 SITE.place = "";              // PLACE in site.csv
+SITE.shapes = {};             // CATEGORY code -> shape code, from the SHAPE column of categories.csv
+SITE.customShapes = {};       // your own shapes, from shapes.csv
 SITE.event = { button: "About", title: "", text: "" };   // EVENT_BUTTON / EVENT_TITLE / EVENT_TEXT in site.csv
 const SETTINGS_READY = fetch("site.csv", { cache: "no-store" })
   .then(r => r.ok ? r.text() : "")
@@ -1026,6 +1029,8 @@ function makePin(item, cls){
   item.r = cls === "parent" ? 29 : 22;
   item.color = SITE.colors[String(item.d.CATEGORY || "").trim().toUpperCase()] || SITE.colors.default;
   b.style.setProperty("--c", item.color);
+  const shape = SITE.shapes[String(item.d.CATEGORY || "").trim().toUpperCase()];
+  if (shape && window.MarkerShapes) MarkerShapes.apply(b, shape, SITE.customShapes);
 
   b.onclick = e => { e.stopPropagation(); select(item); };
 
@@ -1050,11 +1055,13 @@ map.on("load", async () => {
 
   await applySettingsToMap();
   await PHOTOS_READY;
-const [L,C,CATS] = await Promise.all([
+const [L,C,CATS,SHAPEROWS] = await Promise.all([
   load(SITE.files.locations),
   load(SITE.files.children),
-  load("categories.csv")
+  load("categories.csv"),
+  load("shapes.csv")
 ]);
+if (window.MarkerShapes) SITE.customShapes = MarkerShapes.parseRows(SHAPEROWS);
 
 SITE.icons = {};
 SITE.ranked = null;          // null = categories.csv has no RANKED column, so everything ranks as before
@@ -1068,6 +1075,7 @@ CATS.forEach(r => {
   if (/^#[0-9a-f]{3,8}$/i.test(color)) SITE.colors[code === "DEFAULT" ? "default" : code] = color;
   if (icon && ICONS[icon]) SITE.icons[code] = icon;
   SITE.catNames[code] = String(r.LABEL || code).trim();
+  if (window.MarkerShapes && r.SHAPE) SITE.shapes[code] = MarkerShapes.slug(r.SHAPE);
   if (SITE.ranked) SITE.ranked[code] = String(r.RANKED || "").trim().toLowerCase() === "yes";
 });
   L.forEach(r => {
