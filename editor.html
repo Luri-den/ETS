@@ -201,6 +201,7 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="icons.js"></script>
+  <script src="publish.js"></script>
 <script>
 /* ============================================================
    Connersville Map — CSV Editor (Slice 1: places)
@@ -877,6 +878,8 @@ function photoBlock(id){
         <div class="actions">
           <button class="small" id="uploadPhoto" type="button">Upload photo…</button>
           <input type="file" id="photoInput" accept="image/*" hidden>
+                    <button class="small" id="uploadAnim" type="button">Upload animation…</button>
+          <input type="file" id="animInput" accept="video/mp4,video/webm" hidden>
         </div>
       </div>
     </div>`;
@@ -886,6 +889,7 @@ function wirePhotoBlock(scope, id){
   const thumb = scope.querySelector("#photoThumb");
   const btn   = scope.querySelector("#uploadPhoto");
   const input = scope.querySelector("#photoInput");
+    const photos = photos;
   if (!thumb || !btn || !input) return;
 
   // probe photos/{id}.{ext}
@@ -909,6 +913,19 @@ function wirePhotoBlock(scope, id){
   tryNext(0);
 
   btn.onclick = () => input.click();
+    const animBtn = scope.querySelector("#uploadAnim"), animIn = scope.querySelector("#animInput");
+  if (animBtn && animIn) {
+    animBtn.onclick = () => animIn.click();
+    animIn.onchange = () => {
+      const f = animIn.files[0]; if (!f) return;
+      const ext = (f.name.split(".").pop() || "mp4").toLowerCase();
+      const name = id + "." + ext;
+      stagedPhotos = stagedPhotos.filter(p => p.name !== name);
+      stagedPhotos.push({ name, blob: f });
+      renderStaged();
+      toast("Staged " + name + " - it will publish to anims/");
+    };
+  }
   input.onchange = () => {
     const f = input.files[0]; if (!f) return;
     const ext = (f.name.split(".").pop() || "jpg").toLowerCase();
@@ -1241,6 +1258,10 @@ document.addEventListener("keydown", e => {
     linkChildren();
     render();
   }
+});
+  GHPublish.attach({
+  buttons: ["publishBtn", "downloadPhotos"],
+  onPublished: () => { stagedPhotos = []; renderStaged(); }
 });
 </script>
 </body>
