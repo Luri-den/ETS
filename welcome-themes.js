@@ -74,7 +74,7 @@
     return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" width="900" height="600">' +
       '<defs></defs>' +
       '<defs></defs>' +
-      '<g>' + t.decor(on) + smallSvg +
+      '<g><rect x="0" y="0" width="900" height="600" fill="#101020" fill-opacity="0.55"/>' + t.decor(on) + smallSvg +
 
       line(big, small.length ? 360 : 330, bigSize, t.t2, "bold") + "</g></svg>";
   }
