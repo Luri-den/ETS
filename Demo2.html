@@ -215,7 +215,10 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
     <button id="closePassport" type="button">&times;</button>
   </div>
   <div class="passport-body">
-    <p style="margin-top:0;font-size:14px;color:#555">Explore landmarks and historical locations around Connersville to collect passport stamps!</p>
+    <h3 class="p-h">Places to discover <span id="passportCount2" class="p-sub"></span></h3>
+    <p style="margin:0 0 8px;font-size:14px;color:#555">Open a place on the map, scan its QR sign, or check in when you're standing there to light up its stamp. Tap a stamp to see where it is.</p>
+    <button id="checkinBtn" type="button" class="p-checkin">📍 I'm here: check in</button>
+    <div id="checkinMsg" class="p-checkin-msg" aria-live="polite"></div>
     <div class="stamp-grid" id="stampGrid"></div>
   </div>
 </div>
@@ -273,11 +276,21 @@ function unlockStamp(id) {
   }
 }
 
+// The collection: places flagged MAJOR in locations.csv / childmarkers.csv.
+// If nothing is flagged yet, fall back to the main places so the drawer is never empty.
+const isYes = v => ["yes", "true", "1", "y"].includes(key(v));
+function majorSites() {
+  const flagged = places.concat(kids).filter(s => isYes(s.d && s.d.MAJOR));
+  return flagged.length ? flagged : places;
+}
+
 function updatePassportUI() {
   const unlocked = getUnlockedStamps();
-  const allSpots = places.concat(kids);
-  const total = allSpots.length || 1;
-  const foundCount = allSpots.filter(s => unlocked.includes(String(s.id))).length;
+  const sites = majorSites();
+  const total = sites.length || 1;
+  const foundCount = sites.filter(s => unlocked.includes(String(s.id))).length;
+  const c2 = $("passportCount2");
+  if (c2) c2.textContent = foundCount + " of " + sites.length;
 
   const countEl = $("passportCount");
   if (countEl) countEl.textContent = `${foundCount}/${total}`;
@@ -285,7 +298,7 @@ function updatePassportUI() {
   const grid = $("stampGrid");
   if (!grid) return;
 
-  grid.innerHTML = allSpots.map(s => {
+  grid.innerHTML = sites.map(s => {
     const isUnlocked = unlocked.includes(String(s.id));
     const thumbSrc = PHOTO_SRC[s.id] || iconFor(s.d && s.d.CATEGORY);
     return `
@@ -295,6 +308,15 @@ function updatePassportUI() {
       </div>
     `;
   }).join("");
+
+  // Tapping a stamp shows where the place is. It does NOT light the stamp:
+  // that happens when the visitor opens the place, scans its QR sign, or checks in nearby.
+  grid.onclick = e => {
+    const card = e.target.closest(".stamp-card");
+    if (!card) return;
+    $("passportDrawer").classList.remove("open");
+    if (window.passportShow) window.passportShow(card.dataset.id);
+  };
 }
 
 /* ============================================================
@@ -510,6 +532,8 @@ const SITE = {
 /* ===== Settings from site.csv (written by the settings editor) ===== */
 SITE.fitMarkers = true;
 SITE.fromCsv = false;
+SITE.passport = true;         // PASSPORT in site.csv: no = hide the whole passport
+SITE.passportRanks = true;    // PASSPORT_RANKS in site.csv: no = keep tasks and discoveries, drop stars and ranks
 const SETTINGS_READY = fetch("site.csv", { cache: "no-store" })
   .then(r => r.ok ? r.text() : "")
   .catch(() => "")
@@ -535,16 +559,19 @@ const SETTINGS_READY = fetch("site.csv", { cache: "no-store" })
     SITE.minZoom = num("MIN_ZOOM");
     SITE.maxZoom = num("MAX_ZOOM");
     SITE.fitMarkers = (S.FIT_TO_MARKERS || "yes").toLowerCase() !== "no";
+    SITE.passport = (S.PASSPORT || "yes").toLowerCase() !== "no";
+    SITE.passportRanks = (S.PASSPORT_RANKS || "yes").toLowerCase() !== "no";
     SITE.fromCsv = true;
   });
 
 async function applySettingsToMap(){
   await SETTINGS_READY;
   if (!SITE.fromCsv) return;
+  if (!SITE.passport) $("passportBtn").style.display = "none";
   map.setMaxBounds(SITE.maxBounds);
   if (SITE.minZoom !== null) map.setMinZoom(SITE.minZoom);
   if (SITE.maxZoom !== null) map.setMaxZoom(SITE.maxZoom);
-  if (!SITE.fitMarkers && !spotId) map.jumpTo({ center: SITE.center, zoom: SITE.zoom });
+  if (!SITE.fitMarkers && !spotId && !siteId) map.jumpTo({ center: SITE.center, zoom: SITE.zoom });
 }
   
 const map = new maplibregl.Map({
@@ -568,7 +595,8 @@ const map = new maplibregl.Map({
 });
 
 const spotId = new URLSearchParams(location.search).get("spot");
-const skipWelcome = new URLSearchParams(location.search).has("skipWelcome");
+const siteId = new URLSearchParams(location.search).get("site");
+const skipWelcome = new URLSearchParams(location.search).has("skipWelcome") || !!siteId;
 
 if (skipWelcome) {
   const w = document.getElementById("welcomeOverlay");
@@ -722,6 +750,9 @@ const [L,C,CATS] = await Promise.all([
 ]);
 
 SITE.icons = {};
+SITE.ranked = null;          // null = categories.csv has no RANKED column, so everything ranks as before
+SITE.catNames = {};
+if (CATS.length && Object.prototype.hasOwnProperty.call(CATS[0], "RANKED")) SITE.ranked = {};
 CATS.forEach(r => {
   const code = String(r.CODE || "").trim().toUpperCase();
   const color = String(r.COLOR || "").trim();
@@ -729,6 +760,8 @@ CATS.forEach(r => {
   if (!code) return;
   if (/^#[0-9a-f]{3,8}$/i.test(color)) SITE.colors[code === "DEFAULT" ? "default" : code] = color;
   if (icon && ICONS[icon]) SITE.icons[code] = icon;
+  SITE.catNames[code] = String(r.LABEL || code).trim();
+  if (SITE.ranked) SITE.ranked[code] = String(r.RANKED || "").trim().toLowerCase() === "yes";
 });
   L.forEach(r => {
     const ll = [parseFloat(r.LONG), parseFloat(r.LAT)];
@@ -1646,6 +1679,49 @@ $("res").onclick = e => {
     map.on("zoomend", vis);
   });
 
+  /* ---- used by the passport drawer: "show me" buttons and tapping a stamp ---- */
+  const fitPoints = (pts, maxZoom) => {
+    const b = new maplibregl.LngLatBounds();
+    pts.forEach(p => b.extend(p));
+    if (!b.isEmpty()) map.fitBounds(b, { padding: 80, maxZoom: maxZoom || 17 });
+  };
+  const pulse = it => {
+    if (!it || !it.el) return;
+    it.el.classList.add("spot");
+    setTimeout(() => it.el.classList.remove("spot"), 7000);
+  };
+  window.passportReveal = kind => {                 // show all stories (or all photo spots) on the map
+    showAll = true;
+    $("stories").setAttribute("aria-pressed", true);
+    $("stories").textContent = "Hide Stories / Spots";
+    vis();
+    fitPoints(items.filter(i => i.ll && i.kind === kind).map(i => i.ll), 17);
+  };
+  window.passportOpenTours = () => listTours();
+  window.passportShowCategory = code => {           // frame every place, story and spot in a category
+    const c = key(code);
+    const pts = places.concat(kids).filter(p => key(p.d.CATEGORY) === c).map(p => p.ll)
+      .concat(items.filter(i => i.ll && key(i.r.CATEGORY) === c).map(i => i.ll));
+    focus = null; update();
+    fitPoints(pts, 17);
+  };
+  window.passportShow = id => {                     // fly to one place / story / spot, or start a tour
+    const k = key(id);
+    const ti = tours.findIndex(t => key(t.id) === k);
+    if (ti >= 0) {
+      T = tours[ti];
+      setTourLine(T.stops.map(st => (byId(st.ITEM_ID) || {}).ll).filter(Boolean));
+      go(0);
+      return true;
+    }
+    const it = byId(id);
+    if (!it || !it.ll) return false;
+    if (!it.r) { focus = it.parent || null; update(); }
+    map.flyTo({ center: it.ll, zoom: Math.max(map.getZoom(), it.parent ? 17 : 16) });
+    pulse(it);
+    return true;
+  };
+
 })();
 
 /* ============================================================
@@ -1734,7 +1810,8 @@ $("res").onclick = e => {
     if (e.key === "Escape" && !view.hidden) { closeView(); e.stopPropagation(); }
   }, true);
 
-  if (!new URLSearchParams(location.search).has("spot")) {
+  const _q = new URLSearchParams(location.search);
+  if (!_q.has("spot") && !_q.has("site")) {
     let tries = 0;
     const t = setInterval(() => {
       if (!places.length && ++tries <= 50) return;
@@ -1790,7 +1867,60 @@ $("res").onclick = e => {
   function countFor(stamp){
     const p = loadProgress();
     const bucket = p[String(stamp.row.STAMP_ID).trim()] || {};
-    return stamp.tasks.filter(id => bucket[id]).length;
+    return stamp.tasks.filter(id => (p._done && p._done[id]) || bucket[id]).length;
+  }
+
+  // Is this rank track switched on? Needs the master switch on AND its category set to ranked.
+  function isRanked(cat){
+    if (!SITE.ranked) return true;
+    const c = String(cat || "").trim().toUpperCase();
+    return !c || SITE.ranked[c] === true;
+  }
+  const stampActive = stamp => SITE.passportRanks !== false && isRanked(stamp.row.CATEGORY);
+
+  function taskState(task){
+    const p = loadProgress();
+    const id = String(task.row.TASK_ID).trim();
+    const need = parseInt(task.row.COUNT, 10) || 1;
+    const done = !!(p._done && p._done[id]);
+    const seen = (p._seen && p._seen[id]) || [];
+    return { done, need, have: done ? need : Math.min(seen.length, need) };
+  }
+
+  // What a task's button does, worked out from what the task asks for
+  function runTaskAction(task){
+    const r = task.row;
+    const scope = String(r.SCOPE || "").trim().toLowerCase();
+    const target = String(r.TARGET || "").trim();
+    $("passportDrawer").classList.remove("open");
+    if (scope === "behavior"){
+      const t = target.toLowerCase().replace(/s$/, "");
+      if (t === "tour" && window.passportOpenTours) return window.passportOpenTours();
+      if ((t === "story" || t === "spot") && window.passportReveal) return window.passportReveal(t);
+    } else if (scope === "item" && window.passportShow){
+      return window.passportShow(target);
+    } else if (scope === "category" && window.passportShowCategory){
+      return window.passportShowCategory(target);
+    }
+  }
+
+  function taskRowHTML(task){
+    const r = task.row, st = taskState(task);
+    return `<div class="p-task ${st.done ? "done" : ""}">
+      <div class="chk" aria-hidden="true">${st.done ? "\u2713" : ""}</div>
+      <div class="body">
+        <div class="lbl">${esc(r.LABEL || r.TASK_ID)}${st.need > 1 ? ` <span class="cnt">${st.have}/${st.need}</span>` : ""}</div>
+        ${!st.done && r.HINT ? `<div class="th">${esc(r.HINT)}</div>` : ""}
+        ${!st.done && r.BTN ? `<button type="button" class="p-task-btn" data-task="${esc(r.TASK_ID)}">${esc(r.BTN)}</button>` : ""}
+      </div>
+    </div>`;
+  }
+
+  function distM(a, b){
+    const q = Math.PI / 180, R = 6371000;
+    const dLat = (b[1] - a[1]) * q, dLng = (b[0] - a[0]) * q;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * q) * Math.cos(b[1] * q) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
   }
 
   function taskMatches(task, type, context){
@@ -1918,6 +2048,22 @@ $("res").onclick = e => {
   100%{transform:scale(1) rotate(-6deg);opacity:1}
 }
 #pSlam.plain .stars .new{animation:none}
+
+.p-h{margin:0 0 6px;font-size:16px}
+.p-sub{font-weight:normal;font-size:13px;color:#777}
+.p-checkin{width:100%;padding:10px;border:0;border-radius:8px;background:var(--bar,#E47303);color:#fff;font-weight:bold;font-size:14px;cursor:pointer}
+.p-checkin-msg{font-size:12px;color:#555;margin:6px 0 10px;min-height:16px}
+.p-tasks-h{margin:16px 0 6px;font-size:15px}
+.p-none{font-size:13px;color:#999;margin:4px 0}
+.p-task{display:flex;gap:10px;align-items:flex-start;background:#fff;border:2px solid #eee;border-radius:10px;padding:10px;margin:6px 0}
+.p-task.done{background:#f4fbf4;border-color:#cfe8cf}
+.p-task .chk{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid #ccc;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;background:#fff}
+.p-task.done .chk{background:#2e9e44;border-color:#2e9e44}
+.p-task .body{flex:1;min-width:0}
+.p-task .lbl{font-size:14px;font-weight:600}
+.p-task .lbl .cnt{font-weight:normal;color:#777;font-size:12px;margin-left:4px}
+.p-task .th{font-size:13px;color:#555;margin-top:3px}
+.p-task-btn{margin-top:8px;padding:7px 12px;border:0;border-radius:6px;background:var(--bar,#E47303);color:#fff;font-size:13px;font-weight:bold;cursor:pointer}
 </style>`);
 
   const STAR = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/></svg>`;
@@ -1934,7 +2080,7 @@ $("res").onclick = e => {
   <div class="box"></div>
 </div>`);
 
-  document.querySelector(".passport-body").insertAdjacentHTML("afterbegin", `<div id="pStamps"></div>`);
+  document.querySelector(".passport-body").insertAdjacentHTML("beforeend", `<div id="pStamps"></div>`);
 
   const slam = document.getElementById("pSlam");
 
@@ -2033,58 +2179,76 @@ $("res").onclick = e => {
     const box = document.getElementById("pStamps");
     if (!box) return;
 
-    if (!STAMPS.length){
-      box.innerHTML = `<h3>Stamps</h3><p style="color:#9aa3ad;font-size:13px;margin:0">Loading stamps…</p>`;
+    if (!STAMPS.length && !TASKS.length){
+      box.innerHTML = `<h3 class="p-h">Ranks and tasks</h3><p style="color:#9aa3ad;font-size:13px;margin:0">Loading…</p>`;
       return;
     }
 
-    if (!featuredId || !STAMPS.find(s => key(s.row.STAMP_ID) === key(featuredId))){
-      let best = STAMPS[0], bestCount = -1;
-      STAMPS.forEach(s => { const c = countFor(s); if (c > bestCount){ best = s; bestCount = c; } });
-      featuredId = best.row.STAMP_ID;
+    const active = STAMPS.filter(stampActive);
+    const inActive = new Set();
+    active.forEach(s => s.tasks.forEach(id => inActive.add(key(id))));
+    const loose = TASKS.filter(t => !inActive.has(key(t.row.TASK_ID)));   // tasks that do not count toward a rank
+
+    let html = "";
+    if (active.length){
+      if (!featuredId || !active.find(s => key(s.row.STAMP_ID) === key(featuredId))){
+        let best = active[0], bestCount = -1;
+        active.forEach(s => { const c = countFor(s); if (c > bestCount){ best = s; bestCount = c; } });
+        featuredId = best.row.STAMP_ID;
+      }
+      const featured = active.find(s => key(s.row.STAMP_ID) === key(featuredId));
+      const fr = featured.row;
+      const fCount = countFor(featured);
+      const fStars = starsFor(fr, fCount);
+      const fRank = rankFor(fr, fStars);
+      const totalTasks = featured.tasks.length;
+      const next = [+fr.STAR1 || 0, +fr.STAR2 || 0, +fr.STAR3 || 0].find(t => t > fCount);
+      const toGo = next && next <= totalTasks ? next - fCount : 0;
+      const featTasks = featured.tasks.map(id => TASKS.find(t => key(t.row.TASK_ID) === key(id))).filter(Boolean);
+
+      html += `
+        <h3 class="p-h">Ranks</h3>
+        <div class="p-featured" data-id="${esc(fr.STAMP_ID)}">
+          <div class="emblem">
+            ${VEHICLE_SVG[String(fr.VEHICLE||"train").toLowerCase()] || VEHICLE_SVG.train}
+            <b>${esc(fr.TITLE||"")}</b>
+          </div>
+          <h4>${esc(fr.TITLE||"")}</h4>
+          <div class="stars">${starRow(fStars, 0)}</div>
+          <div class="rank">${esc(fRank || "Not started yet")}</div>
+          <div class="prog">${fCount} of ${totalTasks} tasks done${toGo ? " · " + toGo + " more for the next star" : ""}</div>
+          ${fStars >= 3 && fr.GRAND_RANK ? `<div class="grand">${esc(fr.GRAND_RANK)}</div>` : ""}
+        </div>
+        <div class="p-tiles">
+          ${active.map(s => {
+            const r = s.row;
+            const st = starsFor(r, countFor(s));
+            const sel = key(r.STAMP_ID) === key(fr.STAMP_ID);
+            return `
+              <div class="p-tile ${sel ? "sel" : ""}" data-id="${esc(r.STAMP_ID)}">
+                <div class="emblem">${VEHICLE_SVG[String(r.VEHICLE||"train").toLowerCase()] || VEHICLE_SVG.train}</div>
+                <div class="name">${esc(r.TITLE||"")}</div>
+                <div class="stars">${starRow(st, 0)}</div>
+              </div>`;
+          }).join("")}
+        </div>
+        <h4 class="p-tasks-h">Tasks: ${esc(fr.TITLE||"")}</h4>
+        ${featTasks.map(taskRowHTML).join("") || `<p class="p-none">No tasks set up for this rank yet.</p>`}`;
     }
 
-    const featured = STAMPS.find(s => key(s.row.STAMP_ID) === key(featuredId)) || STAMPS[0];
-    const fr = featured.row;
-    const fCount = countFor(featured);
-    const fStars = starsFor(fr, fCount);
-    const fRank = rankFor(fr, fStars);
-    const fMax = Math.max(+fr.STAR3||0, +fr.STAR2||0, +fr.STAR1||0, 1);
-    const nextStar = fStars === 0 ? +fr.STAR1||0 : fStars === 1 ? +fr.STAR2||0 : fStars === 2 ? +fr.STAR3||0 : +fr.STAR3||0;
+    if (loose.length){
+      html += `<h4 class="p-tasks-h">${active.length ? "More to do" : "Tasks"}</h4>` + loose.map(taskRowHTML).join("");
+    }
 
-    box.innerHTML = `
-      <h3>Stamps</h3>
-      <div class="p-featured" data-id="${esc(fr.STAMP_ID)}">
-        <div class="emblem">
-          ${VEHICLE_SVG[String(fr.VEHICLE||"train").toLowerCase()] || VEHICLE_SVG.train}
-          <b>${esc(fr.TITLE||"")}</b>
-        </div>
-        <h4>${esc(fr.TITLE||"")}</h4>
-        <div class="stars">${starRow(fStars, 0)}</div>
-        <div class="rank">${esc(fRank || "Not started yet")}</div>
-        <div class="prog">${fCount} of ${fMax} tasks · need ${Math.max(0, nextStar - fCount)} more for next star</div>
-        ${fStars >= 3 && fr.GRAND_RANK ? `<div class="grand">${esc(fr.GRAND_RANK)}</div>` : ""}
-      </div>
-      <div class="p-tiles">
-        ${STAMPS.map(s => {
-          const r = s.row;
-          const c = countFor(s);
-          const st = starsFor(r, c);
-          const sel = key(r.STAMP_ID) === key(fr.STAMP_ID);
-          return `
-            <div class="p-tile ${sel?"sel":""}" data-id="${esc(r.STAMP_ID)}">
-              <div class="emblem">${VEHICLE_SVG[String(r.VEHICLE||"train").toLowerCase()] || VEHICLE_SVG.train}</div>
-              <div class="name">${esc(r.TITLE||"")}</div>
-              <div class="stars">${starRow(st, 0)}</div>
-            </div>`;
-        }).join("")}
-      </div>
-    `;
+    box.innerHTML = html;
 
-    box.querySelectorAll("[data-id]").forEach(el => {
-      el.onclick = () => {
-        featuredId = el.dataset.id;
-        renderStampCards();
+    box.querySelectorAll(".p-featured[data-id], .p-tile[data-id]").forEach(el => {
+      el.onclick = () => { featuredId = el.dataset.id; renderStampCards(); };
+    });
+    box.querySelectorAll(".p-task-btn").forEach(btn => {
+      btn.onclick = () => {
+        const t = TASKS.find(x => key(x.row.TASK_ID) === key(btn.dataset.task));
+        if (t) runTaskAction(t);
       };
     });
   };
@@ -2096,52 +2260,74 @@ $("res").onclick = e => {
     $("passportDrawer").classList.add("open");
   };
 
+  // One-time location check: lights every passport place within reach. Nothing is stored or sent.
+  $("checkinBtn").onclick = () => {
+    const out = $("checkinMsg");
+    if (!navigator.geolocation) { out.textContent = "Location isn't available on this device."; return; }
+    out.textContent = "Checking where you are…";
+    navigator.geolocation.getCurrentPosition(pos => {
+      const here = [pos.coords.longitude, pos.coords.latitude];
+      const slack = Math.min(pos.coords.accuracy || 0, 50);
+      const near = majorSites().filter(s => distM(here, s.ll) <= (parseFloat(s.d.RADIUS) || 75) + slack);
+      if (!near.length){ out.textContent = "No passport places are close by. Get a little nearer and try again."; return; }
+      near.forEach(s => {
+        unlockStamp(s.id);
+        if (window.passportEvent) passportEvent("view", { id: s.id, category: (s.d && s.d.CATEGORY) || null, source: "gps" });
+      });
+      updatePassportUI();
+      out.textContent = "You're at " + near.map(s => s.name).join(", ") + "!";
+    }, () => { out.textContent = "Couldn't get your location. Check your browser's location permission."; },
+    { enableHighAccuracy: true, timeout: 10000 });
+  };
+
+  // A site visit and a task are separate things: visiting lights a stamp (see unlockStamp);
+  // this only completes TASKS. Stars come only from tasks that belong to an active rank track.
   window.passportEvent = (type, context = {}) => {
-    if (!STAMPS.length || !TASKS.length) return;
+    if (SITE.passport === false || !TASKS.length) return;
 
     const progress = loadProgress();
-    const advanced = [];
+    progress._done = progress._done || {};
+    progress._seen = progress._seen || {};
+    const hit = [];
 
-    for (const stamp of STAMPS){
-      const sid = String(stamp.row.STAMP_ID).trim();
-      const bucket = progress[sid] || (progress[sid] = {});
-      let changed = false;
-      let matchedTaskId = null;
-
-      for (const taskId of stamp.tasks){
-        const task = TASKS.find(t => key(t.row.TASK_ID) === key(taskId));
-        if (!task) continue;
-        if (!taskMatches(task.row, type, context)) continue;
-        if (bucket[taskId]) continue;
-        bucket[taskId] = true;
-        changed = true;
-        matchedTaskId = taskId;
+    for (const t of TASKS){
+      const id = String(t.row.TASK_ID).trim();
+      if (progress._done[id]) continue;
+      if (!taskMatches(t.row, type, context)) continue;
+      const need = parseInt(t.row.COUNT, 10) || 1;
+      if (need > 1){                                   // "visit N places in a category"
+        const seen = progress._seen[id] || (progress._seen[id] = []);
+        const cid = String(context.id || "");
+        if (cid && !seen.includes(cid)) seen.push(cid);
+        if (seen.length < need) continue;
       }
-
-      if (changed) advanced.push({ stamp, matchedTaskId });
+      progress._done[id] = true;
+      hit.push(t);
     }
-
     saveProgress(progress);
 
-    for (const entry of advanced){
-      const { stamp, matchedTaskId } = entry;
-      const sid = String(stamp.row.STAMP_ID).trim();
-      const total = stamp.tasks.filter(id => progress[sid][id]).length;
-      const stars = starsFor(stamp.row, total);
-      const prev = (window.__lastStars || {})[sid] || 0;
-
-      if (stars > prev){
-        celebrateStamp(stamp, stars, false, "star");
-      } else {
-        const task = TASKS.find(t => key(t.row.TASK_ID) === key(matchedTaskId));
-        const label = task ? task.row.LABEL : "Task Complete!";
-        queue.push({ stamp, stars, replay: false, kind: "plain", taskLabel: label });
+    for (const t of hit){
+      const owners = STAMPS.filter(s => stampActive(s) && s.tasks.some(x => key(x) === key(t.row.TASK_ID)));
+      const label = t.row.LABEL || "Task complete!";
+      if (!owners.length){                             // a task with no rank: just say it's done
+        queue.push({ stamp: { row: { TITLE: "", VEHICLE: "generic" } }, stars: 0, replay: false, kind: "plain", taskLabel: label });
         pump();
+        continue;
       }
-
-      window.__lastStars = window.__lastStars || {};
-      window.__lastStars[sid] = stars;
-      try { localStorage.setItem(LAST_STARS_KEY, JSON.stringify(window.__lastStars)); } catch {}
+      for (const stamp of owners){
+        const sid = String(stamp.row.STAMP_ID).trim();
+        const stars = starsFor(stamp.row, countFor(stamp));
+        const prev = (window.__lastStars || {})[sid] || 0;
+        if (stars > prev){
+          celebrateStamp(stamp, stars, false, "star");
+        } else {
+          queue.push({ stamp, stars, replay: false, kind: "plain", taskLabel: label });
+          pump();
+        }
+        window.__lastStars = window.__lastStars || {};
+        window.__lastStars[sid] = stars;
+        try { localStorage.setItem(LAST_STARS_KEY, JSON.stringify(window.__lastStars)); } catch {}
+      }
     }
 
     renderStampCards();
@@ -2153,6 +2339,22 @@ $("res").onclick = e => {
   }
   setTimeout(nudgeWhenReady, 8000);
 
+})();
+
+/* ============================================================
+   SITE QR LINKS  (?site=CV-005 opens that place and lights its stamp)
+   ============================================================ */
+(function () {
+  const sid = new URLSearchParams(location.search).get("site");
+  if (!sid) return;
+  let tries = 0;
+  const t = setInterval(() => {
+    const it = places.concat(kids).find(p => key(p.id) === key(sid));
+    if (!it && ++tries < 60) return;
+    clearInterval(t);
+    if (!it) { console.warn("No place called " + sid); return; }
+    select(it);
+  }, 250);
 })();
 
 /* ============================================================

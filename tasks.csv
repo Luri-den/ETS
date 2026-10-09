@@ -1,8 +1,19 @@
-TASK_ID,LABEL,HINT,BTN,SCOPE,TARGET
-find-story,Find a Story,Find a sparkle on the map!,Show Stories,behavior,story
-ride-any,Ride Any Tour,Take any tour to its last stop!,Take a Tour,behavior,tour
-find-spot,Scan a QR Code or find a camera on the map!,Scan any QR Sign around town!,Show Spots,behavior,spot
-ride-downtown,Ride Through Downtown,Complete the Downtown Tour!,Take a Tour,item,TOUR-DOWNTOWN
-any-rail,Explore Railroad Sites,Visit Any Railroad Site!,Show All,category,RAIL
-any-commerce,Visit a Business,Visit Any Commercial Business!,Show Spots,category,COMM
-any-canal,Explore Canal Sites,Visit Any Canal Site!,Show All,category,CANAL
+TASK_ID,LABEL,HINT,BTN,SCOPE,TARGET,COUNT
+find-story,Find a Story,Find a sparkle on the map!,Show Stories,behavior,story,
+find-spot,Find a Photo Spot,"Scan a QR sign around town, or find a camera on the map!",Show Spots,behavior,spot,
+ride-any,Ride Any Tour,Take any tour to its last stop!,Take a Tour,behavior,tour,
+any-rail,Explore Railroad Sites,Visit any railroad site!,Show Rail Sites,category,RAIL,
+rail-3,Visit 3 Railroad Sites,Visit three different railroad places!,Show Rail Sites,category,RAIL,3
+visit-depot,Visit the Depot,Look near the old rail corridor.,Show Me Where,item,CV-005,
+any-canal,Explore Canal Sites,Visit any canal site!,Show Canal Sites,category,CANAL,
+canal-3,Visit 3 Canal Sites,Visit three different canal places!,Show Canal Sites,category,CANAL,3
+visit-canal-house,Visit the Canal House,The old canal company office.,Show Me Where,item,CV-001,
+any-downtown,Explore Downtown,Visit any downtown place!,Show Downtown,category,DOWNTOWN,
+downtown-3,Visit 3 Downtown Places,Visit three different downtown places!,Show Downtown,category,DOWNTOWN,3
+visit-courthouse,Visit the Courthouse,The county seat since 1849.,Show Me Where,item,CV-004,
+any-ind,Explore Industry,Visit any industrial site!,Show Industry,category,IND,
+ind-3,Visit 3 Industrial Sites,Visit three different industrial places!,Show Industry,category,IND,3
+visit-factory,Visit Factory 1,Look for the stamping works.,Show Me Where,item,CC0004,
+any-commerce,Visit a Business,Visit any commercial business!,Show Businesses,category,COMM,
+any-civ,Visit a Civic Building,"Library, museum, courthouse or park!",Show Civic Sites,category,CIV,
+any-res,Visit a Historic Home,Founders' homes and notable residents!,Show Historic Homes,category,RES,
