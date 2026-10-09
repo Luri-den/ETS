@@ -1,0 +1,7 @@
+CODE,LABEL,COLOR,ICON
+CIV,Civic,#E2E1E0,courthouse
+COMM,Commercial,#E47303,store
+RES,Residential,#BDD76B,house
+IND,Industry,#AF350A,factory
+RAIL,Rail,#8B6F47,train
+CANAL,Canal,#4A7C8C,boat
