@@ -761,5 +761,17 @@ function toast(msg){
   toastTimer = setTimeout(() => t.classList.remove("on"), 2400);
 }
 </script>
+<script src="publish.js"></script>
+<script>
+GHPublish.attach({
+  buttons: ["publishBtn", "downloadPhotos"],
+  // The editor strips folders from its downloads, so look the full path (spots/... or stories/...) back up
+  route: name => {
+    const p = stagedPhotos.find(x => x.name.split("/").pop() === name);
+    return p ? p.name.replace(/^\/+/, "") : undefined;
+  },
+  onPublished: () => { stagedPhotos = []; renderStaged(); }
+});
+</script>
 </body>
 </html>

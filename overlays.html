@@ -782,5 +782,13 @@ function toast(msg){
   toastTimer = setTimeout(() => t.classList.remove("on"), 2400);
 }
 </script>
+<script src="publish.js"></script>
+<script>
+GHPublish.attach({
+  buttons: ["publishBtn"],
+  // overlay map images live in the top folder with overlays.json, not in photos/
+  route: name => name
+});
+</script>
 </body>
 </html>
