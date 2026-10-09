@@ -137,6 +137,7 @@
   <input id="fileChildren" type="file" accept=".csv,text/csv" hidden>
   <button id="loadPhotos">Load photos.csv…</button>
   <input id="filePhotos" type="file" accept=".csv,text/csv" hidden>
+  <label style="display:inline-flex;gap:5px;align-items:center;font-size:13px"><input type="checkbox" id="showLinks" checked> Show parent/child lines</label>
   <span class="status" id="status">Load both CSVs to begin</span>
   <span class="grow"></span>
   <button id="reloadBoth" title="Re-pick both files">Reload…</button>
@@ -293,6 +294,36 @@ const map = new maplibregl.Map({
 map.addControl(new maplibregl.NavigationControl({ showCompass:false }), "bottom-right");
 map.addControl(new maplibregl.ScaleControl(), "bottom-left");
 
+/* ---------- Parent to child lines ---------- */
+function updateLinks(){
+  const src = map.getSource && map.getSource("links");
+  if (!src) return;
+  const features = [];
+  children.forEach(c => {
+    if (c.parent && c.parent.ll && c.ll) {
+      features.push({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [c.parent.ll, c.ll] } });
+    }
+  });
+  src.setData({ type: "FeatureCollection", features });
+}
+map.on("load", () => {
+  map.addSource("links", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  map.addLayer({ id: "links-casing", type: "line", source: "links", layout: { "line-cap": "round" },
+    paint: { "line-color": "#ffffff", "line-width": 6, "line-opacity": 0.85 } });
+  map.addLayer({ id: "links-line", type: "line", source: "links", layout: { "line-cap": "round" },
+    paint: { "line-color": "#E47303", "line-width": 3 } });
+  const on = $("showLinks").checked ? "visible" : "none";
+  map.setLayoutProperty("links-casing", "visibility", on);
+  map.setLayoutProperty("links-line", "visibility", on);
+  updateLinks();
+});
+$("showLinks").onchange = () => {
+  if (!map.getLayer("links-line")) return;
+  const v = $("showLinks").checked ? "visible" : "none";
+  map.setLayoutProperty("links-casing", "visibility", v);
+  map.setLayoutProperty("links-line", "visibility", v);
+};
+
 /* ============================================================
    CSV loading
    ============================================================ */
@@ -448,6 +479,7 @@ function renderPins(){
 
   // reflect selection
   parents.concat(children).forEach(o => o.el && o.el.classList.toggle("sel", isSelected(o)));
+  updateLinks();
 }
 
 function makePinEl(o, kind){
@@ -484,6 +516,7 @@ function makePinEl(o, kind){
 function wireDrag(o, marker){
   pinMarkers.push(marker);
   marker.on("dragstart", () => { if (o.el) o.el.classList.add("dragging"); });
+  marker.on("drag", () => { const p = marker.getLngLat(); o.ll = [p.lng, p.lat]; updateLinks(); });
   marker.on("dragend", () => {
     if (o.el) o.el.classList.remove("dragging");
     const ll = marker.getLngLat();
@@ -891,6 +924,7 @@ function syncLL(o, latStr, lngStr){
   if (isNaN(lat) || isNaN(lng)) return;
   o.ll = [lng, lat];
   if (o.marker) o.marker.setLngLat(o.ll);
+  updateLinks();
 }
 
 /* ---------- Photo block ---------- */
