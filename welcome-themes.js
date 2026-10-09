@@ -74,7 +74,9 @@
     return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" width="900" height="600">' +
       '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + t.bg[0] + '"/><stop offset="1" stop-color="' + t.bg[1] + '"/></linearGradient>' +
       '<clipPath id="c"><rect width="900" height="600" rx="40"/></clipPath></defs>' +
-      '<g clip-path="url(#c)"><rect width="900" height="600" fill="url(#g)"/>' + t.decor(on) + smallSvg +
+      
+'<g clip-path="url(#c)">' + t.decor(on) + smallSvg +
+
       line(big, small.length ? 360 : 330, bigSize, t.t2, "bold") + "</g></svg>";
   }
 
