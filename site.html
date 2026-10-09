@@ -25,6 +25,7 @@ main{flex:1;display:flex;min-height:0}
 #side h2:first-child{margin-top:0}
 label{display:block;font-size:12px;font-weight:bold;color:#555;margin:8px 0 3px}
 label.chk{display:flex;gap:8px;align-items:flex-start;font-weight:normal;color:#222;font-size:13px}
+textarea{width:100%;min-height:110px;padding:6px;font:inherit;font-size:14px;border:1px solid #bbb;border-radius:4px;resize:vertical}
 input:not([type=checkbox]):not([type=color]){width:100%;padding:6px;font-size:14px;border:1px solid #bbb;border-radius:4px}
 input[type=color]{width:44px;height:32px;padding:0;border:1px solid #bbb;border-radius:4px;background:none}
 .two{display:flex;gap:8px}
@@ -72,6 +73,15 @@ small{color:#777;font-size:11px;display:block;margin-top:3px}
     <label>Top bar color</label>
     <div class="two"><input type="color" data-k="BAR_COLOR"><input data-k="BAR_COLOR" placeholder="#E47303"></div>
 
+    <h2>Welcome screen</h2>
+    <label>Theme</label>
+    <select data-k="WELCOME_THEME" id="wtSel"></select>
+    <label>Welcome text</label>
+    <input data-k="WELCOME_TEXT" placeholder="Welcome to|{PLACE}">
+    <small>{PLACE} is replaced with the place name. Use | to start a new line; the last line is the big one.</small>
+    <img id="wtPrev" alt="Welcome screen preview" style="width:100%;border-radius:10px;margin-top:8px;background:#ddd">
+    <small id="wtNote"></small>
+
     <h2>Start view (drag the red circle)</h2>
     <label class="chk"><input type="checkbox" data-k="FIT_TO_MARKERS"> Fit to all markers on load (ignores the start view below)</label>
     <div class="grid">
@@ -107,12 +117,27 @@ small{color:#777;font-size:11px;display:block;margin-top:3px}
     <label class="chk"><input type="checkbox" data-k="PASSPORT_RANKS"> Use stars and ranks</label>
     <small>Turn ranks off to keep the discovery collection and tasks without any stars. Which categories can earn ranks is set per category in the Places editor.</small>
 
+    <h2>Sliders</h2>
+    <label class="chk"><input type="checkbox" data-k="YEAR_SLIDER"> Show the year slider</label>
+    <label class="chk"><input type="checkbox" data-k="OVERLAY_SLIDER"> Show old map overlays and their slider</label>
+    <small>Turning the overlay slider off removes old map overlays from the page completely.</small>
+
+    <h2>Event or focus panel</h2>
+    <label>Button text</label>
+    <input data-k="EVENT_BUTTON" placeholder="About">
+    <label>Panel title</label>
+    <input data-k="EVENT_TITLE" placeholder="Fried Chicken Trail">
+    <label>Panel text</label>
+    <textarea data-k="EVENT_TEXT" placeholder="What is happening, when, and what visitors should look for."></textarea>
+    <small>The button only appears when there is a title or text. Press Enter for a new paragraph. {PLACE} is replaced with the place name.</small>
+
     <div id="warn"></div>
   </aside>
 </main>
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="welcome-themes.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const status = t => $('status').textContent = t;
@@ -127,8 +152,21 @@ const DEFAULTS = {
   MIN_ZOOM: "", MAX_ZOOM: "",
   FIT_TO_MARKERS: "yes",
   PASSPORT: "yes",
-  PASSPORT_RANKS: "yes"
+  PASSPORT_RANKS: "yes",
+  YEAR_SLIDER: "yes",
+  OVERLAY_SLIDER: "yes",
+  EVENT_BUTTON: "About",
+  EVENT_TITLE: "",
+  EVENT_TEXT: "",
+  WELCOME_THEME: "",
+  WELCOME_TEXT: "Welcome to|{PLACE}"
 };
+
+(function () {   // theme choices
+  const sel = document.getElementById("wtSel");
+  sel.innerHTML = '<option value="">Classic picture (welcome1.gif)</option>' +
+    Object.entries(window.WelcomeThemes ? WelcomeThemes.list : {}).map(([k, v]) => '<option value="' + k + '">' + v + "</option>").join("");
+})();
 const ORDER = Object.keys(DEFAULTS);
 
 let S = null;            // current settings (all strings)
@@ -222,6 +260,9 @@ function syncUI(except) {
 }
 
 function preview() {
+  const key = S.WELCOME_THEME;
+  $('wtPrev').src = key && window.WelcomeThemes ? WelcomeThemes.url(key, S.WELCOME_TEXT, S.PLACE, true) : 'welcome1.gif';
+  $('wtNote').textContent = key ? '' : 'The classic picture is welcome1.gif from your site folder. Its words are part of the picture, so the text above does not change it.';
   const bar = $('pvBar');
   bar.style.background = goodColor(S.BAR_COLOR) ? S.BAR_COLOR : '#999';
   bar.textContent = fill(S.HEADER) || ' ';

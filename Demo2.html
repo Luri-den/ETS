@@ -64,6 +64,17 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 
 #spotBox{position:fixed;inset:0;z-index:9000;background:#000a;display:flex;align-items:center;justify-content:center;padding:14px}
 #spotBox[hidden]{display:none}
+.covernote{display:block;font-size:12px;color:#555;margin:2px 0 8px}
+.gal{display:grid;gap:10px;margin-top:12px}
+.gal figure{margin:0}
+#panel .gal img,#spotCard .gal img,.gal img{width:100%;max-height:220px;object-fit:cover;border-radius:8px;cursor:zoom-in;display:block}
+.gal figcaption{font-size:12px;color:#555;margin-top:3px}
+#eventBox{position:fixed;inset:0;z-index:9000;background:#000a;display:flex;align-items:center;justify-content:center;padding:14px}
+#eventBox[hidden]{display:none}
+#eventCard{position:relative;background:#fff;border:6px solid var(--bar,#E47303);border-radius:18px;max-width:560px;width:100%;max-height:92vh;overflow:auto;padding:14px 18px 18px}
+#eventCard h2{margin:6px 34px 10px 0}
+#eventCard p{margin:0;line-height:1.5;white-space:pre-line}
+#ev-x{position:absolute;right:8px;top:2px;font-size:30px;border:0;background:none;cursor:pointer}
 #spotCard{position:relative;background:#fff;border:6px solid #D55E00;border-radius:18px;max-width:560px;max-height:92vh;overflow:auto;padding:14px}
 #spotCard {width:100%;max-height:52vh;object-fit:contain;border-radius:8px;background:#eee;cursor:zoom-in}
 #spotCard h2{margin:10px 0 4px}
@@ -377,6 +388,14 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
   </div>
 </div>
 
+<div id="eventBox" hidden role="dialog" aria-modal="true" aria-labelledby="ev-title">
+  <div id="eventCard">
+    <button id="ev-x" type="button" aria-label="Close">&times;</button>
+    <h2 id="ev-title"></h2>
+    <p id="ev-text"></p>
+  </div>
+</div>
+
 <div id="bar">
   <div class="bar-top">
     <h1>Discover Connersville's Past</h1>
@@ -386,6 +405,7 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
   <ul id="res" hidden></ul>
   <div id="tools">
     <button id="near" type="button">Near Me</button>
+    <button id="eventBtn" type="button" hidden>About</button>
     <button id="tour" type="button" hidden>Take the Tour</button>
     <label>Year: <b id="yv">All</b> <input id="yr" type="range" aria-label="Show sites that existed in this year"></label>
     <label id="ovw" hidden>Old Maps <select id="ovs"></select> <input id="ov" type="range" min="0" max="100" value="0" aria-label="Old map opacity"></label>
@@ -395,7 +415,6 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 <div id="map"></div>
 <aside id="panel" hidden aria-live="polite"></aside>
 
-```html
 <!-- PASSPORT DRAWER -->
 <div id="passportDrawer">
   <div class="passport-header">
@@ -438,7 +457,6 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 
   </div>
 </div>
-```
 
 
 <!-- PHOTO LIGHTBOX -->
@@ -452,6 +470,7 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 </div>
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="welcome-themes.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script>
   // Fallback: if the primary CDN fails, try unpkg
@@ -752,6 +771,12 @@ SITE.fitMarkers = true;
 SITE.fromCsv = false;
 SITE.passport = true;         // PASSPORT in site.csv: no = hide the whole passport
 SITE.passportRanks = true;    // PASSPORT_RANKS in site.csv: no = keep tasks and discoveries, drop stars and ranks
+SITE.yearSlider = true;       // YEAR_SLIDER in site.csv: no = hide the year slider
+SITE.overlaySlider = true;    // OVERLAY_SLIDER in site.csv: no = no old-map overlays or slider at all
+SITE.welcomeTheme = "";       // WELCOME_THEME in site.csv: blank = the classic welcome1.gif; or halloween, fall, winter
+SITE.welcomeText = "";        // WELCOME_TEXT in site.csv: "Welcome to|{PLACE}" (| = new line)
+SITE.place = "";              // PLACE in site.csv
+SITE.event = { button: "About", title: "", text: "" };   // EVENT_BUTTON / EVENT_TITLE / EVENT_TEXT in site.csv
 const SETTINGS_READY = fetch("site.csv", { cache: "no-store" })
   .then(r => r.ok ? r.text() : "")
   .catch(() => "")
@@ -779,13 +804,68 @@ const SETTINGS_READY = fetch("site.csv", { cache: "no-store" })
     SITE.fitMarkers = (S.FIT_TO_MARKERS || "yes").toLowerCase() !== "no";
     SITE.passport = (S.PASSPORT || "yes").toLowerCase() !== "no";
     SITE.passportRanks = (S.PASSPORT_RANKS || "yes").toLowerCase() !== "no";
+    SITE.yearSlider = (S.YEAR_SLIDER || "yes").toLowerCase() !== "no";
+    SITE.overlaySlider = (S.OVERLAY_SLIDER || "yes").toLowerCase() !== "no";
+    SITE.welcomeTheme = (S.WELCOME_THEME || "").toLowerCase();
+    SITE.welcomeText = S.WELCOME_TEXT || "";
+    SITE.place = S.PLACE || "";
+    SITE.event = { button: S.EVENT_BUTTON || "About", title: fill(S.EVENT_TITLE || ""), text: fill(S.EVENT_TEXT || "") };
     SITE.fromCsv = true;
   });
+
+/* ===== photos.csv: ITEM_ID, ORDER, PATH, CAPTION, CREDIT =====
+   Row 1 of an item = caption and credit for its main photo (PATH blank = use the usual main photo).
+   Rows 2+ = extra photos with their own PATH, caption and credit. Items with no rows work as before. */
+const PHOTO_ROWS = {};
+const PHOTOS_READY = fetch("photos.csv", { cache: "no-store" })
+  .then(r => r.ok ? r.text() : "")
+  .catch(() => "")
+  .then(txt => {
+    if (!txt.trim()) return;
+    Papa.parse(txt, { header: true, skipEmptyLines: "greedy" }).data.forEach(r => {
+      const id = String(r.ITEM_ID || "").trim();
+      if (!id) return;
+      (PHOTO_ROWS[id] = PHOTO_ROWS[id] || []).push({
+        order: parseFloat(r.ORDER) || 0,
+        path: String(r.PATH || "").trim(),
+        caption: String(r.CAPTION || "").trim(),
+        credit: String(r.CREDIT || "").trim()
+      });
+    });
+    Object.values(PHOTO_ROWS).forEach(a => a.sort((x, y) => x.order - y.order));
+  });
+const photoNote = p => [p.caption, p.credit ? "Photo: " + p.credit : ""].filter(Boolean).join(" · ");
+function coverPath(id, fallback){ const a = PHOTO_ROWS[id]; return (a && a[0] && a[0].path) || fallback; }
+function coverNote(id){ const a = PHOTO_ROWS[id]; return a && a[0] ? photoNote(a[0]) : ""; }
+function buildGallery(id){
+  const list = (PHOTO_ROWS[id] || []).slice(1).filter(p => p.path);
+  if (!list.length) return null;
+  const g = document.createElement("div");
+  g.className = "gal";
+  list.forEach(p => {
+    const f = document.createElement("figure");
+    const im = new Image();
+    im.alt = p.caption || "";
+    im.loading = "lazy";
+    im.dataset.caption = photoNote(p);
+    im.onerror = () => f.remove();
+    im.src = p.path;
+    f.appendChild(im);
+    if (photoNote(p)) { const c = document.createElement("figcaption"); c.textContent = photoNote(p); f.appendChild(c); }
+    g.appendChild(f);
+  });
+  return g;
+}
 
 async function applySettingsToMap(){
   await SETTINGS_READY;
   if (!SITE.fromCsv) return;
   if (!SITE.passport) $("passportBtn").style.display = "none";
+  if (!SITE.yearSlider) $("yr").closest("label").style.display = "none";
+  if (SITE.event.title || SITE.event.text) {
+    $("eventBtn").textContent = SITE.event.button;
+    $("eventBtn").hidden = false;
+  }
   map.setMaxBounds(SITE.maxBounds);
   if (SITE.minZoom !== null) map.setMinZoom(SITE.minZoom);
   if (SITE.maxZoom !== null) map.setMaxZoom(SITE.maxZoom);
@@ -820,7 +900,13 @@ if (skipWelcome) {
   const w = document.getElementById("welcomeOverlay");
   if (w) w.remove();
 } else {
-  startWelcome(spotId);
+  SETTINGS_READY.then(() => {
+    if (window.WelcomeThemes && SITE.welcomeTheme && WelcomeThemes.list[SITE.welcomeTheme]) {
+      const motion = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+      WELCOME_STEPS[0] = { gif: WelcomeThemes.url(SITE.welcomeTheme, SITE.welcomeText, SITE.place, motion) };
+    }
+    startWelcome(spotId);
+  });
 }
 
 map.addControl(new maplibregl.NavigationControl({ showCompass:false }), "bottom-right");
@@ -842,14 +928,16 @@ let travelInProgress = false;
 const EXT = ["jpg","jpeg","png","webp","JPG","PNG"];
 const PHOTO_SRC = {};
 
-function thumb(id, category){
+function thumb(id, category, path){
   const im = new Image();
   im.alt = "";
   let i = 0;
+  let typed = String(path || "").trim();   // PHOTO column: any folder/file; tried first
 
-  const go = () => { im.src = "photos/" + encodeURIComponent(id) + "." + EXT[i]; };
+  const go = () => { im.src = typed || ("photos/" + encodeURIComponent(id) + "." + EXT[i]); };
 
   im.onerror = () => {
+    if (typed) { console.warn("Photo path not found for " + id + ": " + typed + " (trying photos/" + id + ")"); typed = ""; i = 0; go(); return; }
     if (++i < EXT.length) { go(); return; }
     console.warn("No photo for " + id + ", using category icon");
     im.onerror = null;
@@ -933,7 +1021,7 @@ function makePin(item, cls){
   if (/\d{4}/.test(item.d.CLSD || "")) b.classList.add("gone");
 
   b.setAttribute("aria-label", item.name);
-  b.appendChild(thumb(item.id, item.d.CATEGORY));
+  b.appendChild(thumb(item.id, item.d.CATEGORY, coverPath(item.id, item.d.PHOTO)));
 
   item.r = cls === "parent" ? 29 : 22;
   item.color = SITE.colors[String(item.d.CATEGORY || "").trim().toUpperCase()] || SITE.colors.default;
@@ -961,6 +1049,7 @@ map.on("load", async () => {
   });
 
   await applySettingsToMap();
+  await PHOTOS_READY;
 const [L,C,CATS] = await Promise.all([
   load(SITE.files.locations),
   load(SITE.files.children),
@@ -1278,7 +1367,12 @@ function select(it){
         it.kids.map(k => `<button class="kid" data-id="${esc(k.id)}">${esc(k.name)}</button>`).join("")
       : "");
 
-  panel.insertBefore(thumb(it.id, d.CATEGORY), panel.querySelector("h2"));
+  const cov = thumb(it.id, d.CATEGORY, coverPath(it.id, d.PHOTO));
+  cov.dataset.caption = coverNote(it.id);
+  panel.insertBefore(cov, panel.querySelector("h2"));
+  if (coverNote(it.id)) { const s = document.createElement("small"); s.className = "covernote"; s.textContent = coverNote(it.id); cov.after(s); }
+  const gal = buildGallery(it.id);
+  if (gal) panel.appendChild(gal);
 
   const e = yr4(d.EST);
   const c = yr4(d.CLSD);
@@ -1408,6 +1502,8 @@ $("yr").oninput = e => {
    ============================================================ */
 
 async function initOverlays(){
+  await SETTINGS_READY;
+  if (!SITE.overlaySlider) return;
   try {
     const res = await fetch("overlays.json", { cache:"no-store" });
     if (res.ok) {
@@ -1550,12 +1646,16 @@ $("res").onclick = e => {
     pin.className = "spotpin";
     new maplibregl.Marker({ element: pin }).setLngLat(ll).addTo(map);
 
-    $("sp-img").hidden = !r.PHOTO;
-    if (r.PHOTO) $("sp-img").src = r.PHOTO;
+    const qcp = coverPath(id, r.PHOTO);
+    $("sp-img").hidden = !qcp;
+    if (qcp) $("sp-img").src = qcp;
     $("sp-title").textContent = r.TITLE || "What used to be here?";
     $("sp-when").textContent = r.YEAR || "";
     $("sp-text").textContent = r.DETAILS || "";
-    $("sp-credit").textContent = r.CREDIT ? "Photo: " + r.CREDIT : "";
+    $("sp-credit").textContent = coverNote(id) || (r.CREDIT ? "Photo: " + r.CREDIT : "");
+    $("sp-img").dataset.caption = coverNote(id);
+    const qGal = buildGallery(id);
+    if (qGal) $("sp-credit").after(qGal);
     box.hidden = false;
 
     unlockStamp(id);
@@ -1624,6 +1724,7 @@ $("res").onclick = e => {
 
   function showSpot(it) {
     const r = it.r;
+    const cp = coverPath(it.id, r.PHOTO);
 
     const holder = $("sp-img").parentNode;
     let wrap = holder.querySelector(".photo-anim");
@@ -1644,10 +1745,10 @@ $("res").onclick = e => {
     vid.hidden = true;
     vid.removeAttribute("src");
 
-    if (r.PHOTO) {
+    if (cp) {
       $("sp-img").hidden = false;
-      $("sp-img").src = r.PHOTO;
-      const anim = /(?:^|\/)([^/]+)\.(jpe?g|png|webp)$/i.exec(r.PHOTO || "");
+      $("sp-img").src = cp;
+      const anim = /(?:^|\/)([^/]+)\.(jpe?g|png|webp)$/i.exec(cp || "");
       if (anim) {
         const path = "anims/" + anim[1] + ".mp4";
         vid.onloadeddata = () => { vid.hidden = false; vid.play().catch(() => { vid.hidden = true; }); };
@@ -1664,8 +1765,13 @@ $("res").onclick = e => {
     $("sp-when").textContent = r.YEAR || "";
     $("sp-text").textContent = r.DETAILS || "";
     $("sp-credit").textContent =
-      [r.CREDIT ? "Photo: " + r.CREDIT : "", r.SOURCE ? "Source: " + r.SOURCE : ""]
+      [coverNote(it.id) || (r.CREDIT ? "Photo: " + r.CREDIT : ""), r.SOURCE ? "Source: " + r.SOURCE : ""]
         .filter(Boolean).join(" · ");
+    $("sp-img").dataset.caption = coverNote(it.id);
+    const oldGal = $("spotCard").querySelector(".gal");
+    if (oldGal) oldGal.remove();
+    const gal = buildGallery(it.id);
+    if (gal) $("sp-credit").after(gal);
     box.hidden = false;
     setSpotUrl(it.id);
 
@@ -1705,20 +1811,21 @@ $("res").onclick = e => {
 
     if (it && it.r) {
       const r = it.r;
+      const cp = coverPath(it.id, r.PHOTO);
       name = r.TITLE;
       when = r.YEAR || "";
       text = r.DETAILS || "";
       ll = it.ll;
-      if (r.PHOTO) {
+      if (cp) {
         const wrap = document.createElement("div");
         wrap.className = "photo-anim";
         const still = new Image();
         still.alt = "";
-        still.src = r.PHOTO;
+        still.src = cp;
         still.onerror = () => { still.remove(); };
         wrap.appendChild(still);
 
-        const m = /(?:^|\/)([^/]+)\.(jpe?g|png|webp)$/i.exec(r.PHOTO);
+        const m = /(?:^|\/)([^/]+)\.(jpe?g|png|webp)$/i.exec(cp);
         if (m) {
           const v = document.createElement("video");
           v.muted = true;
@@ -1734,14 +1841,15 @@ $("res").onclick = e => {
 
         img = wrap;
       }
-      credit = [r.CREDIT ? "Photo: " + r.CREDIT : "", r.SOURCE ? "Source: " + r.SOURCE : ""]
+      credit = [coverNote(it.id) || (r.CREDIT ? "Photo: " + r.CREDIT : ""), r.SOURCE ? "Source: " + r.SOURCE : ""]
         .filter(Boolean).join(" · ");
       unlockStamp(it.id);
     } else if (it) {
       name = it.name;
       text = it.d.DETAILS || "";
       ll = it.ll;
-      img = thumb(it.id, it.d.CATEGORY);
+      img = thumb(it.id, it.d.CATEGORY, coverPath(it.id, it.d.PHOTO));
+      credit = coverNote(it.id);
       unlockStamp(it.id);
     }
 
@@ -2011,7 +2119,7 @@ $("res").onclick = e => {
     const photo = shown;
     const holder = im.closest("#panel, #spotCard, #tourCard");
     const h2 = holder && holder.querySelector("h2");
-    openLightbox(photo, shown, h2 ? h2.textContent : "");
+    openLightbox(photo, shown, im.dataset.caption || (h2 ? h2.textContent : ""));
   });
 
   view.addEventListener("click", () => {
@@ -2650,6 +2758,26 @@ function dismiss(replay){
 $("closePassport").onclick = () => {
   $("passportDrawer").classList.remove("open");
 };
+
+/* ============================================================
+   EVENT / FOCUS PANEL (text comes from site.csv)
+   ============================================================ */
+function openEventPanel(){
+  $("ev-title").textContent = SITE.event.title;
+  $("ev-title").hidden = !SITE.event.title;
+  $("ev-text").textContent = SITE.event.text;
+  $("eventBox").hidden = false;
+  $("ev-x").focus();
+}
+function closeEventPanel(){
+  if ($("eventBox").hidden) return;
+  $("eventBox").hidden = true;
+  $("eventBtn").focus();
+}
+$("eventBtn").onclick = openEventPanel;
+$("ev-x").onclick = closeEventPanel;
+$("eventBox").addEventListener("click", e => { if (e.target === $("eventBox")) closeEventPanel(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeEventPanel(); });
 
 </script>
 </body>

@@ -135,6 +135,8 @@
   <input id="fileLocations" type="file" accept=".csv,text/csv" hidden>
   <button id="loadChildren">Load childmarkers.csv…</button>
   <input id="fileChildren" type="file" accept=".csv,text/csv" hidden>
+  <button id="loadPhotos">Load photos.csv…</button>
+  <input id="filePhotos" type="file" accept=".csv,text/csv" hidden>
   <span class="status" id="status">Load both CSVs to begin</span>
   <span class="grow"></span>
   <button id="reloadBoth" title="Re-pick both files">Reload…</button>
@@ -258,8 +260,8 @@ function pinColor(cat){
 const DEFAULT_CAT = "COMM";
 
 /* Preserve exact header order from the source files */
-const LOC_COLS  = ["ID","NAME","EST.","LAT","LONG","DETAILS","CATEGORY","MAJOR","RADIUS"];
-const CHILD_COLS= ["CHILD_ID","PARENT_ID","NAME","HIST_NAMES","ADDRESS","DETAILS","LAT","LONG","CONNECTION","CATEGORY","MAJOR","RADIUS"];
+const LOC_COLS  = ["ID","NAME","EST.","LAT","LONG","DETAILS","CATEGORY","MAJOR","RADIUS","PHOTO"];
+const CHILD_COLS= ["CHILD_ID","PARENT_ID","NAME","HIST_NAMES","ADDRESS","DETAILS","LAT","LONG","CONNECTION","CATEGORY","MAJOR","RADIUS","PHOTO"];
 
 /* ---------- State ---------- */
 let parents = [];      // {row, ll, marker, el, kids:[]}
@@ -464,8 +466,10 @@ function makePinEl(o, kind){
   img.alt = "";
   const EXT = ["jpg","jpeg","png","webp","JPG","PNG"];
   let i = 0;
-  const tryNext = () => { img.src = "photos/" + encodeURIComponent(id) + "." + EXT[i]; };
+  let useTyped = !!String(o.row.PHOTO || "").trim();   // typed PHOTO path first, then photos/ID.ext
+  const tryNext = () => { img.src = useTyped ? String(o.row.PHOTO).trim() : "photos/" + encodeURIComponent(id) + "." + EXT[i]; };
    img.onerror = () => {
+    if (useTyped) { useTyped = false; tryNext(); return; }
     if (++i < EXT.length) { tryNext(); return; }
     img.onerror = null;
     img.classList.add("is-default");
@@ -643,7 +647,7 @@ function renderParentForm(box, p){
 
       <div class="field">
         <label>Photo</label>
-        ${photoBlock(r.ID)}
+        ${photoBlock(r.ID, r)}
       </div>
 
       ${p.kids.length ? `
@@ -670,7 +674,7 @@ function renderParentForm(box, p){
   `;
 
   // wire basic fields
-  bindText(box, "f-ID",       v => { r.ID = v; renderPins(); renderLists(); });
+  bindText(box, "f-ID",       v => { renameItem(r.ID, v); r.ID = v; renderPins(); renderLists(); });
   bindText(box, "f-NAME",     v => { r.NAME = v; renderPins(); renderLists(); });
   bindText(box, "f-EST",      v => { r["EST."] = v; });
   bindText(box, "f-LAT",      v => { r.LAT = v; syncLL(p, v, r.LONG); });
@@ -730,7 +734,8 @@ function renderParentForm(box, p){
     };
   });
 
-  wirePhotoBlock(box, r.ID);
+  wirePhotoBlock(box, r.ID, r);
+  renderGalEditor(box, r.ID);
 }
 
 function renderChildForm(box, c){
@@ -811,7 +816,7 @@ function renderChildForm(box, c){
 
       <div class="field">
         <label>Photo</label>
-        ${photoBlock(r.CHILD_ID)}
+        ${photoBlock(r.CHILD_ID, r)}
       </div>
 
       <div class="actions">
@@ -822,7 +827,7 @@ function renderChildForm(box, c){
     </div>
   `;
 
-  bindText(box, "f-CHILD_ID",  v => { r.CHILD_ID = v; renderLists(); });
+  bindText(box, "f-CHILD_ID",  v => { renameItem(r.CHILD_ID, v); r.CHILD_ID = v; renderLists(); });
   bindText(box, "f-NAME",      v => { r.NAME = v; renderPins(); renderLists(); });
   bindText(box, "f-HIST_NAMES",v => { r.HIST_NAMES = v; });
   bindText(box, "f-ADDRESS",   v => { r.ADDRESS = v; });
@@ -871,7 +876,8 @@ function renderChildForm(box, c){
     toast("Deleted " + (r.CHILD_ID||""));
   };
 
-  wirePhotoBlock(box, r.CHILD_ID);
+  wirePhotoBlock(box, r.CHILD_ID, r);
+  renderGalEditor(box, r.CHILD_ID);
 }
 
 function bindText(scope, id, onInput){
@@ -889,13 +895,16 @@ function syncLL(o, latStr, lngStr){
 
 /* ---------- Photo block ---------- */
 
-function photoBlock(id){
+function photoBlock(id, row){
   const safe = esc(id || "");
+  const typed = esc((row && row.PHOTO) || "");
   return `
     <div class="photo">
       <div class="photos missing" id="photoThumb">loading…</div>
       <div class="meta">
-        <div>Looking for <code>photos/${safe}.jpg</code> (or png/webp/JPG/PNG)</div>
+        <div>Photo file path (any folder, optional)</div>
+        <input type="text" id="f-PHOTO" value="${typed}" placeholder="photos/${safe}.jpg or shared/old-depot.jpg" style="width:100%;margin:4px 0">
+        <div class="sub" id="photoNote">Leave blank to use <code>photos/${safe}.jpg</code> (or png/webp/JPG/PNG). A typed path wins over an uploaded photo.</div>
         <div class="actions">
           <button class="small" id="uploadPhoto" type="button">Upload photo…</button>
           <input type="file" id="photoInput" accept="image/*" hidden>
@@ -903,18 +912,27 @@ function photoBlock(id){
           <input type="file" id="animInput" accept="video/mp4,video/webm" hidden>
         </div>
       </div>
-    </div>`;
+    </div>
+    <div id="galEditor"></div>`;
 }
 
-function wirePhotoBlock(scope, id){
+function wirePhotoBlock(scope, id, row){
   const thumb = scope.querySelector("#photoThumb");
   const btn   = scope.querySelector("#uploadPhoto");
   const input = scope.querySelector("#photoInput");
   const photos = thumb;
   if (!thumb || !btn || !input) return;
 
-  // probe photos/{id}.{ext}
+  // show the typed PHOTO path if there is one, otherwise probe photos/{id}.{ext}
   const EXT = ["jpg","jpeg","png","webp","JPG","PNG"];
+  const note = scope.querySelector("#photoNote");
+  const pathIn = scope.querySelector("#f-PHOTO");
+  const showImg = im => {
+    photos.classList.remove("missing");
+    photos.innerHTML = "";
+    im.style.cssText = "width:100%;height:100%;object-fit:cover;border-radius:8px";
+    photos.appendChild(im);
+  };
   const tryNext = i => {
     if (i >= EXT.length){
       photos.classList.add("missing");
@@ -922,16 +940,29 @@ function wirePhotoBlock(scope, id){
       return;
     }
     const im = new Image();
-    im.onload = () => {
-      photos.classList.remove("missing");
-      photos.innerHTML = "";
-      im.style.cssText = "width:100%;height:100%;object-fit:cover;border-radius:8px";
-      photos.appendChild(im);
-    };
+    im.onload = () => showImg(im);
     im.onerror = () => tryNext(i+1);
     im.src = "photos/" + encodeURIComponent(id) + "." + EXT[i];
   };
-  tryNext(0);
+  const checkTyped = () => {
+    const p = String((row && row.PHOTO) || "").trim();
+    if (!p) { if (note) note.style.color = ""; tryNext(0); return; }
+    const im = new Image();
+    im.onload = () => { if (note) { note.style.color = ""; note.textContent = "Found " + p; } showImg(im); };
+    im.onerror = () => {
+      photos.classList.add("missing");
+      photos.textContent = "not found";
+      if (note) { note.style.color = "#b42318"; note.textContent = "Not found: " + p + ". The live map will fall back to photos/" + id + " and then the category icon. Check the folder, spelling and extension."; }
+    };
+    im.src = p;
+  };
+  let typedTimer = null;
+  if (pathIn && row) pathIn.addEventListener("input", () => {
+    row.PHOTO = pathIn.value.trim();
+    clearTimeout(typedTimer);
+    typedTimer = setTimeout(() => { checkTyped(); renderPins(); }, 400);
+  });
+  checkTyped();
 
   btn.onclick = () => input.click();
     const animBtn = scope.querySelector("#uploadAnim"), animIn = scope.querySelector("#animInput");
@@ -1206,6 +1237,84 @@ function ingestCats(parsed){
   render();
 }
 
+/* ============================================================
+   photos.csv  (ITEM_ID, ORDER, PATH, CAPTION, CREDIT)
+   Row 1 per item = caption/credit for the main photo; rows 2+ = extra photos.
+   ============================================================ */
+const PHOTO_COLS = ["ITEM_ID","ORDER","PATH","CAPTION","CREDIT"];
+let photoRows = [];
+let photosLoaded = false;
+const rowsFor = id => photoRows.filter(x => x.ITEM_ID === id).sort((a, b) => (parseFloat(a.ORDER) || 0) - (parseFloat(b.ORDER) || 0));
+const renumber = id => rowsFor(id).forEach((x, i) => { x.ORDER = String(i + 1); });
+function renameItem(oldId, newId){ photoRows.forEach(x => { if (x.ITEM_ID === oldId) x.ITEM_ID = newId; }); }
+
+$("loadPhotos").onclick = () => $("filePhotos").click();
+$("filePhotos").onchange = e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  Papa.parse(f, { header:true, skipEmptyLines:"greedy", complete: r => {
+    photoRows = r.data.map(x => ({
+      ITEM_ID: String(x.ITEM_ID||"").trim(), ORDER: String(x.ORDER||"").trim(), PATH: String(x.PATH||"").trim(),
+      CAPTION: String(x.CAPTION||"").trim(), CREDIT: String(x.CREDIT||"").trim()
+    })).filter(x => x.ITEM_ID);
+    photosLoaded = true;
+    renderForm();
+    toast("Loaded " + f.name + " (" + photoRows.length + " rows)");
+  }});
+  e.target.value = "";
+};
+
+function renderGalEditor(scope, id){
+  const box = scope.querySelector("#galEditor");
+  if (!box) return;
+  const idNow = () => (scope.querySelector("#f-ID") || scope.querySelector("#f-CHILD_ID") || {}).value || id;
+  const list = rowsFor(idNow());
+  box.innerHTML = '<div class="sub" style="margin:10px 0 4px">Captions, credits and extra photos</div>' + list.map((x, i) => `
+    <div class="galrow" data-i="${i}" style="border:1px solid var(--line);border-radius:8px;padding:6px;margin-bottom:6px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:3px">${i === 0 ? "Main photo (its file is chosen above)" : "Extra photo " + i}</div>
+      ${i === 0 ? "" : '<input type="text" class="g-path" placeholder="folder/photo.jpg" value="' + esc(x.PATH || "") + '">'}
+      <input type="text" class="g-cap" placeholder="Caption" value="${esc(x.CAPTION || "")}" style="margin-top:4px">
+      <input type="text" class="g-cred" placeholder="Credit (who took it or owns it)" value="${esc(x.CREDIT || "")}" style="margin-top:4px">
+      <div class="actions" style="margin-top:4px">
+        <button class="small g-up" type="button" ${i < 2 ? "disabled" : ""}>↑</button>
+        <button class="small g-dn" type="button" ${i === 0 || i === list.length - 1 ? "disabled" : ""}>↓</button>
+        <span class="grow"></span>
+        <button class="small warn g-del" type="button" ${i === 0 && list.length > 1 ? "disabled title='Remove the extra photos first'" : ""}>Remove</button>
+      </div>
+    </div>`).join("") + `<button class="small" id="galAdd" type="button">＋ ${list.length ? "Add extra photo" : "Add caption / credit"}</button>`;
+
+  box.querySelectorAll(".galrow").forEach(rowEl => {
+    const i = +rowEl.dataset.i, x = list[i];
+    const bind = (sel, key) => { const el = rowEl.querySelector(sel); if (el) el.oninput = () => { x[key] = el.value.trim(); return el; }; };
+    bind(".g-cap", "CAPTION"); bind(".g-cred", "CREDIT");
+    const pathEl = rowEl.querySelector(".g-path");
+    if (pathEl) {
+      let t = null;
+      pathEl.oninput = () => {
+        x.PATH = pathEl.value.trim();
+        clearTimeout(t);
+        t = setTimeout(() => {
+          pathEl.style.borderColor = ""; pathEl.title = "";
+          if (!x.PATH) return;
+          const im = new Image();
+          im.onerror = () => { pathEl.style.borderColor = "#b42318"; pathEl.title = "Not found: check the folder, spelling and extension"; };
+          im.src = x.PATH;
+        }, 400);
+      };
+      pathEl.oninput();
+    }
+    const move = dir => { const o = list[i + dir]; const t = x.ORDER; x.ORDER = o.ORDER; o.ORDER = t; renumber(idNow()); renderGalEditor(scope, id); };
+    rowEl.querySelector(".g-up").onclick = () => move(-1);
+    rowEl.querySelector(".g-dn").onclick = () => move(1);
+    rowEl.querySelector(".g-del").onclick = () => { photoRows = photoRows.filter(r => r !== x); renumber(idNow()); renderGalEditor(scope, id); };
+  });
+  box.querySelector("#galAdd").onclick = () => {
+    if (!photosLoaded && !photoRows.length) toast("If you already have a photos.csv, load it first. Otherwise downloading will replace it.");
+    photoRows.push({ ITEM_ID: idNow(), ORDER: String(list.length + 1), PATH: "", CAPTION: "", CREDIT: "" });
+    renderGalEditor(scope, id);
+  };
+}
+
 $("loadCats").onclick = () => $("fileCats").click();
 $("fileCats").onchange = e => {
   const f = e.target.files[0];
@@ -1229,6 +1338,10 @@ $("publishBtn").onclick = () => {
   download("childmarkers.csv", childCSV);
     const catRows = Object.entries(CATEGORIES).map(([CODE, c]) => ({ CODE, LABEL: c.label, COLOR: c.color, ICON: c.icon, RANKED: c.ranked ? "yes" : "no" }));
   download("categories.csv", Papa.unparse({ fields: ["CODE","LABEL","COLOR","ICON","RANKED"], data: catRows }));
+  if (photosLoaded || photoRows.length) {
+    const sorted = photoRows.slice().sort((a, b) => a.ITEM_ID.localeCompare(b.ITEM_ID) || (parseFloat(a.ORDER) || 0) - (parseFloat(b.ORDER) || 0));
+    download("photos.csv", Papa.unparse({ fields: PHOTO_COLS, data: sorted.map(x => pick(x, PHOTO_COLS)) }));
+  }
 
   toast(`Downloaded ${parents.length} parents, ${children.length} children.`
         + (stagedPhotos.length ? ` Plus ${stagedPhotos.length} staged photos below.` : ""));
