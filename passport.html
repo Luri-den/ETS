@@ -130,6 +130,23 @@
 
   #toast{position:fixed;z-index:100;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#111827;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .18s, transform .18s;pointer-events:none;max-width:80vw;text-align:center}
   #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  .row .badge.off{background:#fde8e8;color:#a33}
+  .row .badge.on{background:#e6f5ec;color:#2f855a}
+  .row .cicon{width:22px;height:22px;object-fit:contain;flex:none}
+  .row .dot{width:10px;height:10px;border-radius:50%;flex:none;box-shadow:0 0 0 1px #0002}
+  .icongrid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+  .icongrid .ic{padding:4px;border:2px solid #eef1f5;border-radius:8px;background:#fffdf6;cursor:pointer}
+  .icongrid .ic img{width:100%;aspect-ratio:1;object-fit:contain;display:block}
+  .icongrid .ic.on{border-color:var(--accent);background:#e6effa}
+  .ranknote{margin-top:8px;padding:8px 10px;border-radius:6px;font-size:12px;line-height:1.5}
+  .ranknote.ok{background:#f0faf3;border:1px solid #cfe8cf;color:#2a6b3a}
+  .ranknote.off{background:#fff8e6;border:1px solid #f0e0b0;color:#7a5c00}
+  .ptask{display:flex;gap:10px;align-items:flex-start;background:#fff;border:2px solid #eee;border-radius:10px;padding:10px}
+  .ptask .chk{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid #ccc;background:#fff}
+  .ptask .lbl{font-size:14px;font-weight:600}
+  .ptask .th{font-size:13px;color:#555;margin-top:3px}
+  .ptask .pbtn{margin-top:8px;padding:7px 12px;border:0;border-radius:6px;background:#E47303;color:#fff;font-size:13px;font-weight:bold}
+  .ptask .cnt{font-weight:normal;color:#777;font-size:12px;margin-left:4px}
 </style>
 </head>
 <body>
@@ -149,6 +166,7 @@
 <div id="tabs">
   <button class="tabbtn on" data-tab="stamps">Stamps</button>
   <button class="tabbtn" data-tab="tasks">Tasks</button>
+  <button class="tabbtn" data-tab="categories">Categories</button>
   <span class="grow"></span>
   <span id="grandWrap" style="display:flex;align-items:center;gap:8px;padding-right:14px;font-size:12px">
     <label style="color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600">Grand Rank:</label>
@@ -172,6 +190,7 @@
 <div id="toast"></div>
 
 <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="icons.js"></script>
 
 <script>
 /* ============================================================
@@ -185,17 +204,36 @@ const key = s => String(s||"").trim().toLowerCase();
 const uid = () => Math.random().toString(36).slice(2,6);
 
 /* Column orders */
-const STAMP_COLS = ["STAMP_ID","TITLE","VEHICLE","STAR1","STAR2","STAR3","RANK1","RANK2","RANK3","GRAND_RANK","TASKS"];
-const TASK_COLS  = ["TASK_ID","LABEL","HINT","BTN","SCOPE","TARGET"];
+const STAMP_COLS = ["STAMP_ID","TITLE","VEHICLE","CATEGORY","STAR1","STAR2","STAR3","RANK1","RANK2","RANK3","GRAND_RANK","TASKS"];
+const TASK_COLS  = ["TASK_ID","LABEL","HINT","BTN","SCOPE","TARGET","COUNT"];
 
-const CATEGORIES = {
-  CIV:   { label:"Civic",          color:"#E2E1E0" },
-  COMM:  { label:"Commercial",     color:"#E47303" },
-  RES:   { label:"Residential",    color:"#BDD76B" },
-  IND:   { label:"Industry",       color:"#AF350A" },
-  RAIL:  { label:"Rail",           color:"#8B6F47" },  // ← your choice
-  CANAL: { label:"Canal",          color:"#4A7C8C" }   // ← your choice
+/* Categories come from categories.csv (the same file the Places editor and the map read).
+   These are only the starting values if that file is missing. */
+const isYes = v => ["yes", "true", "1", "y"].includes(String(v || "").trim().toLowerCase());
+let CATEGORIES = {
+  CIV:      { label:"Civic",       color:"#E2E1E0", icon:"courthouse", ranked:false },
+  COMM:     { label:"Commercial",  color:"#E47303", icon:"store",      ranked:false },
+  RES:      { label:"Residential", color:"#BDD76B", icon:"house",      ranked:false },
+  IND:      { label:"Industrial",  color:"#AF350A", icon:"factory",    ranked:true },
+  RAIL:     { label:"Rail",        color:"#8B6F47", icon:"train",      ranked:true },
+  CANAL:    { label:"Canal",       color:"#4A7C8C", icon:"boat",       ranked:true },
+  DOWNTOWN: { label:"Downtown",    color:"#7B5EA7", icon:"hotel",      ranked:true }
 };
+const catLabel = code => { const c = CATEGORIES[String(code||"").trim().toUpperCase()]; return c ? c.label : String(code||""); };
+const catRanked = code => { const c = CATEGORIES[String(code||"").trim().toUpperCase()]; return !!(c && c.ranked); };
+
+/* The map's own data, so tasks can be pointed at things by NAME instead of by ID */
+const MAP = { places:[], kids:[], spots:[], stories:[], tours:[] };
+function allItems(){
+  const out = [];
+  MAP.places.forEach(x => out.push({ id:x.id, name:x.name, type:"place", cat:x.cat }));
+  MAP.kids.forEach(x => out.push({ id:x.id, name:x.name, type:"place (inside " + (x.parent || "?") + ")", cat:x.cat }));
+  MAP.stories.forEach(x => out.push({ id:x.id, name:x.name, type:"story", cat:x.cat }));
+  MAP.spots.forEach(x => out.push({ id:x.id, name:x.name, type:"photo spot", cat:x.cat }));
+  MAP.tours.forEach(x => out.push({ id:x.id, name:x.name, type:"tour", cat:x.cat }));
+  return out;
+}
+const itemInfo = id => allItems().find(i => key(i.id) === key(id)) || null;
 
 /* Behaviors the site currently fires — one per passportEvent() call */
 const BEHAVIORS = {
@@ -204,64 +242,15 @@ const BEHAVIORS = {
   tour:  "Player reaches the last stop of a tour"
 };
 
-/* Vehicles available as stamp emblems */
-const VEHICLES = ["TRAIN","BOAT","CAR","FACTORY"];
-
-/* Vehicle SVGs — same shape as the site, with factory added */
-const VEHICLE_SVG = {
-  TRAIN: `<svg viewBox="0 0 60 30" width="60" height="30" aria-hidden="true">
-    <rect x="6" y="8" width="34" height="12" fill="#3a3a3a" rx="2"/>
-    <rect x="34" y="4" width="16" height="16" fill="#3a3a3a" rx="2"/>
-    <rect x="36" y="7" width="6" height="5" fill="#f5e6c8"/>
-    <rect x="44" y="7" width="4" height="5" fill="#f5e6c8"/>
-    <rect x="4" y="18" width="4" height="5" fill="#3a3a3a"/>
-    <circle cx="14" cy="22" r="4" fill="#1c1c1c"/>
-    <circle cx="24" cy="22" r="4" fill="#1c1c1c"/>
-    <circle cx="34" cy="22" r="4" fill="#1c1c1c"/>
-    <circle cx="44" cy="22" r="3" fill="#1c1c1c"/>
-    <rect x="16" y="2" width="4" height="6" fill="#3a3a3a"/>
-    <rect x="6" y="11" width="30" height="2" fill="#E47303"/>
-  </svg>`,
-  BOAT: `<svg viewBox="0 0 60 30" width="60" height="30" aria-hidden="true">
-    <path d="M4 20 L10 16 L50 16 L56 20 L56 24 L4 24 Z" fill="#5a3a1a"/>
-    <rect x="14" y="10" width="30" height="6" fill="#8a5a2a"/>
-    <rect x="18" y="12" width="6" height="4" fill="#f5e6c8"/>
-    <rect x="30" y="12" width="6" height="4" fill="#f5e6c8"/>
-    <rect x="4" y="8" width="4" height="8" fill="#3a3a3a"/>
-    <path d="M6 10 Q 20 4 40 8" stroke="#3a3a3a" stroke-width="1.5" fill="none"/>
-    <path d="M6 16 Q 20 20 40 16" stroke="#E47303" stroke-width="1.5" fill="none"/>
-  </svg>`,
-  CAR: `<svg viewBox="0 0 60 30" width="60" height="30" aria-hidden="true">
-    <path d="M6 18 L14 12 L44 12 L54 18 L54 24 L6 24 Z" fill="#8b1a1a"/>
-    <rect x="16" y="9" width="24" height="6" fill="#8b1a1a" rx="2"/>
-    <rect x="18" y="10" width="8" height="4" fill="#f5e6c8"/>
-    <rect x="30" y="10" width="8" height="4" fill="#f5e6c8"/>
-    <circle cx="16" cy="24" r="4" fill="#1c1c1c"/>
-    <circle cx="44" cy="24" r="4" fill="#1c1c1c"/>
-    <rect x="6" y="18" width="48" height="1.5" fill="#E47303"/>
-  </svg>`,
-  FACTORY: `<svg viewBox="0 0 60 30" width="60" height="30" aria-hidden="true">
-    <!-- main building -->
-    <path d="M4 24 L4 14 L14 18 L14 12 L24 16 L24 10 L34 14 L34 24 Z" fill="#4a4a4a"/>
-    <!-- base -->
-    <rect x="4" y="22" width="30" height="4" fill="#2a2a2a"/>
-    <!-- tall smokestack -->
-    <rect x="42" y="6" width="8" height="20" fill="#3a3a3a"/>
-    <rect x="41" y="4" width="10" height="3" fill="#2a2a2a"/>
-    <!-- little windows -->
-    <rect x="8" y="19" width="4" height="3" fill="#f5e6c8"/>
-    <rect x="16" y="19" width="4" height="3" fill="#f5e6c8"/>
-    <rect x="24" y="19" width="4" height="3" fill="#f5e6c8"/>
-    <!-- puff of smoke -->
-    <g opacity="0.75">
-      <circle cx="46" cy="2" r="2.2" fill="#cfd6df"/>
-      <circle cx="50" cy="-1" r="1.6" fill="#cfd6df"/>
-      <circle cx="43" cy="-1" r="1.4" fill="#cfd6df"/>
-    </g>
-    <!-- accent stripe -->
-    <rect x="4" y="16" width="30" height="1.5" fill="#E47303"/>
-  </svg>`
-};
+/* Emblems come from icons.js: the same list the map page and the Places editor use */
+const VEHICLES = Object.keys(ICONS);
+function vehicleSVG(k){
+  const i = ICONS[k] || ICONS.train;
+  return `<svg viewBox="${i.vb}" width="60" height="30" aria-hidden="true">${i.art}</svg>`;
+}
+const VEHICLE_SVG = new Proxy({}, {
+  get: (_, k) => (typeof k === "string" && Object.prototype.hasOwnProperty.call(ICONS, k)) ? vehicleSVG(k) : undefined
+});
 
 /* ---------- State ---------- */
 let stamps = [];       // {row, tasks:[taskId...]}
@@ -288,42 +277,71 @@ function readCSV(file, kind){
   r.readAsText(file);
 }
 
-(async () => {
-  const specs = [
-    ["stamps.csv", "stamps"],
-    ["tasks.csv",  "tasks"]
-  ];
-  const results = await Promise.all(specs.map(([file]) =>
-    fetch(file, { cache:"no-store" }).then(r => r.ok ? r.text() : null).catch(() => null)
-  ));
-  results.forEach((text, i) => {
-    if (text == null) return;
-    ingestCSV(text, specs[i][1], specs[i][0]);
+async function fetchText(file){
+  try { const r = await fetch(file, { cache:"no-store" }); return r.ok ? r.text() : null; }
+  catch (e) { return null; }
+}
+const csvRows = text => Papa.parse(text, { header:true, skipEmptyLines:"greedy" }).data
+  .filter(r => Object.values(r).some(v => String(v||"").trim() !== ""));
+
+let catsLoaded = false;
+function ingestCats(text){
+  const hasRanked = (Papa.parse(text, { header:true, skipEmptyLines:"greedy" }).meta.fields || []).includes("RANKED");
+  const next = {};
+  csvRows(text).forEach(r => {
+    const code = String(r.CODE||"").trim().toUpperCase();
+    const color = String(r.COLOR||"").trim();
+    if (!code || !/^#[0-9a-f]{6}$/i.test(color)) return;
+    const icon = String(r.ICON||"").trim();
+    const old = CATEGORIES[code];
+    next[code] = {
+      label: String(r.LABEL||"").trim() || code,
+      color,
+      icon: ICONS[icon] ? icon : ((old && old.icon) || "generic"),
+      ranked: hasRanked ? isYes(r.RANKED) : !!(old && old.ranked)
+    };
   });
+  if (Object.keys(next).length){ CATEGORIES = next; catsLoaded = true; }
+}
+
+function ingestMapData(t){          // t = [locations, childmarkers, spots, tours] texts (or null)
+  MAP.places = []; MAP.kids = []; MAP.spots = []; MAP.stories = []; MAP.tours = [];
+  if (t[0]) csvRows(t[0]).forEach(r => { if (r.ID) MAP.places.push({ id:String(r.ID).trim(), name:r.NAME || r.ID, cat:String(r.CATEGORY||"").trim().toUpperCase() }); });
+  if (t[1]) csvRows(t[1]).forEach(r => { const id = r.CHILD_ID || r.CHILD_IS; if (id) MAP.kids.push({ id:String(id).trim(), name:r.NAME || id, parent:r.PARENT_ID, cat:String(r.CATEGORY||"").trim().toUpperCase() }); });
+  if (t[2]) csvRows(t[2]).forEach(r => {
+    if (!r.SPOT_ID) return;
+    const o = { id:String(r.SPOT_ID).trim(), name:r.TITLE || r.SPOT_ID, cat:String(r.CATEGORY||"").trim().toUpperCase() };
+    (key(r.KIND) === "story" ? MAP.stories : MAP.spots).push(o);
+  });
+  if (t[3]) csvRows(t[3]).forEach(r => { if (r.TOUR_ID) MAP.tours.push({ id:String(r.TOUR_ID).trim(), name:r.TITLE || r.TOUR_ID, cat:String(r.CATEGORY||"").trim().toUpperCase() }); });
+}
+
+async function loadFromServer(){
+  const files = ["stamps.csv","tasks.csv","categories.csv","locations.csv","childmarkers.csv","spots.csv","tours.csv"];
+  const t = await Promise.all(files.map(fetchText));
+  if (t[0] != null) ingestCSV(t[0], "stamps", "stamps.csv");
+  if (t[1] != null) ingestCSV(t[1], "tasks",  "tasks.csv");
+  if (t[2] != null) ingestCats(t[2]);
+  ingestMapData(t.slice(3));
+  return t;
+}
+
+(async () => {
+  await loadFromServer();
   const have = Object.values(loaded).filter(Boolean).length;
   if (have === 0) setStatus("Click 'Pick stamps.csv…' to begin");
-  else setStatus("Loaded " + have + " of 2 files");
+  else updateStatus();
+  render();
 })();
 
 $("reloadBtn").onclick = async () => {
-  if (!confirm("Reload both CSVs from the server? Unsaved changes will be lost.")) return;
-  try {
-    const specs = [["stamps.csv","stamps"],["tasks.csv","tasks"]];
-    const results = await Promise.all(specs.map(([file]) =>
-      fetch(file, { cache:"no-store" }).then(r => r.ok ? r.text() : null).catch(() => null)
-    ));
-    stamps = []; tasks = [];
-    loaded = { stamps:false, tasks:false };
-    selected = null;
-    results.forEach((text, i) => {
-      if (text == null) return;
-      ingestCSV(text, specs[i][1], specs[i][0]);
-    });
-    render();
-    toast("Reloaded from server");
-  } catch (e) {
-    toast("Reload failed: " + e.message);
-  }
+  if (!confirm("Reload everything from the server? Unsaved changes will be lost.")) return;
+  stamps = []; tasks = [];
+  loaded = { stamps:false, tasks:false };
+  selected = null;
+  await loadFromServer();
+  render();
+  toast("Reloaded from server");
 };
 
 function ingestCSV(text, kind, filename){
@@ -364,6 +382,9 @@ function updateStatus(){
   const bits = [];
   if (loaded.stamps) bits.push(`stamps.csv (${stamps.length})`);
   if (loaded.tasks)  bits.push(`tasks.csv (${tasks.length})`);
+  if (catsLoaded)    bits.push(`categories (${Object.keys(CATEGORIES).length})`);
+  const n = allItems().length;
+  if (n) bits.push(`${n} map items for the pickers`);
   $("status").textContent = bits.length ? "Loaded: " + bits.join(" · ") : "Loading…";
 }
 
@@ -417,10 +438,24 @@ function renderList(){
       const row = document.createElement("div");
       row.className = "row" + (selected && selected.ref === s ? " sel" : "");
       row.innerHTML =
-        `<span class="sw">${VEHICLE_SVG[s.row.VEHICLE] || VEHICLE_SVG.TRAIN}</span>` +
+        `<span class="sw">${VEHICLE_SVG[key(s.row.VEHICLE)] || VEHICLE_SVG.train}</span>` +
         `<span class="name">${esc(s.row.TITLE || s.row.STAMP_ID || "(untitled)")}</span>` +
-        `<span class="cnt">${s.tasks.length || "0"}</span>`;
+        `<span class="cnt">${s.tasks.length || "0"}</span>` + (stampIsOff(s) ? `<span class="badge off">hidden</span>` : "");
       row.onclick = () => { selected = { kind:"stamp", ref:s }; simProgress = 0; render(); };
+      list.appendChild(row);
+    }
+  } else if (activeTab === "categories") {
+    title.innerHTML = `Categories <button id="addCat" type="button">＋ New</button>`;
+    $("addCat").onclick = addCategory;
+    for (const [code, c] of Object.entries(CATEGORIES)){
+      const row = document.createElement("div");
+      row.className = "row" + (selected && selected.kind === "category" && selected.ref === code ? " sel" : "");
+      row.innerHTML =
+        `<span class="dot" style="background:${esc(c.color)}"></span>` +
+        `<img class="cicon" src="${iconUrl(c.icon)}" alt="">` +
+        `<span class="name">${esc(c.label)} <span class="cnt">${esc(code)}</span></span>` +
+        `<span class="badge ${c.ranked ? "on" : "off"}">${c.ranked ? "ranked" : "not ranked"}</span>`;
+      row.onclick = () => { selected = { kind:"category", ref:code }; render(); };
       list.appendChild(row);
     }
   } else {
@@ -448,12 +483,15 @@ function renderForm(){
   if (!selected){
     if (activeTab === "stamps"){
       box.innerHTML = `<div class="empty">${stamps.length ? "Select a stamp on the left, or click <kbd>＋ New</kbd>." : "Load stamps.csv to begin."}</div>`;
+    } else if (activeTab === "categories") {
+      box.innerHTML = `<div class="empty">Select a category on the left, or click <kbd>＋ New</kbd>.<br><br>A category decides a place's color and icon, and whether its tasks can earn ranks. The master switch for the whole rank system is in Site Settings.</div>`;
     } else {
       box.innerHTML = `<div class="empty">${tasks.length ? "Select a task on the left, or click <kbd>＋ New</kbd>." : "Load tasks.csv to begin."}</div>`;
     }
     return;
   }
-  if (selected.kind === "stamp") renderStampForm(box, selected.ref);
+  if (selected.kind === "category") renderCategoryForm(box, selected.ref);
+  else if (selected.kind === "stamp") renderStampForm(box, selected.ref);
   else renderTaskForm(box, selected.ref);
 }
 
@@ -463,7 +501,7 @@ function renderForm(){
 
 function renderStampForm(box, s){
   const r = s.row;
-  const vehicle = VEHICLES.includes(String(r.VEHICLE||"").toUpperCase()) ? String(r.VEHICLE).toUpperCase() : "TRAIN";
+  const vehicle = ICONS[key(r.VEHICLE)] ? key(r.VEHICLE) : "train";
 
   // Simulation
   const maxThreshold = Math.max(+r.STAR1||0, +r.STAR2||0, +r.STAR3||0, 1);
@@ -491,13 +529,23 @@ function renderStampForm(box, s){
       </div>
 
       <div class="field">
+        <label>Category this rank belongs to</label>
+        <select id="f-CATEGORY">
+          <option value="">— none (always counts) —</option>
+          ${Object.entries(CATEGORIES).map(([k, c]) =>
+            `<option value="${k}" ${k === String(r.CATEGORY||"").trim().toUpperCase() ? "selected" : ""}>${esc(c.label)} (${k}) · ${c.ranked ? "ranked" : "not ranked"}</option>`).join("")}
+        </select>
+        <div id="catNote">${stampCatNote(s)}</div>
+      </div>
+
+      <div class="field">
         <label>Emblem</label>
         <div class="vehicle-picker" id="vehPicker">
           ${VEHICLES.map(v => `
             <label class="${v===vehicle?"on":""}" data-v="${v}">
               <input type="radio" name="veh" value="${v}" ${v===vehicle?"checked":""}>
               ${VEHICLE_SVG[v]}
-              <b>${v}</b>
+              <b>${esc(ICONS[v].label)}</b>
             </label>
           `).join("")}
         </div>
@@ -513,6 +561,7 @@ function renderStampForm(box, s){
           <input type="number" id="f-STAR3" value="${esc(r.STAR3||"")}" min="1" placeholder="e.g. 9">
         </div>
         <div class="hint">At ${r.STAR1||"?"} → ★ · at ${r.STAR2||"?"} → ★★ · at ${r.STAR3||"?"} → ★★★</div>
+        <div id="starWarn">${starWarnHtml(s)}</div>
       </div>
 
       <div class="field">
@@ -589,6 +638,13 @@ function renderStampForm(box, s){
     });
   });
 
+  // category
+  box.querySelector("#f-CATEGORY").onchange = e => {
+    r.CATEGORY = e.target.value;
+    box.querySelector("#catNote").innerHTML = stampCatNote(s);
+    renderList();
+  };
+
   // task checkboxes
   box.querySelectorAll("#taskList input[type=checkbox]").forEach(cb => {
     cb.onchange = () => {
@@ -596,6 +652,7 @@ function renderStampForm(box, s){
       if (cb.checked) { if (!s.tasks.includes(id)) s.tasks.push(id); }
       else { s.tasks = s.tasks.filter(x => x !== id); }
       renderList();
+      updateStarWarn(box, s);
       // update in-place styling
       cb.closest(".item").classList.toggle("on", cb.checked);
     };
@@ -630,7 +687,7 @@ function renderStampForm(box, s){
 
 function refreshSim(box, s){
   const r = s.row;
-  const vehicle = String(r.VEHICLE||"TRAIN").toUpperCase();
+  const vehicle = ICONS[key(r.VEHICLE)] ? key(r.VEHICLE) : "train";
   const maxT = Math.max(+r.STAR1||0, +r.STAR2||0, +r.STAR3||0, 1);
   const slider = box.querySelector("#simSlider");
   if (slider){
@@ -644,6 +701,7 @@ function refreshSim(box, s){
   const rank = stars === 3 ? r.RANK3 : stars === 2 ? r.RANK2 : stars === 1 ? r.RANK1 : "";
   const allDone = simProgress >= (+r.STAR3||0);
 
+  updateStarWarn(box, s);
   const prev = box.querySelector("#stampPreview");
   if (prev) prev.innerHTML = stampPreviewHtml(vehicle, r, stars, rank, allDone);
   const ex = box.querySelector("#simExplain");
@@ -657,7 +715,7 @@ function refreshSim(box, s){
 function stampPreviewHtml(vehicle, r, stars, rank, allDone){
   return `
     <div class="emblem">
-      ${VEHICLE_SVG[vehicle] || VEHICLE_SVG.TRAIN}
+      ${VEHICLE_SVG[vehicle] || VEHICLE_SVG.train}
       <b>${esc(r.TITLE || "STAMP")}</b>
     </div>
     <h3>${esc(r.TITLE || "")}</h3>
@@ -691,7 +749,7 @@ function renderTaskForm(box, t){
   box.innerHTML = `
     <div class="form">
       <h2>${esc(r.LABEL || "(untitled task)")}</h2>
-      <div class="sub">Used by ${usedBy.length} stamp${usedBy.length===1?"":"s"}</div>
+      <div class="sub">Used by ${usedBy.length} rank${usedBy.length===1?"":"s"}</div>
 
       <div class="field">
         <label>Task ID</label>
@@ -720,17 +778,34 @@ function renderTaskForm(box, t){
         <label>What counts as completing this task?</label>
         <select id="f-SCOPE">
           <option value="behavior" ${scope==="behavior"?"selected":""}>A general behavior (any story / any spot / any tour)</option>
-          <option value="item"     ${scope==="item"?"selected":""}>A specific item (this one tour, this one spot, etc.)</option>
-          <option value="category" ${scope==="category"?"selected":""}>Anything in a category (any rail site, any business…)</option>
+          <option value="item"     ${scope==="item"?"selected":""}>One specific place, story, photo spot or tour (pick it by name)</option>
+          <option value="category" ${scope==="category"?"selected":""}>Places in a category (any one, or a number of different ones)</option>
         </select>
       </div>
 
       <div class="field" id="targetField">
-  <label>Target</label>
-  ${targetInputHtml(scope, r.TARGET || "")}
-  <div class="target-help" id="targetHelp">${targetHelpText(scope)}</div>
-  <div class="target-explain" id="targetExplain">${explainTarget(scope, r.TARGET || "")}</div>
-</div>
+        <label>${scope === "item" ? "Which one?" : scope === "category" ? "Which category?" : "Which behavior?"}</label>
+        ${targetInputHtml(scope, r.TARGET || "")}
+        <div class="target-help" id="targetHelp">${targetHelpText(scope)}</div>
+        <div class="target-explain" id="targetExplain">${explainTarget(scope, r.TARGET || "")}</div>
+      </div>
+
+      ${scope === "category" ? `
+      <div class="field">
+        <label>How many different places?</label>
+        <input type="number" id="f-COUNT" min="1" value="${esc(r.COUNT||"")}" placeholder="1">
+        <div class="hint">Leave blank for "any one place". Enter 3 for "visit three different places in this category". Visiting the same place twice counts once.</div>
+      </div>` : ""}
+
+      <div class="field">
+        <label>What the button does for the visitor</label>
+        <div class="target-explain" id="btnExplain">${buttonExplainHtml(r)}</div>
+      </div>
+
+      <div class="field">
+        <label>How it looks in the passport</label>
+        <div id="taskPreview">${taskPreviewHtml(r)}</div>
+      </div>
 
       ${behaviorWarning(scope, r)}
 
@@ -739,8 +814,9 @@ function renderTaskForm(box, t){
       <div class="field">
         <label>Used by these stamps</label>
         <div style="font-size:13px;color:${usedBy.length ? "#333" : "#9aa3ad"}">
-          ${usedBy.length ? usedBy.map(s => esc(s.row.TITLE||s.row.STAMP_ID)).join(", ") : "Not used by any stamp yet."}
+          ${usedBy.length ? usedBy.map(s => esc(s.row.TITLE||s.row.STAMP_ID)).join(", ") : "Not used by any rank yet."}
         </div>
+        ${taskRankNote(usedBy)}
       </div>
 
       <div class="actions">
@@ -752,9 +828,15 @@ function renderTaskForm(box, t){
   `;
 
   bindText(box, "f-TASK_ID", v => { r.TASK_ID = v; renderList(); });
-  bindText(box, "f-LABEL",   v => { r.LABEL = v; renderList(); });
-  bindText(box, "f-HINT",    v => { r.HINT = v; });
-  bindText(box, "f-BTN",     v => { r.BTN = v; });
+  const refreshExtras = () => {
+    $("targetExplain").innerHTML = explainTarget(scope, r.TARGET || "");
+    $("btnExplain").innerHTML = buttonExplainHtml(r);
+    $("taskPreview").innerHTML = taskPreviewHtml(r);
+  };
+  bindText(box, "f-LABEL",   v => { r.LABEL = v; renderList(); refreshExtras(); });
+  bindText(box, "f-HINT",    v => { r.HINT = v; refreshExtras(); });
+  bindText(box, "f-BTN",     v => { r.BTN = v; refreshExtras(); });
+  bindText(box, "f-COUNT",   v => { r.COUNT = v; refreshExtras(); });
 
   $("f-SCOPE").onchange = e => {
     r.SCOPE = e.target.value;
@@ -763,17 +845,10 @@ function renderTaskForm(box, t){
     renderForm();
   };
 
-  // target input depends on scope
-const tgt = box.querySelector("#targetInput");
-if (tgt){
-  const update = () => {
-    r.TARGET = tgt.value;
-    const ex = box.querySelector("#targetExplain");
-    if (ex) ex.outerHTML = explainTarget(scope, r.TARGET).replace(/^/, '<div class="target-explain" id="targetExplain">').replace(/$/, '</div>');
-  };
-  tgt.oninput = update;
-  tgt.onchange = update;
-}
+  const tgt = box.querySelector("#targetInput");
+  if (tgt){
+    tgt.oninput = tgt.onchange = () => { r.TARGET = tgt.value.trim(); refreshExtras(); };
+  }
 
   $("dupTask").onclick = () => {
     const nr = Object.assign({}, r);
@@ -806,49 +881,87 @@ function targetInputHtml(scope, value){
   if (scope === "category"){
     return `<select id="targetInput">
       <option value="">— pick a category —</option>
-      ${Object.entries(CATEGORIES).map(([k,v]) =>
-        `<option value="${k}" ${k===value?"selected":""}>${k} — ${esc(v)}</option>`).join("")}
+      ${Object.entries(CATEGORIES).map(([k,c]) =>
+        `<option value="${k}" ${k===String(value).toUpperCase()?"selected":""}>${esc(c.label)} (${k}) · ${c.ranked ? "ranked" : "not ranked"}</option>`).join("")}
     </select>`;
   }
-  // item: free text (we don't know the tour/spot ids here)
-  return `<input type="text" id="targetInput" value="${esc(value)}" placeholder="e.g. TOUR-DOWNTOWN or ST-TRAM">
-    <div class="target-help">Enter the exact id of the tour, spot, location, or child marker.</div>`;
+  // item: pick by name. Typing narrows the list; the ID is what gets saved.
+  const items = allItems();
+  if (!items.length){
+    return `<input type="text" id="targetInput" value="${esc(value)}" placeholder="Exact ID">
+      <div class="target-help">Could not load the map's CSV files from this folder, so names can't be offered. Type the exact ID.</div>`;
+  }
+  return `<input type="text" id="targetInput" list="itemList" value="${esc(value)}" placeholder="Start typing a name or an ID">
+    <datalist id="itemList">
+      ${items.map(i => `<option value="${esc(i.id)}">${esc(i.name)} · ${esc(i.type)}</option>`).join("")}
+    </datalist>`;
 }
 
 function targetHelpText(scope){
-  if (scope === "behavior") return "Uses a hook the site already fires. No code change needed.";
-  if (scope === "category") return "Counts any completion that happens to a site in this category.";
-  return "Counts only the specific item with this id.";
+  if (scope === "behavior") return "Uses a hook the map already fires. No code change needed.";
+  if (scope === "category") return "Counts a visit to any place, story, photo spot or tour in this category.";
+  return "Counts only this one thing. The map can award it when the visitor opens it, scans its QR, or checks in.";
 }
 
 function explainTarget(scope, target){
   const t = String(target||"").trim();
-  if (!t){
-    return `<div class="target-explain empty" id="targetExplain">Nothing selected yet — this task won't fire until you pick a target.</div>`;
-  }
+  if (!t) return `<span style="color:#a33">Nothing picked yet. This task can't be completed until you pick something.</span>`;
 
   if (scope === "behavior"){
-    if (t.toLowerCase() === "story" || t.toLowerCase() === "stories")
-      return `<b>Fires when:</b> the player opens <b>any story</b> (sparkle marker). Counts once per story.`;
-    if (t.toLowerCase() === "spot")
-      return `<b>Fires when:</b> the player opens <b>any photo spot</b> (camera marker) or scans <b>any QR sign</b>. Counts once per spot.`;
-    if (t.toLowerCase() === "tour")
-      return `<b>Fires when:</b> the player reaches the <b>last stop of any tour</b>. Counts once per tour.`;
-    return `<b>Fires when:</b> the site emits a <code>${esc(t)}</code> event. The site doesn't currently fire that event — this task won't count until a developer adds a hook.`;
+    const k = t.toLowerCase();
+    if (k === "story" || k === "stories") return `<b>Completed when:</b> the visitor opens <b>any story</b> (sparkle marker).`;
+    if (k === "spot")  return `<b>Completed when:</b> the visitor opens <b>any photo spot</b> or scans <b>any spot QR sign</b>.`;
+    if (k === "tour")  return `<b>Completed when:</b> the visitor reaches the <b>last stop of any tour</b>.`;
+    return `<span style="color:#a33">The map doesn't fire a "${esc(t)}" event, so this task can never be completed. Pick story, spot or tour.</span>`;
   }
-
   if (scope === "item"){
-    return `<b>Fires when:</b> the player completes <b>specifically</b> <code>${esc(t)}</code> — that one tour, spot, location, or child marker. Nothing else counts toward this task.`;
+    const it = itemInfo(t);
+    if (!it) return allItems().length
+      ? `<span style="color:#a33">No place, story, photo spot or tour has the ID <code>${esc(t)}</code>, so this task can never be completed.</span>`
+      : `<b>Completed when:</b> the visitor opens <code>${esc(t)}</code>.`;
+    return `<b>Completed when:</b> the visitor opens <b>${esc(it.name)}</b> (${esc(it.type)}, <code>${esc(it.id)}</code>), scans its QR code, or checks in nearby.`;
   }
-
   if (scope === "category"){
-    const label = CATEGORIES[t.toUpperCase()] || t;
-    return `<b>Fires when:</b> the player completes <b>anything tagged ${esc(t)}</b> (${esc(label)}) — a story, spot, location card, or tour with that category. Each completion counts once.`;
+    const c = CATEGORIES[t.toUpperCase()];
+    if (!c) return `<span style="color:#a33">There is no category called ${esc(t)} in categories.csv.</span>`;
+    const n = allItems().filter(i => i.cat === t.toUpperCase()).length;
+    return `<b>Completed when:</b> the visitor visits <b>anything in ${esc(c.label)}</b>` + (n ? ` (${n} item${n===1?"":"s"} on the map right now)` : ` <span style="color:#a33">(nothing on the map has this category yet, so it can't be completed)</span>`) + `.`;
   }
-
   return "";
 }
-  
+
+/* What the button does, worked out the same way the map works it out */
+function buttonExplainHtml(r){
+  const scope = String(r.SCOPE||"behavior").toLowerCase();
+  const target = String(r.TARGET||"").trim();
+  const btn = String(r.BTN||"").trim();
+  if (!btn) return `No button text, so visitors will see the label and hint but no button.`;
+  if (!target) return `Pick a target above and the button will have something to do.`;
+  if (scope === "behavior"){
+    const k = target.toLowerCase().replace(/s$/, "");
+    if (k === "story") return `<b>${esc(btn)}</b> shows every story on the map and zooms to them.`;
+    if (k === "spot")  return `<b>${esc(btn)}</b> shows every photo spot on the map and zooms to them.`;
+    if (k === "tour")  return `<b>${esc(btn)}</b> opens the list of tours.`;
+    return `<span style="color:#a33">This button won't do anything for "${esc(target)}".</span>`;
+  }
+  if (scope === "item"){
+    const it = itemInfo(target);
+    if (it && it.type === "tour") return `<b>${esc(btn)}</b> starts the tour <b>${esc(it.name)}</b>.`;
+    return `<b>${esc(btn)}</b> flies the map to <b>${esc(it ? it.name : target)}</b> and highlights it. It does <u>not</u> open it or light its stamp: the visitor still has to do that.`;
+  }
+  if (scope === "category") return `<b>${esc(btn)}</b> frames every place, story and spot in <b>${esc(catLabel(target))}</b> on the map.`;
+  return "";
+}
+
+function taskPreviewHtml(r){
+  const need = parseInt(r.COUNT, 10) || 1;
+  return `<div class="ptask"><div class="chk"></div><div>
+    <div class="lbl">${esc(r.LABEL || "(no label)")}${need > 1 ? `<span class="cnt">0/${need}</span>` : ""}</div>
+    ${r.HINT ? `<div class="th">${esc(r.HINT)}</div>` : ""}
+    ${r.BTN ? `<button type="button" class="pbtn">${esc(r.BTN)}</button>` : ""}
+  </div></div>`;
+}
+
 function behaviorWarning(scope, r){
   if (scope !== "behavior") return "";
   const target = String(r.TARGET||"").trim();
@@ -867,18 +980,158 @@ function behaviorWarning(scope, r){
 function describeTask(row){
   const scope = String(row.SCOPE||"behavior").toLowerCase();
   const target = String(row.TARGET||"").trim();
+  const need = parseInt(row.COUNT, 10) || 1;
   if (scope === "behavior"){
-    if (target.toLowerCase() === "stories" || target.toLowerCase() === "story") return "Any story opened";
-    if (target.toLowerCase() === "spot") return "Any spot opened or QR scanned";
-    if (target.toLowerCase() === "tour") return "Any tour completed";
+    const k = target.toLowerCase();
+    if (k === "stories" || k === "story") return "Any story opened";
+    if (k === "spot") return "Any photo spot opened or QR scanned";
+    if (k === "tour") return "Any tour finished";
     return "Behavior: " + (target || "not set");
   }
-  if (scope === "item") return "Specific item: " + (target || "not set");
-  if (scope === "category"){
-    const label = CATEGORIES[target.toUpperCase()] || target;
-    return "Anything in " + label;
+  if (scope === "item"){
+    const it = itemInfo(target);
+    return "Open " + (it ? it.name + " (" + it.type + ")" : (target || "(not set)"));
   }
+  if (scope === "category") return (need > 1 ? "Visit " + need + " different places in " : "Visit anything in ") + (target ? catLabel(target) : "(not set)");
   return target || "—";
+}
+
+/* ============================================================
+   Rank helpers
+   ============================================================ */
+
+// A rank track is hidden from visitors when its category is not set to earn ranks
+function stampIsOff(s){
+  const c = String(s.row.CATEGORY||"").trim().toUpperCase();
+  return !!c && !catRanked(c);
+}
+function stampCatNote(s){
+  const c = String(s.row.CATEGORY||"").trim().toUpperCase();
+  if (!c) return `<div class="hint">With no category, this rank is always on.</div>`;
+  if (!CATEGORIES[c]) return `<div class="warn-inline">There is no category called ${esc(c)}.</div>`;
+  return catRanked(c)
+    ? `<div class="ranknote ok">${esc(catLabel(c))} is set to earn ranks, so visitors see this rank.</div>`
+    : `<div class="ranknote off">${esc(catLabel(c))} is <b>not</b> set to earn ranks, so visitors <b>won't see this rank</b>. Its tasks still show under "More to do". Turn ranking on in the Categories tab.</div>`;
+}
+function starWarnHtml(s){
+  const r = s.row, n = s.tasks.length, out = [];
+  [["★", r.STAR1], ["★★", r.STAR2], ["★★★", r.STAR3]].forEach(([sym, v]) => {
+    const need = parseInt(v, 10);
+    if (need && need > n) out.push(`${sym} needs ${need} tasks, but this rank only has ${n}. Nobody can earn it.`);
+  });
+  const a = +r.STAR1 || 0, b = +r.STAR2 || 0, c = +r.STAR3 || 0;
+  if ((b && a && b <= a) || (c && b && c <= b)) out.push(`The star thresholds should go up: ★ < ★★ < ★★★.`);
+  return out.length ? `<div class="warn-inline">${out.map(esc).join("<br>")}</div>` : "";
+}
+function updateStarWarn(box, s){
+  const el = box.querySelector("#starWarn");
+  if (el) el.innerHTML = starWarnHtml(s);
+}
+function taskRankNote(usedBy){
+  if (!usedBy.length) return `<div class="ranknote off">Not part of any rank, so it shows under "More to do" and earns no stars.</div>`;
+  const live = usedBy.filter(s => !stampIsOff(s));
+  if (!live.length) return `<div class="ranknote off">Every rank this belongs to is switched off, so it shows under "More to do" and earns no stars.</div>`;
+  return `<div class="ranknote ok">Counts toward ${live.map(s => esc(s.row.TITLE || s.row.STAMP_ID)).join(", ")}.</div>`;
+}
+
+/* ============================================================
+   Category form (categories.csv)
+   ============================================================ */
+
+function catUsage(code){
+  const u = code.toUpperCase();
+  return {
+    stamps: stamps.filter(s => String(s.row.CATEGORY||"").trim().toUpperCase() === u).length,
+    tasks: tasks.filter(t => String(t.row.SCOPE||"").toLowerCase() === "category" && String(t.row.TARGET||"").trim().toUpperCase() === u).length,
+    items: allItems().filter(i => i.cat === u).length
+  };
+}
+
+function renderCategoryForm(box, code){
+  const c = CATEGORIES[code];
+  if (!c){ selected = null; renderForm(); return; }
+  const u = catUsage(code);
+  box.innerHTML = `
+    <div class="form">
+      <h2>${esc(c.label)}</h2>
+      <div class="sub">${u.items} item${u.items===1?"":"s"} on the map · ${u.stamps} rank${u.stamps===1?"":"s"} · ${u.tasks} task${u.tasks===1?"":"s"} aimed at it</div>
+
+      <div class="field">
+        <label>Code</label>
+        <input type="text" value="${esc(code)}" readonly style="background:#f6f8fb">
+        <div class="hint">This is what goes in the CATEGORY column of your location files.</div>
+      </div>
+
+      <div class="field">
+        <label>Display name</label>
+        <input type="text" id="c-label" value="${esc(c.label)}">
+      </div>
+
+      <div class="field">
+        <label>Color</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="color" id="c-color" value="${esc(c.color)}" style="width:44px;height:34px;padding:0;flex:none">
+          <input type="text" id="c-hex" value="${esc(c.color)}">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Rank system</label>
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:400;color:#333"><input type="checkbox" id="c-ranked" ${c.ranked ? "checked" : ""}> This category can earn passport ranks</label>
+        <div id="c-rankNote" class="hint">${c.ranked ? "Ranks that belong to this category are shown to visitors." : "Places and tasks still work, but no stars or ranks come from this category. You can turn this on later without rebuilding anything."}</div>
+      </div>
+
+      <div class="field">
+        <label>Icon (shown when a place has no photo)</label>
+        <div class="icongrid" id="c-icons">
+          ${Object.entries(ICONS).map(([k, i]) =>
+            `<button type="button" class="ic ${k === c.icon ? "on" : ""}" data-icon="${k}" title="${esc(i.label)}"><img src="${iconUrl(k)}" alt="${esc(i.label)}"></button>`).join("")}
+        </div>
+      </div>
+
+      <div class="actions">
+        <span class="grow"></span>
+        <button id="c-del" class="small warn" type="button">Delete category</button>
+      </div>
+    </div>`;
+
+  bindText(box, "c-label", v => { c.label = v; box.querySelector("h2").textContent = v; renderList(); });
+  const colorIn = box.querySelector("#c-color"), hexIn = box.querySelector("#c-hex");
+  colorIn.oninput = () => { c.color = colorIn.value; hexIn.value = c.color; renderList(); };
+  hexIn.oninput = () => { const v = hexIn.value.trim(); if (/^#[0-9a-f]{6}$/i.test(v)){ c.color = v; colorIn.value = v; renderList(); } };
+  box.querySelector("#c-ranked").onchange = e => {
+    c.ranked = e.target.checked;
+    box.querySelector("#c-rankNote").textContent = c.ranked ? "Ranks that belong to this category are shown to visitors." : "Places and tasks still work, but no stars or ranks come from this category. You can turn this on later without rebuilding anything.";
+    renderList();
+  };
+  box.querySelectorAll("#c-icons .ic").forEach(b => b.onclick = () => {
+    c.icon = b.dataset.icon;
+    box.querySelectorAll("#c-icons .ic").forEach(x => x.classList.toggle("on", x === b));
+    renderList();
+  });
+  box.querySelector("#c-del").onclick = () => {
+    const bits = [];
+    if (u.items) bits.push(u.items + " place(s) on the map use it");
+    if (u.stamps) bits.push(u.stamps + " rank(s) belong to it");
+    if (u.tasks) bits.push(u.tasks + " task(s) aim at it");
+    if (!confirm(bits.length ? `${bits.join(", ")}. They will lose this category. Delete ${code}?` : `Delete ${code}?`)) return;
+    delete CATEGORIES[code];
+    selected = null;
+    render();
+    toast("Deleted category " + code);
+  };
+}
+
+function addCategory(){
+  const code = (prompt("Short code for the new category (letters and numbers, e.g. SCHOOL):") || "")
+    .trim().toUpperCase().replace(/[^A-Z0-9_]/g, "");
+  if (!code) return;
+  if (CATEGORIES[code]) return toast(code + " already exists.");
+  const label = (prompt("Display name for " + code + ":", code) || code).trim();
+  CATEGORIES[code] = { label, color:"#888888", icon:"generic", ranked:false };
+  selected = { kind:"category", ref:code };
+  render();
+  toast("Added " + code + ". Pick its color and icon on the right.");
 }
 
 /* ============================================================
@@ -891,7 +1144,7 @@ function addStamp(){
   let n = 1, id;
   do { id = "STAMP-" + String(n).padStart(3,"0"); n++; } while (existing.some(x => key(x)===key(id)));
 
-  const row = { STAMP_ID:id, TITLE:"New Stamp", VEHICLE:"TRAIN", STAR1:"3", STAR2:"6", STAR3:"9",
+  const row = { STAMP_ID:id, TITLE:"New Stamp", VEHICLE:"train", CATEGORY:"", STAR1:"2", STAR2:"4", STAR3:"6",
                 RANK1:"", RANK2:"", RANK3:"", GRAND_RANK: $("grandInput").value || "", TASKS:"" };
   headers.stamp.forEach(h => { if (!(h in row)) row[h] = ""; });
   const s = { row, tasks: [] };
@@ -908,7 +1161,7 @@ function addTask(){
   let n = 1, id;
   do { id = "task-" + String(n).padStart(3,"0"); n++; } while (existing.some(x => key(x)===key(id)));
 
-  const row = { TASK_ID:id, LABEL:"New Task", HINT:"", BTN:"", SCOPE:"behavior", TARGET:"" };
+  const row = { TASK_ID:id, LABEL:"New Task", HINT:"", BTN:"", SCOPE:"behavior", TARGET:"", COUNT:"" };
   headers.task.forEach(h => { if (!(h in row)) row[h] = ""; });
   const t = { row };
   tasks.push(t);
@@ -936,10 +1189,14 @@ $("publishBtn").onclick = () => {
   const stampsCSV = Papa.unparse({ fields: headers.stamp, data: stampRows });
   const tasksCSV  = Papa.unparse({ fields: headers.task,  data: taskRows  });
 
-  download("stamps.csv", stampsCSV);
-  setTimeout(() => download("tasks.csv", tasksCSV), 200);
+  const catRows = Object.entries(CATEGORIES).map(([CODE, c]) => ({ CODE, LABEL:c.label, COLOR:c.color, ICON:c.icon, RANKED:c.ranked ? "yes" : "no" }));
+  const catsCSV = Papa.unparse({ fields:["CODE","LABEL","COLOR","ICON","RANKED"], data:catRows });
 
-  toast(`Downloaded stamps.csv (${stamps.length}) and tasks.csv (${tasks.length})`);
+  download("stamps.csv", stampsCSV);
+  setTimeout(() => download("tasks.csv", tasksCSV), 150);
+  setTimeout(() => download("categories.csv", catsCSV), 300);
+
+  toast(`Downloaded stamps.csv (${stamps.length}), tasks.csv (${tasks.length}) and categories.csv (${catRows.length})`);
 };
 
 function pick(row, cols){
@@ -976,5 +1233,7 @@ function toast(msg){
   toastTimer = setTimeout(() => t.classList.remove("on"), 2600);
 }
 </script>
+<script src="publish.js"></script>
+<script>GHPublish.attach({ buttons: ["publishBtn"] });</script>
 </body>
 </html>

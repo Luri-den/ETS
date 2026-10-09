@@ -102,6 +102,11 @@ small{color:#777;font-size:11px;display:block;margin-top:3px}
     </div>
     <small>Visitors can't pan or zoom outside the blue area. Leave zoom limits blank for no limit.</small>
 
+    <h2>Passport</h2>
+    <label class="chk"><input type="checkbox" data-k="PASSPORT"> Show the History Passport</label>
+    <label class="chk"><input type="checkbox" data-k="PASSPORT_RANKS"> Use stars and ranks</label>
+    <small>Turn ranks off to keep the discovery collection and tasks without any stars. Which categories can earn ranks is set per category in the Places editor.</small>
+
     <div id="warn"></div>
   </aside>
 </main>
@@ -120,7 +125,9 @@ const DEFAULTS = {
   CENTER_LAT: "39.647531", CENTER_LNG: "-85.138892", ZOOM: "14",
   BOUNDS_WEST: "-85.4", BOUNDS_SOUTH: "39.45", BOUNDS_EAST: "-84.95", BOUNDS_NORTH: "39.8",
   MIN_ZOOM: "", MAX_ZOOM: "",
-  FIT_TO_MARKERS: "yes"
+  FIT_TO_MARKERS: "yes",
+  PASSPORT: "yes",
+  PASSPORT_RANKS: "yes"
 };
 const ORDER = Object.keys(DEFAULTS);
 

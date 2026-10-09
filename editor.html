@@ -234,14 +234,17 @@ const uid = () => Math.random().toString(36).slice(2,8);
   }
 })();
 
+const isYes = v => ["yes", "true", "1", "y"].includes(String(v || "").trim().toLowerCase());
+
 /* Category colors — mirrors SITE.colors in Demo2.html */
 let CATEGORIES = {
-  CIV:   { label:"Civic",       color:"#E2E1E0", icon:"courthouse" },
-  COMM:  { label:"Commercial",  color:"#E47303", icon:"store" },
-  RES:   { label:"Residential", color:"#BDD76B", icon:"house" },
-  IND:   { label:"Industry",    color:"#AF350A", icon:"factory" },
-  RAIL:  { label:"Rail",        color:"#8B6F47", icon:"train" },
-  CANAL: { label:"Canal",       color:"#4A7C8C", icon:"boat" }
+  CIV:      { label:"Civic",       color:"#E2E1E0", icon:"courthouse", ranked:false },
+  COMM:     { label:"Commercial",  color:"#E47303", icon:"store",      ranked:false },
+  RES:      { label:"Residential", color:"#BDD76B", icon:"house",      ranked:false },
+  IND:      { label:"Industrial",  color:"#AF350A", icon:"factory",    ranked:true },
+  RAIL:     { label:"Rail",        color:"#8B6F47", icon:"train",      ranked:true },
+  CANAL:    { label:"Canal",       color:"#4A7C8C", icon:"boat",       ranked:true },
+  DOWNTOWN: { label:"Downtown",    color:"#7B5EA7", icon:"hotel",      ranked:true }
 };
 const iconKeyFor = cat => {
   const c = CATEGORIES[String(cat || "").trim().toUpperCase() || DEFAULT_CAT];
@@ -255,8 +258,8 @@ function pinColor(cat){
 const DEFAULT_CAT = "COMM";
 
 /* Preserve exact header order from the source files */
-const LOC_COLS  = ["ID","NAME","EST.","LAT","LONG","DETAILS","CATEGORY"];
-const CHILD_COLS= ["CHILD_ID","PARENT_ID","NAME","HIST_NAMES","ADDRESS","DETAILS","LAT","LONG","CONNECTION","CATEGORY"];
+const LOC_COLS  = ["ID","NAME","EST.","LAT","LONG","DETAILS","CATEGORY","MAJOR","RADIUS"];
+const CHILD_COLS= ["CHILD_ID","PARENT_ID","NAME","HIST_NAMES","ADDRESS","DETAILS","LAT","LONG","CONNECTION","CATEGORY","MAJOR","RADIUS"];
 
 /* ---------- State ---------- */
 let parents = [];      // {row, ll, marker, el, kids:[]}
@@ -632,6 +635,13 @@ function renderParentForm(box, p){
       </div>
 
       <div class="field">
+        <label>Passport</label>
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:normal;color:var(--ink)"><input type="checkbox" id="f-MAJOR" ${isYes(r.MAJOR) ? "checked" : ""}> Major site (listed in the passport collection)</label>
+        <div class="pair" style="margin-top:6px"><div><label>Check-in radius (m)</label><input type="text" id="f-RADIUS" value="${esc(r.RADIUS||"")}" placeholder="50"></div><div></div></div>
+        <div class="sub">QR link for this place: <code>Demo2.html?site=${esc(r.ID||"")}</code></div>
+      </div>
+
+      <div class="field">
         <label>Photo</label>
         ${photoBlock(r.ID)}
       </div>
@@ -666,6 +676,8 @@ function renderParentForm(box, p){
   bindText(box, "f-LAT",      v => { r.LAT = v; syncLL(p, v, r.LONG); });
   bindText(box, "f-LONG",     v => { r.LONG = v; syncLL(p, r.LAT, v); });
   bindText(box, "f-DETAILS",  v => { r.DETAILS = v; });
+  box.querySelector("#f-MAJOR").onchange = e => { r.MAJOR = e.target.checked ? "yes" : ""; };
+  bindText(box, "f-RADIUS", v => { r.RADIUS = v; });
 
   box.querySelector("#f-CATEGORY").onchange = e => {
     r.CATEGORY = e.target.value;
@@ -791,6 +803,13 @@ function renderChildForm(box, c){
       </div>
 
       <div class="field">
+        <label>Passport</label>
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:normal;color:var(--ink)"><input type="checkbox" id="f-MAJOR" ${isYes(r.MAJOR) ? "checked" : ""}> Major site (listed in the passport collection)</label>
+        <div class="pair" style="margin-top:6px"><div><label>Check-in radius (m)</label><input type="text" id="f-RADIUS" value="${esc(r.RADIUS||"")}" placeholder="50"></div><div></div></div>
+        <div class="sub">QR link for this place: <code>Demo2.html?site=${esc(r.CHILD_ID||"")}</code></div>
+      </div>
+
+      <div class="field">
         <label>Photo</label>
         ${photoBlock(r.CHILD_ID)}
       </div>
@@ -811,6 +830,8 @@ function renderChildForm(box, c){
   bindText(box, "f-LAT",       v => { r.LAT = v; syncLL(c, v, r.LONG); });
   bindText(box, "f-LONG",      v => { r.LONG = v; syncLL(c, r.LAT, v); });
   bindText(box, "f-DETAILS",   v => { r.DETAILS = v; });
+  box.querySelector("#f-MAJOR").onchange = e => { r.MAJOR = e.target.checked ? "yes" : ""; };
+  bindText(box, "f-RADIUS", v => { r.RADIUS = v; });
 
   box.querySelector("#f-CATEGORY").onchange = e => {
     r.CATEGORY = e.target.value;
@@ -889,7 +910,7 @@ function wirePhotoBlock(scope, id){
   const thumb = scope.querySelector("#photoThumb");
   const btn   = scope.querySelector("#uploadPhoto");
   const input = scope.querySelector("#photoInput");
-    const photos = photos;
+  const photos = thumb;
   if (!thumb || !btn || !input) return;
 
   // probe photos/{id}.{ext}
@@ -1059,7 +1080,7 @@ function renderCats(){
       `<span class="dot" style="background:${esc(c.color)}"></span>` +
       `<img class="cicon" src="${iconUrl(c.icon)}" alt="">` +
       `<span class="name">${esc(code)}</span>` +
-      `<span class="id">${usage(code)}</span>`;
+      `<span class="id">${c.ranked ? "ranked · " : ""}${usage(code)}</span>`;
     row.onclick = () => select("category", code);
     box.appendChild(row);
   });
@@ -1103,6 +1124,12 @@ function renderCategoryForm(box, code){
       </div>
 
       <div class="field">
+        <label>Ranking</label>
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:normal;color:var(--ink)"><input type="checkbox" id="c-ranked" ${c.ranked ? "checked" : ""}> This category can earn passport ranks</label>
+        <div class="sub">Off: places and tasks in this category still work, but no stars or ranks come from it.</div>
+      </div>
+
+      <div class="field">
         <label>Icon (shown when a place has no photo)</label>
         <div class="icongrid" id="c-icons">
           ${Object.entries(ICONS).map(([k, i]) =>
@@ -1118,6 +1145,7 @@ function renderCategoryForm(box, code){
     </div>`;
 
   bindText(box, "c-label", v => { c.label = v; });
+  box.querySelector("#c-ranked").onchange = e => { c.ranked = e.target.checked; renderCats(); };
 
   const colorIn = box.querySelector("#c-color"), hexIn = box.querySelector("#c-hex");
   colorIn.oninput = () => { c.color = colorIn.value; hexIn.value = c.color; recolor(); };
@@ -1152,13 +1180,14 @@ $("addCat").onclick = () => {
   if (!code) return;
   if (CATEGORIES[code]) return toast(code + " already exists.");
   const label = (prompt("Name for " + code + ":", code) || code).trim();
-  CATEGORIES[code] = { label, color: "#888888", icon: "generic" };
+  CATEGORIES[code] = { label, color: "#888888", icon: "generic", ranked: false };
   select("category", code);
   toast("Added " + code + ". Pick its color and icon on the right.");
 };
 
 function ingestCats(parsed){
   const next = {};
+  const hasRanked = parsed.data.length && Object.prototype.hasOwnProperty.call(parsed.data[0], "RANKED");
   parsed.data.forEach(r => {
     const code = String(r.CODE||"").trim().toUpperCase();
     const color = String(r.COLOR||"").trim();
@@ -1168,7 +1197,8 @@ function ingestCats(parsed){
     next[code] = {
       label: String(r.LABEL||"").trim() || code,
       color,
-      icon: ICONS[icon] ? icon : ((old && old.icon) || "generic")
+      icon: ICONS[icon] ? icon : ((old && old.icon) || "generic"),
+      ranked: hasRanked ? isYes(r.RANKED) : !!(old && old.ranked)
     };
   });
   if (!Object.keys(next).length) return;
@@ -1197,8 +1227,8 @@ $("publishBtn").onclick = () => {
 
   download("locations.csv", locCSV);
   download("childmarkers.csv", childCSV);
-    const catRows = Object.entries(CATEGORIES).map(([CODE, c]) => ({ CODE, LABEL: c.label, COLOR: c.color, ICON: c.icon }));
-  download("categories.csv", Papa.unparse({ fields: ["CODE","LABEL","COLOR","ICON"], data: catRows }));
+    const catRows = Object.entries(CATEGORIES).map(([CODE, c]) => ({ CODE, LABEL: c.label, COLOR: c.color, ICON: c.icon, RANKED: c.ranked ? "yes" : "no" }));
+  download("categories.csv", Papa.unparse({ fields: ["CODE","LABEL","COLOR","ICON","RANKED"], data: catRows }));
 
   toast(`Downloaded ${parents.length} parents, ${children.length} children.`
         + (stagedPhotos.length ? ` Plus ${stagedPhotos.length} staged photos below.` : ""));
