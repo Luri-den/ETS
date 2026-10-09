@@ -6,3 +6,4 @@ IND,Industrial,#AF350A,factory,yes
 RAIL,Rail,#8B6F47,train,yes
 CANAL,Canal,#4A7C8C,boat,yes
 DOWNTOWN,Downtown,#7B5EA7,hotel,yes
+ARTCULTURE,ARTCULTURE,#ff00ff,bridge,no
