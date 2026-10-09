@@ -1,11 +1,12 @@
-ID,NAME,EST.,LAT,LONG,DETAILS,CATEGORY,USER NOTE
-CV-001,Canal House,1842,39.6400489455534,-85.1396868253759,"Built in 1842, this Greek Revival structure originally served as the office for the Whitewater Canal Company before functioning as a bank and private residence. It operates as a house museum featuring period furnishings, local Connersville-built furniture, and historical artifacts.",CANAL,None
-CV-002,Elmhurst,1831,39.6312537858979,-85.1454986209674,"Erected in 1831 by attorney Oliver H. Smith, it later became the home of Caleb Blood Smith, who served as Secretary of the Interior under President Abraham Lincoln. The estate was restored in 1941 and serves as a local Masonic lodge.",RES,None
-CV-003,Museum,1950,39.6423971036842,-85.1407117678909,"Located in downtown Connersville, the museum features Native American artifacts, a pioneer log cabin display, Whitewater Canal exhibits, and a rare automobile collection highlighting locally manufactured cars like the Cord and Empire.",CIV,None
-CV-004,Courthouse,1849,39.640879630266,-85.1405434460064,"Built in 1849 in the Greek Revival style, this is recognized as the second oldest continuously used courthouse in the state of Indiana.",CIV,None
-CV-005,Depot,1910,39.641552104107,-85.140815795288,"A volunteer-run, non-profit operating railroad museum that preserves a historic branch line connecting Connersville to Metamora. It offers scenic heritage train rides, seasonal excursions, and holiday events.",RAIL,None
-CV-006,Connor Cabin,1813,39.6442118245868,-85.1352833019203,"In March 1813, he officially laid out the original 62-lot plat for the town, which was subsequently named ""Connersville"" in his honor. He quickly expanded the settlement by establishing a sawmill, a grist mill, a general store, and a distillery.",RES,None
-CV-007,Historic Downtown,,39.641895,-85.138979,,COMM,Parent
-CV-008,Little Detroit,,39.6505347598936,-85.1434775182868,,IND,Parent
-CV-009,Canal SIte,,39.637283543126,-85.1428069447996,"In the canal's short 76 miles, it drops 490ft through a series of 56 locks!",CANAL,
-CV-010,Scary Witch House,,39.6407425380342,-85.1435686435761,It's a spooky scary witch house!,RES,
+ID,NAME,EST.,LAT,LONG,DETAILS,CATEGORY,USER NOTE,MAJOR,RADIUS
+CV-001,Canal House,1842,39.6400489455534,-85.1396868253759,"Built in 1842, this Greek Revival structure originally served as the office for the Whitewater Canal Company before functioning as a bank and private residence. It operates as a house museum featuring period furnishings, local Connersville-built furniture, and historical artifacts.",CANAL,None,,
+CV-002,Elmhurst,1831,39.6312537858979,-85.1454986209674,"Erected in 1831 by attorney Oliver H. Smith, it later became the home of Caleb Blood Smith, who served as Secretary of the Interior under President Abraham Lincoln. The estate was restored in 1941 and serves as a local Masonic lodge.",RES,None,,
+CV-003,Museum,1950,39.6423971036842,-85.1407117678909,"Located in downtown Connersville, the museum features Native American artifacts, a pioneer log cabin display, Whitewater Canal exhibits, and a rare automobile collection highlighting locally manufactured cars like the Cord and Empire.",CIV,None,,
+CV-004,Courthouse,1849,39.640879630266,-85.1405434460064,"Built in 1849 in the Greek Revival style, this is recognized as the second oldest continuously used courthouse in the state of Indiana.",CIV,None,,
+CV-005,Depot,1910,39.641552104107,-85.140815795288,"A volunteer-run, non-profit operating railroad museum that preserves a historic branch line connecting Connersville to Metamora. It offers scenic heritage train rides, seasonal excursions, and holiday events.",RAIL,None,,
+CV-006,Connor Cabin,1813,39.6442118245868,-85.1352833019203,"In March 1813, he officially laid out the original 62-lot plat for the town, which was subsequently named ""Connersville"" in his honor. He quickly expanded the settlement by establishing a sawmill, a grist mill, a general store, and a distillery.",RES,None,,
+CV-007,Historic Downtown,,39.641895,-85.138979,,COMM,Parent,,
+CV-008,Little Detroit,,39.6505347598936,-85.1434775182868,,IND,Parent,,
+CV-009,Canal SIte,,39.637283543126,-85.1428069447996,"In the canal's short 76 miles, it drops 490ft through a series of 56 locks!",CANAL,,,
+CV-010,Scary Witch House,,39.6407425380342,-85.1435686435761,It's a spooky scary witch house!,RES,,,
+CV-011,New Parent House,,39.6429036660589,-85.1520006376603,,RES,,,
