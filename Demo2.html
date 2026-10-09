@@ -2376,15 +2376,29 @@ $("res").onclick = e => {
     autoTimer = setTimeout(() => dismiss(replay), isStar && done ? 10000 : (isStar ? 6000 : 2600));
   }
 
-  function dismiss(replay){
-    if (!slam.classList.contains("on")) return;
-    clearTimeout(autoTimer);
-    if (stopConfetti) { stopConfetti(); stopConfetti = null; }
-    slam.classList.remove("on", "hit", "plain");
-    if (replay !== true) $("passportBtn").classList.add("nudge");
-    renderStampCards();
-    pump();
+ 
+function dismiss(replay){
+  if (!slam.classList.contains("on")) return;
+
+  clearTimeout(autoTimer);
+
+  if (stopConfetti) {
+    stopConfetti();
+    stopConfetti = null;
   }
+
+  slam.classList.remove("on", "hit", "plain");
+
+  if (replay !== true) {
+    $("passportBtn").classList.add("nudge");
+  }
+
+  renderStampCards();
+
+  // Allow the next queued stamp, star, or rank reward to display.
+  showing = false;
+  pump();
+}
 
   slam.addEventListener("click", () => dismiss());
   document.addEventListener("keydown", e => {
