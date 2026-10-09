@@ -1,60 +1,570 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connersville — Passport & Categories Editor</title>
+<style>
+  :root{
+    --line:#d7dde5; --accent:#2b6cb0; --ink:#1a202c;
+    --bg:#eef1f5; --panel:#fff; --muted:#6b7280;
+    --stamp:#D55E00; --gold:#FFC20E;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font:14px system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:var(--ink);background:var(--bg);overflow:hidden}
+
+  #top{position:absolute;z-index:20;top:0;left:0;right:0;height:52px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 12px}
+  #top h1{font-size:15px;margin:0;font-weight:600;white-space:nowrap}
+  #top .grow{flex:1}
+  #top .status{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px}
+  button{font:inherit;padding:6px 12px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;color:var(--ink)}
+  button:hover{background:#f6f8fb}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  button.primary:hover{background:#245a94}
+  button.warn{background:#fff5f5;border-color:#f3c2c2;color:#a33}
+  button.warn:hover{background:#ffecec}
+  button.small{padding:3px 8px;font-size:12px}
+  button.tabbtn{border-radius:0;border:none;border-bottom:3px solid transparent;background:transparent;padding:10px 18px;font-weight:600;color:var(--muted)}
+  button.tabbtn.on{color:var(--accent);border-bottom-color:var(--accent);background:#fff}
+
+  #tabs{position:absolute;z-index:15;top:52px;left:0;right:0;height:42px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:stretch}
+  #tabs .grow{flex:1}
+
+  #layout{position:absolute;top:94px;left:0;right:0;bottom:0;display:grid;grid-template-columns:280px 1fr;overflow:hidden}
+
+  #left{background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding-bottom:20px}
+  .sec{padding:10px 14px 4px}
+  .sec h2{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:8px 0 6px;font-weight:600;display:flex;align-items:center;justify-content:space-between}
+  .sec h2 button{padding:3px 8px;font-size:11px}
+
+  .row{display:flex;align-items:center;gap:8px;padding:8px 10px;margin:2px 6px;border-radius:6px;cursor:pointer;font-size:13px}
+  .row:hover{background:#f4f7fb}
+  .row.sel{background:#e6effa;font-weight:600}
+  .row .sw{width:26px;height:26px;border-radius:50%;background:#eee;display:flex;align-items:center;justify-content:center;flex:none}
+  .row .sw svg{width:18px;height:18px;display:block}
+  .row .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .badge{font-size:10px;padding:2px 6px;border-radius:999px;background:#eef3fb;color:#2b6cb0;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+
+  #right{background:var(--panel);overflow:auto;padding-bottom:30px}
+  .empty{padding:40px 24px;color:#9aa3ad;font-size:13px;text-align:center;line-height:1.6;max-width:520px;margin:0 auto}
+  .empty kbd{font:11px ui-monospace,Menlo,monospace;background:#f1f3f7;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 5px}
+
+  .form{padding:20px;max-width:860px;margin:0 auto}
+  .form h2{font-size:20px;margin:0 0 4px}
+  .form .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+
+  .field{margin-bottom:12px}
+  .field label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;font-weight:600}
+  .field input[type=text],.field input[type=number],.field textarea,.field select{
+    width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font:inherit;background:#fff;color:var(--ink)}
+  .field textarea{min-height:60px;resize:vertical;line-height:1.45}
+  .field input:focus,.field textarea:focus,.field select:focus{outline:2px solid #cfe0f3;border-color:#9dbde3}
+  .field .hint{font-size:11px;color:var(--muted);margin-top:3px}
+
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .icon-picker{display:flex;gap:6px;flex-wrap:wrap;max-height:150px;overflow-y:auto;border:1px solid var(--line);padding:8px;border-radius:6px}
+  .icon-picker label{display:flex;flex-direction:column;align-items:center;gap:2px;border:2px solid #eef1f5;border-radius:6px;padding:4px;cursor:pointer;background:#fff;width:64px}
+  .icon-picker label.on{border-color:var(--accent);background:#f0f6fc}
+  .icon-picker input{display:none}
+  .icon-picker svg{width:28px;height:28px}
+  .icon-picker span{font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+
+  .divider{height:1px;background:var(--line);margin:20px 0}
+  .task-list{margin-top:6px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .task-list .item{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid #eef1f5;background:#fff;cursor:pointer}
+  .task-list .item:last-child{border-bottom:none}
+  .task-list .item.on{background:#f0f6fc}
+  .task-list input{width:18px;height:18px;cursor:pointer}
+  .task-list .label{font-weight:600;font-size:13px}
+  .task-list .what{font-size:12px;color:var(--muted);margin-top:2px}
+
+  .actions{margin-top:20px;display:flex;gap:8px;flex-wrap:wrap}
+  .actions .grow{flex:1}
+  #toast{position:fixed;z-index:100;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#111827;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .18s, transform .18s;pointer-events:none;max-width:80vw;text-align:center}
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<div id="top">
+  <h1>Connersville — Passport & Categories Editor</h1>
+  <button id="pickStamps">Pick stamps.csv…</button>
+  <input id="fileStamps" type="file" accept=".csv,text/csv" hidden>
+  <button id="pickTasks">Pick tasks.csv…</button>
+  <input id="fileTasks" type="file" accept=".csv,text/csv" hidden>
+  <span class="status" id="status">Ready</span>
+  <span class="grow"></span>
+  <button id="reloadBtn" title="Re-fetch all CSVs">↻ Reload</button>
+  <button id="publishBtn" class="primary">Download updated CSVs</button>
+</div>
+
+<div id="tabs">
+  <button class="tabbtn on" data-tab="stamps">Categories & Tracks</button>
+  <button class="tabbtn" data-tab="tasks">Tasks</button>
+  <span class="grow"></span>
+</div>
+
+<div id="layout">
+  <aside id="left">
+    <div class="sec">
+      <h2 id="listTitle">Categories <button id="addStamp" type="button">＋ New</button></h2>
+    </div>
+    <div id="list"></div>
+  </aside>
+
+  <main id="right">
+    <div id="form"><div class="empty">Select an item on the left or create a new one.</div></div>
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="icons.js"></script>
+
 <script>
-/* ============================================================
-   PASSPORT & RANKING SYSTEM (Integrated with dynamic categories)
-   ============================================================ */
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const key = s => String(s||"").trim().toLowerCase();
+const uid = () => Math.random().toString(36).slice(2,6);
 
-let STAMPS = [];
-let TASKS  = [];
+const STAMP_COLS = ["STAMP_ID","TITLE","CATEGORY","RANK_ENABLED","VEHICLE","COLOR","ICON","STAR1","STAR2","STAR3","RANK1","RANK2","RANK3","GRAND_RANK","TASKS"];
+const TASK_COLS  = ["TASK_ID","LABEL","HINT","BTN","SCOPE","TARGET"];
 
-async function loadPassportData(){
+let stamps = [];       
+let tasks = [];        
+let mapItems = [];     // Loaded from locations.csv, childmarkers.csv, spots.csv
+let headers = { stamp: STAMP_COLS.slice(), task: TASK_COLS.slice() };
+let loaded = { stamps:false, tasks:false };
+let selected = null;   
+let activeTab = "stamps";
+
+function getIconSvg(name){
+  const ic = (typeof ICONS !== "undefined" && ICONS[name]) || (typeof ICONS !== "undefined" && ICONS.generic) || {vb:"0 0 24 24", art:'<rect width="24" height="24" fill="#ccc"/>'};
+  return `<svg viewBox="${esc(ic.vb)}" aria-hidden="true">${ic.art}</svg>`;
+}
+
+/* Load files automatically on boot */
+$("pickStamps").onclick = () => $("fileStamps").click();
+$("pickTasks").onclick  = () => $("fileTasks").click();
+$("fileStamps").onchange = e => readCSV(e.target.files[0], "stamps");
+$("fileTasks").onchange  = e => readCSV(e.target.files[0], "tasks");
+
+function readCSV(file, kind){
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = () => ingestCSV(r.result, kind);
+  r.readAsText(file);
+}
+
+(async () => {
+  await loadMapDataSources();
+  
+  const [sRes, tRes] = await Promise.all([
+    fetch("stamps.csv", {cache:"no-store"}).then(r=>r.ok?r.text():null).catch(()=>null),
+    fetch("tasks.csv", {cache:"no-store"}).then(r=>r.ok?r.text():null).catch(()=>null)
+  ]);
+  
+  if (sRes) ingestCSV(sRes, "stamps");
+  if (tRes) ingestCSV(tRes, "tasks");
+  
+  render();
+})();
+
+async function loadMapDataSources(){
   try {
-    const [S, T] = await Promise.all([
-      fetch("stamps.csv", { cache:"no-store" }).then(r => r.ok ? r.text() : "").catch(() => ""),
-      fetch("tasks.csv",  { cache:"no-store" }).then(r => r.ok ? r.text() : "").catch(() => "")
+    const [locs, kids, spots] = await Promise.all([
+      fetch("locations.csv", {cache:"no-store"}).then(r=>r.ok?r.text():"").catch(()=>""),
+      fetch("childmarkers.csv", {cache:"no-store"}).then(r=>r.ok?r.text():"").catch(()=>""),
+      fetch("spots.csv", {cache:"no-store"}).then(r=>r.ok?r.text():"").catch(()=>"")
     ]);
-    if (S) {
-      const parsed = Papa.parse(S, { header:true, skipEmptyLines:"greedy" });
-      STAMPS = parsed.data
-        .filter(r => key(r.STAMP_ID))
-        .map(r => ({
-          row: r,
-          tasks: String(r.TASKS||"").split("|").map(s => s.trim()).filter(Boolean)
-        }));
-    }
-    if (T) {
-      const parsed = Papa.parse(T, { header:true, skipEmptyLines:"greedy" });
-      TASKS = parsed.data.filter(r => key(r.TASK_ID)).map(r => ({ row: r }));
-    }
-  } catch (e) {
-    console.warn("Couldn't load passport data:", e);
+
+    const parseRows = (txt, idCol, nameCol) => {
+      if (!txt) return [];
+      return Papa.parse(txt, {header:true, skipEmptyLines:"greedy"}).data
+        .map(r => ({ id: String(r[idCol]||r.ID||r.SPOT_ID||r.CHILD_ID||"").trim(), name: String(r[nameCol]||r.TITLE||r.NAME||"").trim() }))
+        .filter(x => x.id);
+    };
+
+    mapItems = [
+      ...parseRows(locs, "ID", "NAME").map(x => ({...x, type:'Location'})),
+      ...parseRows(kids, "CHILD_ID", "NAME").map(x => ({...x, type:'Child Marker'})),
+      ...parseRows(spots, "SPOT_ID", "TITLE").map(x => ({...x, type:'Spot / Story'}))
+    ];
+  } catch(e) {
+    console.warn("Could not load full map data indexes for dropdowns:", e);
   }
 }
 
-function renderStampCards(){
-  const box = document.getElementById("pStamps");
-  if (!box) return;
+function ingestCSV(text, kind){
+  const parsed = Papa.parse(text, { header:true, skipEmptyLines:"greedy" });
+  const rows = parsed.data.filter(r => Object.values(r).some(v => String(v||"").trim() !== ""));
 
-  if (!STAMPS.length){
-    box.innerHTML = `<h3>Tracks & Discoveries</h3><p style="color:#9aa3ad;font-size:13px">No tracks configured.</p>`;
+  if (kind === "stamps"){
+    headers.stamp = parsed.meta.fields?.length ? parsed.meta.fields.slice() : STAMP_COLS.slice();
+    stamps = rows.map(r => {
+      if (r.RANK_ENABLED == null) r.RANK_ENABLED = ["RAIL","CANAL","INDUSTRIAL","DOWNTOWN"].includes(String(r.STAMP_ID).toUpperCase()) ? "yes" : "no";
+      const taskList = String(r.TASKS||"").split("|").map(s => s.trim()).filter(Boolean);
+      return { row: r, tasks: taskList };
+    });
+    loaded.stamps = true;
+  } else {
+    headers.task = parsed.meta.fields?.length ? parsed.meta.fields.slice() : TASK_COLS.slice();
+    tasks = rows.map(r => ({ row: r }));
+    loaded.tasks = true;
+  }
+  render();
+  updateStatus();
+}
+
+function updateStatus(){
+  const bits = [];
+  if (loaded.stamps) bits.push(`stamps (${stamps.length})`);
+  if (loaded.tasks)  bits.push(`tasks (${tasks.length})`);
+  $("status").textContent = bits.length ? "Loaded: " + bits.join(" · ") : "Ready";
+}
+
+document.querySelectorAll(".tabbtn").forEach(btn => {
+  btn.onclick = () => {
+    activeTab = btn.dataset.tab;
+    document.querySelectorAll(".tabbtn").forEach(b => b.classList.toggle("on", b === btn));
+    selected = null;
+    render();
+  };
+});
+
+function render(){
+  renderList();
+  renderForm();
+}
+
+function renderList(){
+  const title = $("listTitle");
+  const list = $("list");
+  list.innerHTML = "";
+
+  if (activeTab === "stamps"){
+    title.innerHTML = `Categories & Tracks <button id="addStamp" type="button">＋ New</button>`;
+    $("addStamp").onclick = addStamp;
+    if (!stamps.length){
+      list.innerHTML = `<div class="sec" style="color:#9aa3ad;font-size:12px">No categories loaded. Click '＋ New' or load stamps.csv.</div>`;
+      return;
+    }
+    for (const s of stamps){
+      const row = document.createElement("div");
+      row.className = "row" + (selected && selected.ref === s ? " sel" : "");
+      const rankOn = String(s.row.RANK_ENABLED||"yes").toLowerCase() !== "no";
+      row.innerHTML =
+        `<span class="sw">${getIconSvg(s.row.ICON || 'generic')}</span>` +
+        `<span class="name">${esc(s.row.TITLE || s.row.STAMP_ID || "(untitled)")}</span>` +
+        `<span class="badge" style="background:${rankOn?'#e6f5ec':'#f1f3f7'};color:${rankOn?'#2f855a':'#6b7280'}">${rankOn?'Ranked':'Discovery'}</span>`;
+      row.onclick = () => { selected = { kind:"stamp", ref:s }; render(); };
+      list.appendChild(row);
+    }
+  } else {
+    title.innerHTML = `Tasks <button id="addTask" type="button">＋ New</button>`;
+    $("addTask").onclick = addTask;
+    if (!tasks.length){
+      list.innerHTML = `<div class="sec" style="color:#9aa3ad;font-size:12px">No tasks loaded. Click '＋ New'.</div>`;
+      return;
+    }
+    for (const t of tasks){
+      const row = document.createElement("div");
+      row.className = "row" + (selected && selected.ref === t ? " sel" : "");
+      const scope = String(t.row.SCOPE||"behavior").toLowerCase();
+      row.innerHTML =
+        `<span class="name">${esc(t.row.LABEL || t.row.TASK_ID || "(untitled)")}</span>` +
+        `<span class="badge">${esc(scope)}</span>`;
+      row.onclick = () => { selected = { kind:"task", ref:t }; render(); };
+      list.appendChild(row);
+    }
+  }
+}
+
+function renderForm(){
+  const box = $("form");
+  if (!selected){
+    box.innerHTML = `<div class="empty">Select an item on the left or create a new one.</div>`;
     return;
   }
+  if (selected.kind === "stamp") renderStampForm(box, selected.ref);
+  else renderTaskForm(box, selected.ref);
+}
 
-  box.innerHTML = `<h3>Historical Tracks</h3>` + STAMPS.map(stamp => {
-    const r = stamp.row;
-    const rankOn = String(r.RANK_ENABLED || "yes").toLowerCase() !== "no";
-    const iconKey = r.ICON || "generic";
-    const svgContent = ICONS[iconKey] ? `<svg viewBox="${ICONS[iconKey].vb}" width="28" height="28">${ICONS[iconKey].art}</svg>` : '';
+function renderStampForm(box, s){
+  const r = s.row;
+  const rankEnabled = String(r.RANK_ENABLED || "yes").toLowerCase() !== "no";
+  const iconList = typeof ICONS !== "undefined" ? Object.keys(ICONS) : ["generic"];
 
-    return `
-      <div class="stamp-card ${rankOn ? 'ranked-track' : 'discovery-track'}" style="margin-bottom:10px;padding:12px;background:#fff;border:1px solid #ddd;border-radius:8px">
-        <div style="display:flex;align-items:center;gap:10px">
-          <div>${svgContent}</div>
-          <div style="flex:1">
-            <b>${esc(r.TITLE || r.STAMP_ID)}</b>
-            <div style="font-size:11px;color:#666">${rankOn ? 'Rank Track Active' : 'Discovery Only (Unranked)'}</div>
+  box.innerHTML = `
+    <div class="form">
+      <h2>${esc(r.TITLE || "(untitled category)")}</h2>
+      <div class="sub">Category ID: <b>${esc(r.STAMP_ID)}</b></div>
+
+      <div class="field">
+        <label>Category ID (e.g. RAIL, RES, DOWNTOWN)</label>
+        <input type="text" id="f-STAMP_ID" value="${esc(r.STAMP_ID||"")}">
+      </div>
+
+      <div class="field">
+        <label>Display Name</label>
+        <input type="text" id="f-TITLE" value="${esc(r.TITLE||"")}">
+      </div>
+
+      <div class="field">
+        <label>Icon (from icons.js)</label>
+        <div class="icon-picker" id="iconPicker">
+          ${iconList.map(ic => `
+            <label class="${(r.ICON\vert{}\vert{}'generic')===ic?'on':''}" data-ic="${ic}">
+              <input type="radio" name="icon" value="${ic}" ${(r.ICON\vert{}\vert{}'generic')===ic?'checked':''}>${getIconSvg(ic)}
+              <span>${ic}</span>
+            </label>
+          `).join("")}
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Rank System Participation</label>
+        <select id="f-RANK_ENABLED">
+          <option value="yes" ${rankEnabled?"selected":""}>Enabled (Awards stars and rank tiers)</option>
+          <option value="no" ${!rankEnabled?"selected":""}>Disabled (Discovery and tasks only, no rank score)</option>
+        </select>
+      </div>
+
+      <div id="rankSettingsSection" style="display:${rankEnabled?'block':'none'}">
+        <div class="divider"></div>
+        <div class="field">
+          <label>Star Thresholds</label>
+          <div class="grid3">
+            <input type="number" id="f-STAR1" value="${esc(r.STAR1||"")}" placeholder="1 Star">
+            <input type="number" id="f-STAR2" value="${esc(r.STAR2||"")}" placeholder="2 Stars">
+            <input type="number" id="f-STAR3" value="${esc(r.STAR3||"")}" placeholder="3 Stars">
           </div>
         </div>
-      </div>`;
-  }).join("");
+        <div class="field">
+          <label>Rank Titles</label>
+          <div class="grid3">
+            <input type="text" id="f-RANK1" value="${esc(r.RANK1||"")}" placeholder="Rank 1">
+            <input type="text" id="f-RANK2" value="${esc(r.RANK2||"")}" placeholder="Rank 2">
+            <input type="text" id="f-RANK3" value="${esc(r.RANK3||"")}" placeholder="Rank 3">
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="field">
+        <label>Associated Tasks</label>
+        <div class="task-list" id="taskList">
+          ${tasks.length ? tasks.map(t => {
+            const on = s.tasks.includes(String(t.row.TASK_ID).trim());
+            return `
+              <label class="item ${on?"on":""}">
+                <input type="checkbox" data-taskid="${esc(t.row.TASK_ID)}" ${on?"checked":""}>
+                <div>
+                  <div class="label">${esc(t.row.LABEL || t.row.TASK_ID)}</div>
+                  <div class="what">${esc(t.row.SCOPE)}:${esc(t.row.TARGET)}</div>
+                </div>
+              </label>`;
+          }).join("") : `<div class="item" style="color:#9aa3ad">No tasks loaded.</div>`}
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="delStamp" class="small warn">Delete Category Track</button>
+      </div>
+    </div>
+  `;
+
+  bindText(box, "f-STAMP_ID", v => { r.STAMP_ID = v; renderList(); });
+  bindText(box, "f-TITLE",    v => { r.TITLE = v; renderList(); });
+  bindText(box, "f-STAR1",    v => { r.STAR1 = v; });
+  bindText(box, "f-STAR2",    v => { r.STAR2 = v; });
+  bindText(box, "f-STAR3",    v => { r.STAR3 = v; });
+  bindText(box, "f-RANK1",    v => { r.RANK1 = v; });
+  bindText(box, "f-RANK2",    v => { r.RANK2 = v; });
+  bindText(box, "f-RANK3",    v => { r.RANK3 = v; });
+
+  box.querySelector("#f-RANK_ENABLED").onchange = e => {
+    r.RANK_ENABLED = e.target.value;
+    box.querySelector("#rankSettingsSection").style.display = e.target.value === "yes" ? "block" : "none";
+    renderList();
+  };
+
+  box.querySelectorAll("#iconPicker label").forEach(label => {
+    label.onclick = () => {
+      r.ICON = label.dataset.ic;
+      box.querySelectorAll("#iconPicker label").forEach(l => l.classList.toggle("on", l === label));
+      renderList();
+    };
+  });
+
+  box.querySelectorAll("#taskList input[type=checkbox]").forEach(cb => {
+    cb.onchange = () => {
+      const id = cb.dataset.taskid;
+      if (cb.checked) { if (!s.tasks.includes(id)) s.tasks.push(id); }
+      else { s.tasks = s.tasks.filter(x => x !== id); }
+      cb.closest(".item").classList.toggle("on", cb.checked);
+    };
+  });
+
+  box.querySelector("#delStamp").onclick = () => {
+    if (!confirm(`Delete "${r.TITLE}"?`)) return;
+    stamps = stamps.filter(x => x !== s);
+    selected = null;
+    render();
+    toast("Deleted category track");
+  };
+}
+
+function renderTaskForm(box, t){
+  const r = t.row;
+  const scope = r.SCOPE || "behavior";
+
+  box.innerHTML = `
+    <div class="form">
+      <h2>${esc(r.LABEL || "Task Config")}</h2>
+      <div class="field">
+        <label>Task ID</label>
+        <input type="text" id="f-TASK_ID" value="${esc(r.TASK_ID||"")}">
+      </div>
+      <div class="field">
+        <label>Label</label>
+        <input type="text" id="f-LABEL" value="${esc(r.LABEL||"")}">
+      </div>
+      <div class="field">
+        <label>Hint (displayed in passport drawer)</label>
+        <input type="text" id="f-HINT" value="${esc(r.HINT||"")}">
+      </div>
+      <div class="field">
+        <label>Button Text</label>
+        <input type="text" id="f-BTN" value="${esc(r.BTN||"")}">
+      </div>
+      <div class="field">
+        <label>Scope / Completion Type</label>
+        <select id="f-SCOPE">
+          <option value="behavior" ${scope==="behavior"?"selected":""}>General Behavior (e.g. any story, any spot)</option>
+          <option value="item" ${scope==="item"?"selected":""}>Specific Location / Marker / Spot Item</option>
+          <option value="category" ${scope==="category"?"selected":""}>Entire Category</option>
+        </select>
+      </div>
+      <div class="field" id="targetContainer">
+        <label>Target</label>
+        ${renderTargetInput(scope, r.TARGET || "")}
+      </div>
+      <div class="actions">
+        <button id="delTask" class="small warn">Delete Task</button>
+      </div>
+    </div>
+  `;
+
+  bindText(box, "f-TASK_ID", v => { r.TASK_ID = v; });
+  bindText(box, "f-LABEL",   v => { r.LABEL = v; renderList(); });
+  bindText(box, "f-HINT",    v => { r.HINT = v; });
+  bindText(box, "f-BTN",     v => { r.BTN = v; });
+
+  box.querySelector("#f-SCOPE").onchange = e => {
+    r.SCOPE = e.target.value;
+    r.TARGET = "";
+    renderTaskForm(box, t);
+  };
+
+  const tgtInput = box.querySelector("#f-TARGET");
+  if (tgtInput) {
+    tgtInput.oninput = () => { r.TARGET = tgtInput.value; };
+    tgtInput.onchange = () => { r.TARGET = tgtInput.value; };
+  }
+
+  box.querySelector("#delTask").onclick = () => {
+    tasks = tasks.filter(x => x !== t);
+    selected = null;
+    render();
+    toast("Deleted task");
+  };
+}
+
+function renderTargetInput(scope, currentVal){
+  if (scope === "behavior"){
+    return `<select id="f-TARGET">
+      <option value="story" ${currentVal==="story"?"selected":""}>Open any Story</option>
+      <option value="spot" ${currentVal==="spot"?"selected":""}>Open any Photo Spot / QR Sign</option>
+      <option value="tour" ${currentVal==="tour"?"selected":""}>Complete any Tour</option>
+    </select>`;
+  }
+  if (scope === "category"){
+    return `<select id="f-TARGET">
+      <option value="">— Select Category Track —</option>
+      ${stamps.map(s => `<option value="${s.row.STAMP_ID}" ${s.row.STAMP_ID===currentVal?"selected":""}>${s.row.TITLE || s.row.STAMP_ID}</option>`).join("")}
+    </select>`;
+  }
+  // scope === "item": provide searchable/selectable dropdown from map data loaded from CSVs
+  if (mapItems.length > 0){
+    return `<select id="f-TARGET">
+      <option value="">— Select Map Location / Spot / Child Marker —</option>
+      ${mapItems.map(m => `<option value="${m.id}" ${m.id===currentVal?"selected":""}>${m.name} [${m.id}] (${m.type})</option>`).join("")}
+    </select>
+    <div class="hint">Loaded from your map data files (locations.csv, childmarkers.csv, spots.csv).</div>`;
+  }
+  return `<input type="text" id="f-TARGET" value="${esc(currentVal)}" placeholder="e.g. depot-1 or ST-TRAM">
+    <div class="hint">Enter exact location/spot ID (map CSVs weren't found locally to build automatic dropdown).</div>`;
+}
+
+function addStamp(){
+  const id = "CAT-" + uid();
+  const row = { STAMP_ID:id, TITLE:"New Category", CATEGORY:id, RANK_ENABLED:"yes", ICON:"generic", STAR1:"3", STAR2:"6", STAR3:"9", RANK1:"", RANK2:"", RANK3:"", TASKS:"" };
+  const s = { row, tasks:[] };
+  stamps.push(s);
+  selected = { kind:"stamp", ref:s };
+  render();
+}
+
+function addTask(){
+  const id = "task-" + uid();
+  const row = { TASK_ID:id, LABEL:"New Task", HINT:"", BTN:"", SCOPE:"behavior", TARGET:"story" };
+  const t = { row };
+  tasks.push(t);
+  selected = { kind:"task", ref:t };
+  render();
+}
+
+$("publishBtn").onclick = () => {
+  stamps.forEach(s => { s.row.TASKS = s.tasks.join("|"); });
+  const stampRows = stamps.map(s => pick(s.row, headers.stamp));
+  const taskRows  = tasks.map(t => pick(t.row, headers.task));
+
+  download("stamps.csv", Papa.unparse({ fields: headers.stamp, data: stampRows }));
+  setTimeout(() => download("tasks.csv", Papa.unparse({ fields: headers.task, data: taskRows })), 200);
+  toast("Exported stamps.csv and tasks.csv successfully!");
+};
+
+function pick(row, cols){
+  const out = {};
+  for (const c of cols) out[c] = row[c] != null ? row[c] : "";
+  return out;
+}
+
+function download(name, text){
+  const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+}
+
+function bindText(scope, id, cb){
+  const el = scope.querySelector("#" + CSS.escape(id));
+  if (el) el.oninput = () => cb(el.value);
+}
+
+let toastTimer = 0;
+function toast(msg){
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("on"), 2600);
 }
 </script>
+</body>
+</html>
