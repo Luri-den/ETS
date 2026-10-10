@@ -203,24 +203,32 @@ function drawObject(o,ghost=false){
  const g=svgEl("g",{ "data-id":o.id,opacity:ghost?.65:1,transform:`translate(${o.x||0} ${o.y||0}) rotate(${o.rotation||0}) skewX(${o.skew||0})`});
  const w=Math.max(1,o.w||1),h=Math.max(1,o.h||1),fill=o.color||"#d7e8ef",stroke=o.stroke||"#526b77",sw=o.type==="wall"?(o.thickness||10):2;
  g.setAttribute("cursor",tool==="select"?"move":"crosshair");
-if (o.label && o.showLabel !== false) {
-  addText(
-    g,
-    (o.w || 0) / 2 + (o.labelOffsetX || 0),
-    (o.h || 0) / 2 - 10 + (o.labelOffsetY || 0),
-    o.label,
-    {
-      "font-size": 11,
-      fill: "#37474f",
-      "paint-order": "stroke",
-      stroke: "white",
-      "stroke-width": 3,
-      "data-object-label": "true",
-      cursor: "move"
+if (o.type === "wall") {
+    svgEl("line", {
+      x1: 0, y1: 0,
+      x2: o.w || 0, y2: o.h || 0,
+      stroke: o.solid === false ? "#94a0a6" : (o.color || "#26343b"),
+      "stroke-width": sw,
+      "stroke-linecap": "square",
+      "stroke-dasharray": o.solid === false ? "8 6" : null
+    }, g);
+    if (o.label && o.showLabel !== false) {
+      addText(g,
+        (o.w || 0) / 2 + (o.labelOffsetX || 0),
+        (o.h || 0) / 2 - 10 + (o.labelOffsetY || 0),
+        o.label,
+        {
+          "font-size": 11,
+          fill: "#37474f",
+          "paint-order": "stroke",
+          stroke: "white",
+          "stroke-width": 3,
+          "data-object-label": "true",
+          cursor: "move"
+        }
+      );
     }
-  );
-}
- }else if(o.type==="door"){
+  } else if (o.type === "door") {
    // Door leaf and swing arc; gap is represented by the door object, wall segments must be split at opening.
    svgEl("line",{x1:0,y1:0,x2:w,y2:0,stroke:"#fff","stroke-width":12});
    svgEl("path",{d:`M0 0 A${w} ${w} 0 0 1 ${w} ${h||w}`,fill:"none",stroke:"#78909c","stroke-width":1.6},g);
@@ -663,7 +671,8 @@ function onCanvasMove(e) {
   }
 }
 function onCanvasUp(e){
-if (!drag.drawing) {
+ if (!drag) return;
+ if (!drag.drawing) {
   const d = drag;
   drag = null;
 
