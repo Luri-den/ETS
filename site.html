@@ -334,6 +334,23 @@ function startFrom(text) {
   if (mapLoaded) gotoStart();
 }
 
+// Auto-load site.csv from the same folder (works on GitHub Pages)
+(async () => {
+  try {
+    const res = await fetch("site.csv", { cache: "no-store" });
+    if (res.ok) {
+      lastText = await res.text();
+      startFrom(lastText);
+      status("Loaded site.csv from this folder. Edit, then Download updated site.csv.");
+    } else {
+      status("Load site.csv to begin, or click Start from defaults.");
+    }
+  } catch (e) {
+    // file:// or network error — fall back to the original message
+    status("Load site.csv to begin, or click Start from defaults.");
+  }
+})();
+
 $('fSite').addEventListener('change', async e => {
   const f = e.target.files[0];
   if (!f) return;
@@ -342,17 +359,31 @@ $('fSite').addEventListener('change', async e => {
   status('Loaded ' + f.name + '. Edit, then Download updated site.csv.');
   e.target.value = '';
 });
+
 $('startBtn').onclick = () => {
   if (S && !confirm('Discard what is on screen and start from the built-in defaults?')) return;
   lastText = null; startFrom(null);
   status('Started from the Connersville defaults.');
 };
-$('reloadBtn').onclick = () => {
-  if (!confirm('Throw away your edits and reload?')) return;
-  startFrom(lastText);
-  status('Reloaded.');
-};
 
+$('reloadBtn').onclick = async () => {
+  if (!confirm('Throw away your edits and reload site.csv from the server?')) return;
+  try {
+    const res = await fetch("site.csv", { cache: "no-store" });
+    if (!res.ok) throw new Error(res.status + " " + res.statusText);
+    lastText = await res.text();
+    startFrom(lastText);
+    status('Reloaded site.csv from the server.');
+  } catch (e) {
+    // fall back to last local text if the fetch fails
+    if (lastText) {
+      startFrom(lastText);
+      status('Server fetch failed; reloaded from last loaded file.');
+    } else {
+      status('Reload failed: ' + e.message);
+    }
+  }
+};
 $('fLocs').addEventListener('change', async e => {
   const f = e.target.files[0];
   if (!f) return;
