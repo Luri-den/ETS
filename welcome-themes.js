@@ -16,12 +16,12 @@
     return '<g transform="' + base + '"><g><animateTransform attributeName="transform" type="translate" values="' + o.path + '" dur="' + o.dur.toFixed(1) + 's" begin="' + begin + '" repeatCount="indefinite"/><g>' + spin + shape + "</g></g></g>";
   }
 
-  const GHOST = '<path d="M0 40C0 8 12-18 30-18S60 8 60 40V70L50 60 40 70 30 60 20 70 10 60 0 70Z" fill="#fff" fill-opacity=".88"/>' +
+  const GHOST = '<path d="M0 40C0 8 12-18 30-18S60 8 60 40V70L50 60 40 70 30 60 20 70 10 60 0 70Z" fill="#fff" fill-opacity=".88" stroke="#2b1646" stroke-width="2"/>' +
     '<circle cx="21" cy="14" r="4.5" fill="#2b1646"/><circle cx="39" cy="14" r="4.5" fill="#2b1646"/><ellipse cx="30" cy="30" rx="5" ry="6.5" fill="#2b1646"/>';
 
   function ghosts(on) {
     const r = rng(11);
-    let out = '<circle cx="770" cy="115" r="62" fill="#fff4c9" fill-opacity=".92"/><circle cx="752" cy="100" r="9" fill="#e6d79a" fill-opacity=".7"/><circle cx="788" cy="132" r="13" fill="#e6d79a" fill-opacity=".6"/>';
+    let out = '<circle cx="770" cy="115" r="62" fill="#fff4c9" fill-opacity=".92" stroke="#2b1646" stroke-width="2"/><circle cx="752" cy="100" r="9" fill="#e6d79a" fill-opacity=".7" stroke="#2b1646" stroke-width="1.5"/><circle cx="788" cy="132" r="13" fill="#e6d79a" fill-opacity=".6" stroke="#2b1646" stroke-width="1.5"/>';
     for (let i = 0; i < 9; i++) {
       const bx = r() * 780 + 30, by = r() * 400 + 80, k = 0.6 + r() * 0.8, dur = 8 + r() * 6, sway = (r() - 0.5) * 90;
       out += drift(bx, by, '<g transform="scale(' + k.toFixed(2) + ')">' + GHOST + "</g>",
@@ -36,7 +36,7 @@
     let out = "";
     for (let i = 0; i < 12; i++) {
       const bx = r() * 840 + 30, by = r() * 480 + 50, k = 0.7 + r() * 0.8, dur = 6 + r() * 6, wob = (r() - 0.5) * 160, drop = 80 + r() * 160;
-      const shape = '<g transform="scale(' + k.toFixed(2) + ')"><path d="M0-22C16-22 26-4 0 28C-26-4-16-22 0-22Z" fill="' + LEAF_COLORS[i % 5] + '"/><path d="M0-16V28" stroke="#000" stroke-opacity=".25" stroke-width="2" fill="none"/></g>';
+      const shape = '<g transform="scale(' + k.toFixed(2) + ')"><path d="M0-22C16-22 26-4 0 28C-26-4-16-22 0-22Z" fill="' + LEAF_COLORS[i % 5] + '" stroke="#3b1102" stroke-width="1.5"/><path d="M0-16V28" stroke="#000" stroke-opacity=".25" stroke-width="2" fill="none"/></g>';
       const x0 = -140 - bx, x1 = 1040 - bx;
       out += drift(bx, by, shape, { dur: dur, delay: r() * dur, spin: r() < 0.5 ? 720 : -720,
         path: x0.toFixed(0) + " 0;" + ((x0 + x1) / 2).toFixed(0) + " " + wob.toFixed(0) + ";" + x1.toFixed(0) + " " + drop.toFixed(0) }, on);
@@ -49,7 +49,7 @@
     let out = "";
     for (let i = 0; i < 30; i++) {
       const bx = r() * 880 + 10, by = r() * 560 + 20, rad = 2 + r() * 4, dur = 5 + r() * 6, sway = (r() - 0.5) * 70;
-      out += drift(bx, by, '<circle r="' + rad.toFixed(1) + '" fill="#fff" fill-opacity=".85"/>',
+      out += drift(bx, by, '<circle r="' + rad.toFixed(1) + '" fill="#fff" fill-opacity=".85" stroke="#0f2c4a" stroke-width="1.2"/>',
         { dur: dur, delay: r() * dur, path: "0 " + (-30 - by).toFixed(0) + ";" + sway.toFixed(0) + " " + (630 - by).toFixed(0) }, on);
     }
     return out;
@@ -61,65 +61,65 @@
     winter:    { label: "Winter snow", font: "'Trebuchet MS',Verdana,sans-serif", style: "normal", bg: ["#0d2740", "#2a6aa3"], t1: "#d9eeff", t2: "#ffffff", halo: "#000", decor: snow }
   };
 
- 
-function build(key, text, place, on) {
-  const t = THEMES[key];
-  if (!t) return "";
+  function build(key, text, place, on) {
+    const t = THEMES[key];
+    if (!t) return "";
 
-  let lines = String(text || "Welcome to|{PLACE}")
-    .replace(/\{PLACE\}/g, place || "")
-    .split("|")
-    .map(s => s.trim())
-    .filter(Boolean);
+    let lines = String(text || "Welcome to|{PLACE}")
+      .replace(/\{PLACE\}/g, place || "")
+      .split("|")
+      .map(s => s.trim())
+      .filter(Boolean);
 
-  if (!lines.length) lines = ["Welcome"];
+    if (!lines.length) lines = ["Welcome"];
 
-  const big = lines[lines.length - 1];
-  const small = lines.slice(0, -1);
+    const big = lines[lines.length - 1];
+    const small = lines.slice(0, -1);
 
-  const bigSize = Math.max(
-    34,
-    Math.min(120, Math.floor(820 / Math.max(1, big.length * 0.58)))
-  );
+    const bigSize = Math.max(
+      34,
+      Math.min(120, Math.floor(820 / Math.max(1, big.length * 0.58)))
+    );
 
-  const line = (s, y, size, fill, weight) =>
-    '<text x="450" y="' + y +
-    '" text-anchor="middle" font-family="' + t.font +
-    '" font-style="' + t.style +
-    '" font-weight="' + weight +
-    '" font-size="' + size +
-    '" fill="' + fill +
-    '" stroke="' + t.halo +
-    '" stroke-opacity=".4" stroke-width="' + Math.round(size / 12) +
-    '" paint-order="stroke" stroke-linejoin="round">' +
-    esc(s) + '</text>';
+    const line = (s, y, size, fill, weight) =>
+      '<text x="450" y="' + y +
+      '" text-anchor="middle" font-family="' + t.font +
+      '" font-style="' + t.style +
+      '" font-weight="' + weight +
+      '" font-size="' + size +
+      '" fill="' + fill +
+      '" stroke="' + t.halo +
+      '" stroke-opacity=".4" stroke-width="' + Math.round(size / 12) +
+      '" paint-order="stroke" stroke-linejoin="round">' +
+      esc(s) + '</text>';
 
-  const smallSvg = small
-    .map((s, k) => line(s, 250 - (small.length - 1 - k) * 62, 52, t.t1, "normal"))
-    .join("");
+    const smallSvg = small
+      .map((s, k) => line(s, 250 - (small.length - 1 - k) * 62, 52, t.t1, "normal"))
+      .join("");
 
-  return '<svg xmlns="http://www.w3.org/2000/svg" ' +
-    'viewBox="0 0 900 600" width="100%" height="100%" ' +
-    'preserveAspectRatio="xMidYMid slice">' +
+    return '<svg xmlns="http://www.w3.org/2000/svg" ' +
+      'viewBox="0 0 900 600" width="100%" height="100%" ' +
+      'preserveAspectRatio="xMidYMid slice">' +
 
-    '<defs>' +
-      '<linearGradient id="welcomeBg" x1="0" y1="0" x2="0" y2="1">' +
-        '<stop offset="0%" stop-color="' + t.bg[0] + '"/>' +
-        '<stop offset="100%" stop-color="' + t.bg[1] + '"/>' +
-      '</linearGradient>' +
-    '</defs>' +
+      '<defs>' +
+        '<linearGradient id="welcomeBg" x1="0" y1="0" x2="0" y2="1">' +
+          '<stop offset="0%" stop-color="' + t.bg[0] + '"/>' +
+          '<stop offset="100%" stop-color="' + t.bg[1] + '"/>' +
+        '</linearGradient>' +
+      '</defs>' +
 
-    '<rect x="-1000" y="-1000" width="2900" height="2600" ' +
-      'fill="url(#welcomeBg)" fill-opacity="0.65"/>' +
+      // Background rect set to fill-opacity="0" to make it transparent
+      '<rect x="-1000" y="-1000" width="2900" height="2600" ' +
+        'fill="url(#welcomeBg)" fill-opacity="0"/>' +
 
-    '<g>' +
-      t.decor(on) +
-      smallSvg +
-      line(big, small.length ? 360 : 330, bigSize, t.t2, "bold") +
-    '</g>' +
+      '<g>' +
+        t.decor(on) +
+        smallSvg +
+        line(big, small.length ? 360 : 330, bigSize, t.t2, "bold") +
+      '</g>' +
 
-    '</svg>';
-}
+      '</svg>';
+  }
 
   window.WelcomeThemes = {
     list: Object.keys(THEMES).reduce((o, k) => { o[k] = THEMES[k].label; return o; }, {}),
