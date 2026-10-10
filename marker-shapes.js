@@ -4,17 +4,18 @@
    categories.csv has a SHAPE column that says which shape each category uses (blank or circle = round). */
 (function () {
   const POLY = {
-  diamond:  { label: "Diamond",  points: [[50,0],[100,50],[50,100],[0,50]] },
-  triangle: { label: "Triangle", points: [[50,3],[100,92],[0,92]] },
-  pin:      { label: "Pin",      points: [[50,0],[80,15],[95,45],[50,100],[5,45],[20,15]] },
-  shield:   { label: "Shield",   points: [[50,0],[100,10],[100,60],[50,100],[0,60],[0,10]] },
-  flag:     { label: "Flag",     points: [[0,0],[100,0],[75,50],[100,100],[0,100]] },
-  cross:    { label: "Cross",    points: [[35,0],[65,0],[65,35],[100,35],[100,65],[65,65],[65,100],[35,100],[35,65],[0,65],[0,35],[35,35]] },
-  rect:     { label: "Rounded Rectangle", points: [[85,0],[92,2],[98,7],[100,15],[100,85],[98,92],[92,98],[85,100],[15,100],[8,98],[2,92],[0,85],[0,15],[2,7],[7,2],[15,0]] },
-  speechbubble:{ label: "Speech Bubble", points: [[10,10],[50,10],[90,10],[100,20],[100,60],[90,70],[60,70],[50,100],[40,70],[10,70],[0,60],[0,20],[10,10]] },
-  starburst:   { label: "Starburst",    points: [[50,0],[60,25],[90,10],[75,40],[100,50],[75,60],[90,90],[60,75],[50,100],[40,75],[10,90],[25,60],[0,50],[25,40],[10,10],[40,25],[50,0]] },
-  cornercircll: { label: "One Corner Circle (Lower Left)", points: [[0,0],[100,0],[100,100],[0,100],[0,0]] }
-};
+    diamond:      { label: "Diamond",      points: [[50,0],[100,50],[50,100],[0,50]] },
+    triangle:     { label: "Triangle",     points: [[50,3],[100,92],[0,92]] },
+    pin:          { label: "Pin",          points: [[50,0],[80,15],[95,45],[50,100],[5,45],[20,15]] },
+    shield:       { label: "Shield",       points: [[50,0],[100,10],[100,60],[50,100],[0,60],[0,10]] },
+    flag:         { label: "Flag",         points: [[0,0],[100,0],[75,50],[100,100],[0,100]] },
+    cross:        { label: "Cross",        points: [[35,0],[65,0],[65,35],[100,35],[100,65],[65,65],[65,100],[35,100],[35,65],[0,65],[0,35],[35,35]] },
+    rect:         { label: "Rounded Rectangle", points: [[85,0],[92,2],[98,7],[100,15],[100,85],[98,92],[92,98],[85,100],[15,100],[8,98],[2,92],[0,85],[0,15],[2,7],[7,2],[15,0]] },
+    speechbubble: { label: "Speech Bubble", points: [[10,10],[50,10],[90,10],[100,20],[100,60],[90,70],[60,70],[50,100],[40,70],[10,70],[0,60],[0,20],[10,10]] },
+    starburst:    { label: "Starburst",    points: [[50,0],[60,25],[90,10],[75,40],[100,50],[75,60],[90,90],[60,75],[50,100],[40,75],[10,90],[25,60],[0,50],[25,40],[10,10],[40,25],[50,0]] },
+    cornercircll: { label: "One Corner Circle (Lower Left)", points: [[0,0],[100,0],[100,100],[0,100],[0,0]] }
+  };
+
   const slug = s => String(s || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   const pointsToClip = pts => "polygon(" + pts.map(p => p[0] + "% " + p[1] + "%").join(",") + ")";
 
@@ -25,7 +26,7 @@
     const pts = String(str || "").split(";").map(p => p.trim().split(/\s+/).map(Number)).filter(p => p.length === 2 && p.every(isFinite));
     return pts.length >= 3 ? pts.map(p => [Math.min(100, Math.max(0, p[0])), Math.min(100, Math.max(0, p[1]))]) : null;
   }
-  function parseRows(rows) {                       // shapes.csv rows -> { code: { label, points } }
+  function parseRows(rows) {                        // shapes.csv rows -> { code: { label, points } }
     const out = {};
     (rows || []).forEach(r => {
       const code = slug(r.CODE), pts = parsePoints(r.POINTS);
