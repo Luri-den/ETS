@@ -74,9 +74,15 @@ footer{display:flex;gap:10px;align-items:center;padding:7px 12px;background:whit
     <p class="hint">Use stairs ↑ / ↓ and elevator symbols to show vertical circulation between floors.</p>
   </section>
   <section>
-    <h2>Grid & view</h2>
+    <h2>Grid & View</h2>
     <div class="field"><label><input id="snapToggle" type="checkbox" checked> Snap to grid</label></div>
     <div class="field"><label><input id="gridToggle" type="checkbox" checked> Show grid</label></div>
+    <div class="field">
+  <label>
+    <input id="collisionToggle" type="checkbox" checked>
+    Enforce Collision
+  </label>
+</div>
     <div class="field"><label for="gridSize">Grid spacing (drawing units)</label><input id="gridSize" type="number" min="2" max="100" value="20"></div>
     <div class="row"><button id="zoomOut">− Zoom</button><button id="zoomIn">＋ Zoom</button><button id="fitBtn">Fit</button></div>
   </section>
@@ -179,14 +185,41 @@ function svgEl(tag,attrs={},parent=$("drawing")){const e=document.createElementN
 function snapV(v){return snap?Math.round(v/gridSize)*gridSize:v;}
 function point(evt){const r=$("drawing").getBoundingClientRect();return {x:snapV((evt.clientX-r.left)/r.width*W),y:snapV((evt.clientY-r.top)/r.height*H)};}
 function typeLabel(o){return ({wall:"Wall",door:"Door / opening",rect:"Rectangle",ellipse:"Ellipse",line:"Line",freehand:"Freehand",text:"Text",desk:"Desk",chair:"Chair",table:"Table",bookshelf:"Bookshelf",sofa:"Sofa",cabinet:"Cabinet",bathroom:"Bathroom",toilet:"Toilet",sink:"Sink",extinguisher:"Fire extinguisher",aed:"AED",firstaid:"First aid",exit:"Exit",stairsUp:"Stairs ↑ Up",stairsDown:"Stairs ↓ Down",stairs:"Stairs",elevator:"Elevator",plant:"Plant",custom:"Custom shape"})[o.type]||o.type;}
-function addText(parent,x,y,text,attrs={}){return svgEl("text",{x,y,"font-family":"Arial, sans-serif","font-size":14,"text-anchor":"middle",fill:"#26343b",...attrs},parent).appendChild(document.createTextNode(text));}
+function addText(parent, x, y, text, attrs = {}) {
+  const el = svgEl("text", {
+    x,
+    y,
+    "font-family": "Arial, sans-serif",
+    "font-size": 14,
+    "text-anchor": "middle",
+    fill: "#26343b",
+    ...attrs
+  }, parent);
+
+  el.textContent = text;
+  return el;
+}
 function drawObject(o,ghost=false){
  const g=svgEl("g",{ "data-id":o.id,opacity:ghost?.65:1,transform:`translate(${o.x||0} ${o.y||0}) rotate(${o.rotation||0}) skewX(${o.skew||0})`});
  const w=Math.max(1,o.w||1),h=Math.max(1,o.h||1),fill=o.color||"#d7e8ef",stroke=o.stroke||"#526b77",sw=o.type==="wall"?(o.thickness||10):2;
  g.setAttribute("cursor",tool==="select"?"move":"crosshair");
- if(o.type==="wall"){
-   svgEl("line",{x1:0,y1:0,x2:o.w||0,y2:o.h||0,stroke:o.solid===false?"#94a0a6":(o.color||"#26343b"),"stroke-width":sw,"stroke-linecap":"square","stroke-dasharray":o.solid===false?"8 6":null},g);
-   if(o.label&&o.showLabel!==false) addText(g,(o.w||0)/2,(o.h||0)/2-10,o.label,{"font-size":11,fill:"#37474f","paint-order":"stroke","stroke":"white","stroke-width":3});
+if (o.label && o.showLabel !== false) {
+  addText(
+    g,
+    (o.w || 0) / 2 + (o.labelOffsetX || 0),
+    (o.h || 0) / 2 - 10 + (o.labelOffsetY || 0),
+    o.label,
+    {
+      "font-size": 11,
+      fill: "#37474f",
+      "paint-order": "stroke",
+      stroke: "white",
+      "stroke-width": 3,
+      "data-object-label": "true",
+      cursor: "move"
+    }
+  );
+}
  }else if(o.type==="door"){
    // Door leaf and swing arc; gap is represented by the door object, wall segments must be split at opening.
    svgEl("line",{x1:0,y1:0,x2:w,y2:0,stroke:"#fff","stroke-width":12});
@@ -244,13 +277,90 @@ function drawObject(o,ghost=false){
    if(o.type==="cabinet"){svgEl("line",{x1:w/2,y1:0,x2:w/2,y2:h,stroke},g);svgEl("circle",{cx:w*.42,cy:h/2,r:2,fill:stroke},g);svgEl("circle",{cx:w*.58,cy:h/2,r:2,fill:stroke},g);}
    if(o.type==="table"){svgEl("ellipse",{cx:w/2,cy:h/2,rx:w*.43,ry:h*.38,fill:"none",stroke},g);}
  }
- if(o.label&&o.showLabel!==false&&!["wall","stairsUp","stairsDown","stairs","elevator","exit","bathroom","text"].includes(o.type)){
-   addText(g,w/2,h+14,o.label,{"font-size":Math.max(10,Math.min(13,w/7)),"paint-order":"stroke","stroke":"white","stroke-width":3,"stroke-linejoin":"round"});
- }
- if(selectedId===o.id){
-   svgEl("rect",{x:-5,y:-5,width:w+10,height:h+10,fill:"none",stroke:"#087ea4","stroke-width":2,"stroke-dasharray":"5 4",transform:`rotate(0)`},g);
-   svgEl("circle",{cx:w,cy:h,r:5,fill:"#087ea4",stroke:"white","stroke-width":1.5},g);
- }
+if (
+  o.label &&
+  o.showLabel !== false &&
+  ![
+    "wall", "stairsUp", "stairsDown", "stairs",
+    "elevator", "exit", "bathroom", "text"
+  ].includes(o.type)
+) {
+  addText(
+    g,
+    w / 2 + (o.labelOffsetX || 0),
+    h + 14 + (o.labelOffsetY || 0),
+    o.label,
+    {
+      "font-size": Math.max(10, Math.min(13, w / 7)),
+      "paint-order": "stroke",
+      stroke: "white",
+      "stroke-width": 3,
+      "stroke-linejoin": "round",
+      "data-object-label": "true",
+      cursor: "move"
+    }
+  );
+}
+if (selectedId === o.id) {
+  const handle = (x, y, action) => {
+    svgEl("circle", {
+      cx: x,
+      cy: y,
+      r: 6,
+      fill: action === "rotate" ? "#e58a24" : "#087ea4",
+      stroke: "#ffffff",
+      "stroke-width": 2,
+      "data-handle": action,
+      cursor: action === "rotate" ? "grab" : "nwse-resize"
+    }, g);
+  };
+
+  if (o.type === "wall") {
+    // A wall is a line, so give it endpoint handles.
+    svgEl("line", {
+      x1: o.w / 2,
+      y1: o.h / 2,
+      x2: o.w / 2,
+      y2: o.h / 2 - 28,
+      stroke: "#e58a24",
+      "stroke-width": 1.5,
+      "stroke-dasharray": "3 3",
+      "pointer-events": "none"
+    }, g);
+
+    handle(0, 0, "wall-start");
+    handle(o.w, o.h, "wall-end");
+    handle(o.w / 2, o.h / 2 - 28, "rotate");
+  } else {
+    svgEl("rect", {
+      x: -5,
+      y: -5,
+      width: w + 10,
+      height: h + 10,
+      fill: "none",
+      stroke: "#087ea4",
+      "stroke-width": 2,
+      "stroke-dasharray": "5 4",
+      "pointer-events": "none"
+    }, g);
+
+    // Resize from the lower-right corner.
+    handle(w, h, "resize");
+
+    // Rotate using the handle above the object.
+    svgEl("line", {
+      x1: w / 2,
+      y1: 0,
+      x2: w / 2,
+      y2: -22,
+      stroke: "#e58a24",
+      "stroke-width": 1.5,
+      "pointer-events": "none"
+    }, g);
+
+    handle(w / 2, -25, "rotate");
+  }
+}
  g.addEventListener("pointerdown",onObjectPointerDown);
  return g;
 }
@@ -296,27 +406,96 @@ function setToolButtons(){document.querySelectorAll("[data-tool]").forEach(b=>b.
 function setTool(t){tool=t;setToolButtons();$("selectionStatus").textContent=`Tool: ${t}`;}
 $("tools").addEventListener("click",e=>{const b=e.target.closest("[data-tool]");if(b)setTool(b.dataset.tool);});
 function objectAtTarget(target){const g=target.closest("[data-id]");return g?g.getAttribute("data-id"):null;}
-function onObjectPointerDown(e){
- if(e.button!==0)return;const id=objectAtTarget(e.target);if(!id)return;
- const o=objects().find(x=>x.id===id);if(!o)return;
- if(tool==="erase"){e.stopPropagation();record();project.floors[floorIndex].objects=objects().filter(x=>x.id!==id);selectedId=null;render();return;}
- if(tool!=="select")return;
- e.stopPropagation();selectedId=id;const p=point(e);drag={id,start:p,ox:o.x||0,oy:o.y||0,moved:false};$("drawing").setPointerCapture?.(e.pointerId);renderProperties();renderObjectList();
+function onObjectPointerDown(e) {
+  if (e.button !== 0) return;
+
+  const group = e.target.closest("[data-id]");
+  if (!group) return;
+
+  const id = group.getAttribute("data-id");
+  const o = objects().find(x => x.id === id);
+  if (!o) return;
+
+  if (tool === "erase") {
+    e.stopPropagation();
+    record();
+    project.floors[floorIndex].objects =
+      objects().filter(x => x.id !== id);
+    selectedId = null;
+    render();
+    return;
+  }
+
+  if (tool !== "select") return;
+
+  e.stopPropagation();
+
+  const handle = e.target.closest("[data-handle]");
+  const label = e.target.closest("[data-object-label]");
+
+  // Selecting an object also exposes its editing handles.
+  selectedId = id;
+
+  const p = point(e);
+
+  drag = {
+    id,
+    kind: label ? "label" : handle ? handle.getAttribute("data-handle") : "move",
+    start: p,
+    before: clone(o),
+    moved: false
+  };
+
+  $("drawing").setPointerCapture?.(e.pointerId);
+
+  render();
 }
 function intersects(a,b){return a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;}
 function box(o){const w=Math.abs(o.w||2),h=Math.abs(o.h||2);return {left:(o.x||0),top:(o.y||0),right:(o.x||0)+w,bottom:(o.y||0)+h};}
-function collision(o,excludeId=null){
- // Approximate axis-aligned footprint collision for placement checks; wall intersection uses segment geometry.
- const bb=box(o);
- for(const other of objects()){
-   if(other.id===excludeId||other.type==="wall"||other.type==="door"||other.block===false)continue;
-   if(intersects(bb,box(other)))return `overlaps ${other.label||typeLabel(other)}`;
- }
- for(const wall of objects().filter(x=>x.type==="wall"&&x.solid!==false)){
-   const x1=wall.x||0,y1=wall.y||0,x2=x1+(wall.w||0),y2=y1+(wall.h||0),pad=(wall.thickness||10)/2;
-   if(segmentIntersectsRect(x1,y1,x2,y2,bb,pad))return `crosses solid wall ${wall.label||wall.id}`;
- }
- return null;
+function collision(o, excludeId = null) {
+  // The user can disable all placement collision checks.
+  if (!$("collisionToggle").checked) return null;
+
+  // A wall must never collide with itself or be blocked
+  // simply because it crosses another wall.
+  if (o.type === "wall") return null;
+
+  const bb = box(o);
+
+  // Check for overlaps with other blocking objects.
+  for (const other of objects()) {
+    if (
+      other.id === excludeId ||
+      other.type === "wall" ||
+      other.type === "door" ||
+      other.block === false
+    ) {
+      continue;
+    }
+
+    if (intersects(bb, box(other))) {
+      return `overlaps ${other.label || typeLabel(other)}`;
+    }
+  }
+
+  // Check solid walls.
+  for (const wall of objects().filter(
+    x => x.type === "wall" && x.solid !== false
+  )) {
+    if (wall.id === excludeId) continue;
+
+    const x1 = wall.x || 0;
+    const y1 = wall.y || 0;
+    const x2 = x1 + (wall.w || 0);
+    const y2 = y1 + (wall.h || 0);
+    const pad = (wall.thickness || 10) / 2;
+
+    if (segmentIntersectsRect(x1, y1, x2, y2, bb, pad)) {
+      return `crosses solid wall ${wall.label || wall.id}`;
+    }
+  }
+
+  return null;
 }
 function segmentIntersectsRect(x1,y1,x2,y2,b,pad=0){
  const l=b.left-pad,r=b.right+pad,t=b.top-pad,bt=b.bottom+pad;
@@ -340,37 +519,182 @@ function onCanvasDown(e){
    const type=tool==="icon"?$("preset").value:tool==="stairs"?"stairsUp":"elevator";
    const size=type==="elevator"?70: type.startsWith("stairs")?95: type==="bookshelf"?45: type==="extinguisher"?24: type==="aed"?32: type==="desk"?90:60;
    const o=makeObject(type,p.x,p.y,size,type.startsWith("stairs")?130:size);
-   const err=collision(o);if(err&&o.block){notify("Placement blocked",`This item ${err}. Move it to a clear area or temporarily uncheck “Object blocks placement” in its properties.`);return;}
+  const err = o.block !== false ? collision(o) : null;
+
+if (err) {
+  notify(
+    "Placement blocked",
+    `This item ${err}. You can move it elsewhere or turn off "Enforce collision checks".`
+  );
+  return;
+}
    record();objects().push(o);selectedId=o.id;setTool("select");render();return;
  }
  drag={drawing:true,type:tool,start:p,last:p,points:[p]};
  $("drawing").setPointerCapture?.(e.pointerId);
 }
-function onCanvasMove(e){
- const p=point(e);$("coordStatus").textContent=`X ${p.x} · Y ${p.y} · ${floor().name}`;
- if(drag&&!drag.drawing){
-   const o=objects().find(x=>x.id===drag.id);if(!o)return;
-   const dx=p.x-drag.start.x,dy=p.y-drag.start.y;
-   if(Math.abs(dx)+Math.abs(dy)>1)drag.moved=true;
-   o.x=snapV(drag.ox+dx);o.y=snapV(drag.oy+dy);render();return;
- }
- if(drag?.drawing){
-   drag.last=p;if(drag.type==="freehand")drag.points.push(p);
-   render();const temp=makeObject(drag.type,drag.start.x,drag.start.y,p.x-drag.start.x,p.y-drag.start.y);
-   if(drag.type==="wall"){temp.type="wall";temp.thickness=10;temp.solid=true;}
-   if(drag.type==="door"){temp.type="door";temp.h=Math.abs(p.y-drag.start.y)||Math.abs(p.x-drag.start.x);temp.w=Math.abs(p.x-drag.start.x)||90;}
-   if(drag.type==="freehand"){temp.path=drag.points.map((pt,i)=>(i?"L":"M")+(pt.x-drag.start.x)+" "+(pt.y-drag.start.y)).join(" ");temp.w=1;temp.h=1;}
-   if(drag.type==="text"){temp.w=1;temp.h=18;temp.label="Double-click to edit text";}
-   drawObject(temp,true);
- }
+function onCanvasMove(e) {
+  const p = point(e);
+
+  $("coordStatus").textContent =
+    `X ${p.x} · Y ${p.y} · ${floor().name}`;
+
+  if (drag && !drag.drawing) {
+    const o = objects().find(x => x.id === drag.id);
+    if (!o) return;
+
+    const before = drag.before;
+    const dx = p.x - drag.start.x;
+    const dy = p.y - drag.start.y;
+
+    if (Math.abs(dx) + Math.abs(dy) > 1) {
+      drag.moved = true;
+    }
+
+    if (drag.kind === "label") {
+      // Convert screen-space movement into the object's local space.
+      const angle = (before.rotation || 0) * Math.PI / 180;
+      const localX = dx * Math.cos(angle) + dy * Math.sin(angle);
+      const localY = -dx * Math.sin(angle) + dy * Math.cos(angle);
+
+      o.labelOffsetX = (before.labelOffsetX || 0) + localX;
+      o.labelOffsetY = (before.labelOffsetY || 0) + localY;
+
+    } else if (drag.kind === "move") {
+      o.x = snapV((before.x || 0) + dx);
+      o.y = snapV((before.y || 0) + dy);
+
+    } else if (drag.kind === "wall-start") {
+      // Keep the opposite endpoint fixed.
+      const endX = (before.x || 0) + (before.w || 0);
+      const endY = (before.y || 0) + (before.h || 0);
+
+      o.x = p.x;
+      o.y = p.y;
+      o.w = endX - p.x;
+      o.h = endY - p.y;
+
+    } else if (drag.kind === "wall-end") {
+      // Keep the starting endpoint fixed.
+      o.w = p.x - (before.x || 0);
+      o.h = p.y - (before.y || 0);
+
+    } else if (drag.kind === "resize") {
+      // Convert the pointer position back into local coordinates
+      // so resizing continues to work after rotating an object.
+      const angle = (before.rotation || 0) * Math.PI / 180;
+      const localX = dx * Math.cos(angle) + dy * Math.sin(angle);
+      const localY = -dx * Math.sin(angle) + dy * Math.cos(angle);
+
+      o.w = Math.max(4, snapV((before.w || 4) + localX));
+      o.h = Math.max(4, snapV((before.h || 4) + localY));
+
+    } else if (drag.kind === "rotate") {
+      const cx = (before.x || 0) + (before.w || 0) / 2;
+      const cy = (before.y || 0) + (before.h || 0) / 2;
+
+      const startAngle = Math.atan2(
+        drag.start.y - cy,
+        drag.start.x - cx
+      );
+
+      const currentAngle = Math.atan2(
+        p.y - cy,
+        p.x - cx
+      );
+
+      const delta = (currentAngle - startAngle) * 180 / Math.PI;
+
+      o.rotation = (before.rotation || 0) + delta;
+    }
+
+    render();
+    return;
+  }
+
+  if (drag?.drawing) {
+    drag.last = p;
+
+    if (drag.type === "freehand") {
+      drag.points.push(p);
+    }
+
+    render();
+
+    const temp = makeObject(
+      drag.type,
+      drag.start.x,
+      drag.start.y,
+      p.x - drag.start.x,
+      p.y - drag.start.y
+    );
+
+    if (drag.type === "wall") {
+      temp.type = "wall";
+      temp.thickness = 10;
+      temp.solid = true;
+    }
+
+    if (drag.type === "door") {
+      temp.type = "door";
+      temp.h = Math.abs(p.y - drag.start.y) ||
+               Math.abs(p.x - drag.start.x);
+      temp.w = Math.abs(p.x - drag.start.x) || 90;
+    }
+
+    if (drag.type === "freehand") {
+      temp.path = drag.points.map((pt, i) =>
+        (i ? "L" : "M") +
+        (pt.x - drag.start.x) + " " +
+        (pt.y - drag.start.y)
+      ).join(" ");
+
+      temp.w = 1;
+      temp.h = 1;
+    }
+
+    if (drag.type === "text") {
+      temp.w = 1;
+      temp.h = 18;
+      temp.label = "Double-click to edit text";
+    }
+
+    drawObject(temp, true);
+  }
 }
 function onCanvasUp(e){
- if(!drag)return;
- if(!drag.drawing){
-   const d=drag;drag=null;
-   if(d.moved){const o=objects().find(x=>x.id===d.id);const err=o&&o.block!==false?collision(o,o.id):null;if(err){o.x=d.ox;o.y=d.oy;notify("Move blocked",`The object ${err}. It was returned to its original position.`);}else record();}
-   render();return;
- }
+if (!drag.drawing) {
+  const d = drag;
+  drag = null;
+
+  if (d.moved) {
+    const o = objects().find(x => x.id === d.id);
+
+    // Labels move independently, and walls can always be edited.
+    const shouldCheck =
+      o &&
+      d.kind !== "label" &&
+      o.type !== "wall" &&
+      o.block !== false;
+
+    const err = shouldCheck ? collision(o, o.id) : null;
+
+    if (err) {
+      // Restore every original property, including size and rotation.
+      Object.assign(o, d.before);
+
+      notify(
+        "Change blocked",
+        `The object ${err}. It was returned to its original position.`
+      );
+    } else {
+      record();
+    }
+  }
+
+  render();
+  return;
+}
  const d=drag;drag=null;const p=d.last||d.start;let x=Math.min(d.start.x,p.x),y=Math.min(d.start.y,p.y),w=Math.abs(p.x-d.start.x),h=Math.abs(p.y-d.start.y);
  if(d.type==="wall"||d.type==="line"){
    if(w<2&&h<2)return;
