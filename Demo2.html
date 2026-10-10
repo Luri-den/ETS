@@ -42,7 +42,30 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 #tools label{display:flex;align-items:center;gap:6px;flex:1 1 210px}
 #tools input[type=range]{flex:1}
 #aerialBtn[aria-pressed="true"]{background:#222;color:#fff}
-#tools [hidden]{display:none}   /* the label rule above would otherwise override the hidden attribute */
+#tools [hidden]{display:none}
+/* More button: on a phone the less-used controls fold away; on a wide screen everything stays in one row */
+#toolsMore{display:contents}
+#moreBtn{display:none}
+#moreBtn.on::after{content:" \25CF";font-size:9px;color:var(--bar,#E47303)}
+@media (max-width:720px){
+  #moreBtn{display:inline-block}
+  #tools #moreBtn[hidden]{display:none}
+  #toolsMore{display:none;flex:1 1 100%;flex-wrap:wrap;align-items:flex-end;gap:8px 8px}
+  #tools.open #toolsMore{display:flex}
+}
+/* compact year slider with tick marks (one tick per step, a label every 50 years) */
+#tools label#yearBox{flex:0 0 190px;flex-direction:column;align-items:stretch;gap:0}
+.strack{position:relative;display:block;height:36px}
+#yr{-webkit-appearance:none;appearance:none;width:100%;height:20px;margin:0;background:transparent;position:relative;z-index:1}
+#yr::-webkit-slider-runnable-track{height:4px;background:rgba(255,255,255,.6);border-radius:2px}
+#yr::-moz-range-track{height:4px;background:rgba(255,255,255,.6);border-radius:2px}
+#yr::-webkit-slider-thumb{-webkit-appearance:none;box-sizing:border-box;width:16px;height:16px;border-radius:50%;background:#fff;border:2px solid #333;margin-top:-6px}
+#yr::-moz-range-thumb{box-sizing:border-box;width:16px;height:16px;border-radius:50%;background:#fff;border:2px solid #333}
+#yticks{position:absolute;left:8px;right:8px;top:21px;height:14px;pointer-events:none}
+#yticks i{position:absolute;top:0;width:1px;height:4px;margin-left:-.5px;background:rgba(255,255,255,.9)}
+#yticks i.maj{height:7px}
+#yticks em{position:absolute;top:8px;transform:translateX(-50%);font:normal 10px/1 Arial,sans-serif;color:#fff;white-space:nowrap}
+#tools label#ovw{flex:1 1 260px}   /* the label rule above would otherwise override the hidden attribute */
 
 #panel{position:absolute;z-index:6;left:0;right:0;bottom:0;max-height:55vh;overflow:auto;background:#fff;padding:12px 14px calc(14px + env(safe-area-inset-bottom));box-shadow:0 -2px 8px #0005;box-sizing:border-box}
 #panel {width:100%;max-height:240px;object-fit:cover;border-radius:6px;cursor:zoom-in}
@@ -412,11 +435,14 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
   <ul id="res" hidden></ul>
   <div id="tools">
     <button id="near" type="button">Near Me</button>
-    <button id="aerialBtn" type="button" aria-pressed="false">Aerial</button>
-    <button id="eventBtn" type="button" hidden>About</button>
     <button id="tour" type="button" hidden>Take the Tour</button>
-    <label>Year: <b id="yv">All</b> <input id="yr" type="range" aria-label="Show sites that existed in this year"></label>
-    <label id="ovw" hidden>Old Maps <select id="ovs"></select> <input id="ov" type="range" min="0" max="100" value="0" aria-label="Old map opacity"></label>
+    <button id="eventBtn" type="button" hidden>About</button>
+    <button id="moreBtn" type="button" aria-expanded="false" aria-controls="toolsMore" hidden>More &#9662;</button>
+    <div id="toolsMore">
+      <button id="aerialBtn" type="button" aria-pressed="false">Aerial</button>
+      <label id="yearBox"><span>Year: <b id="yv">All</b></span><span class="strack"><input id="yr" type="range" aria-label="Show sites that existed in this year"><span id="yticks" aria-hidden="true"></span></span></label>
+      <label id="ovw" hidden>Old Maps <select id="ovs"></select> <input id="ov" type="range" min="0" max="100" value="0" aria-label="Old map opacity"></label>
+    </div>
   </div>
 </div>
 
@@ -1105,6 +1131,7 @@ map.on("load", async () => {
   await PHOTOS_READY;
   await EVENTS_INDEX_READY;
   refreshEventButton();
+  syncMoreBtn();
 const [L,C,CATS,SHAPEROWS] = await Promise.all([
   load(SITE.files.locations),
   load(SITE.files.children),
@@ -1548,10 +1575,52 @@ $("yr").max = SITE.yearMax;
 $("yr").step = 10;
 $("yr").value = SITE.yearMax;
 
+function buildYearTicks(){
+  const min = +$("yr").min, max = +$("yr").max, step = +$("yr").step || 1, n = Math.max(1, Math.round((max - min) / step));
+  const box = $("yticks");
+  box.innerHTML = "";
+  for (let i = 0; i <= n; i++) {
+    const y = min + i * step, major = y % 50 === 0 || i === n, left = (i / n * 100) + "%";
+    const t = document.createElement("i");
+    t.style.left = left;
+    if (major) t.className = "maj";
+    box.appendChild(t);
+    if (major) { const l = document.createElement("em"); l.style.left = left; l.textContent = i === n ? "All" : y; box.appendChild(l); }
+  }
+}
+buildYearTicks();
+
+/* ---------- More button (phones) ---------- */
+function closeMore(){
+  $("tools").classList.remove("open");
+  $("moreBtn").setAttribute("aria-expanded", "false");
+  $("moreBtn").innerHTML = "More &#9662;";
+}
+function updateMoreDot(){   // a dot on More when something inside it is switched on
+  const on = $("aerialBtn").getAttribute("aria-pressed") === "true" || year !== null || (!$("ovw").hidden && +$("ov").value > 0);
+  $("moreBtn").classList.toggle("on", on);
+}
+function syncMoreBtn(){     // hide More when everything inside it is turned off in settings
+  const any = [...$("toolsMore").children].some(el => !el.hidden && el.style.display !== "none");
+  $("moreBtn").hidden = !any;
+  if (!any) closeMore();
+  updateMoreDot();
+}
+$("moreBtn").onclick = e => {
+  e.stopPropagation();
+  const open = !$("tools").classList.contains("open");
+  $("tools").classList.toggle("open", open);
+  $("moreBtn").setAttribute("aria-expanded", String(open));
+  $("moreBtn").innerHTML = open ? "Less &#9652;" : "More &#9662;";
+};
+document.addEventListener("click", e => { if (!e.target.closest("#tools")) closeMore(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeMore(); });
+
 $("yr").oninput = e => {
   const v = +e.target.value;
   year = v >= SITE.yearMax ? null : v;
   $("yv").textContent = year === null ? "All" : year;
+  updateMoreDot();
   update();
 };
 
@@ -1589,13 +1658,14 @@ async function initOverlays(){
 
   $("ovs").hidden = o.length < 2;
   $("ovw").hidden = false;
+  syncMoreBtn();
 
   const apply = () => o.forEach((x,n) =>
     map.setPaintProperty("ov" + n, "raster-opacity",
       n == $("ovs").value ? $("ov").value / 100 : 0)
   );
 
-  $("ov").oninput = apply;
+  $("ov").oninput = () => { apply(); updateMoreDot(); };
   $("ovs").onchange = apply;
 }
 
@@ -2848,6 +2918,7 @@ function setAerial(on){
     ["aerial-usgs", "aerial-indiana"].forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", on ? "visible" : "none"); });
     map.setLayoutProperty("osm", "visibility", on ? "none" : "visible");
     $("aerialBtn").setAttribute("aria-pressed", on ? "true" : "false");
+    updateMoreDot();
   } catch (e) { console.warn("Aerial view is not ready yet", e); }
 }
 $("aerialBtn").onclick = () => setAerial($("aerialBtn").getAttribute("aria-pressed") !== "true");
