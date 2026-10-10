@@ -60,6 +60,27 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 #welcomeImage{position:absolute;max-width:100vw;max-height:100vh;width:auto;height:auto;user-select:none;-webkit-user-drag:none;left:var(--welcome-x,50%);top:var(--welcome-y,50%);transform:translate(-50%,calc(-50% + 110vh));transition:transform 650ms cubic-bezier(.22,.61,.36,1)}
 #welcomeOverlay.show #welcomeImage{transform:translate(-50%,-50%)}
 #welcomeOverlay.exit #welcomeImage{transform:translate(-50%,calc(-50% - 110vh))}
+  #welcomeBackground {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--welcome-bg, transparent);
+  opacity: 0;
+  transition: opacity 650ms cubic-bezier(.22,.61,.36,1);
+}
+
+#welcomeOverlay.show #welcomeBackground {
+  opacity: 1;
+}
+
+#welcomeOverlay.exit #welcomeBackground {
+  opacity: 0;
+}
+
+#welcomeImage {
+  z-index: 1;
+}
 #welcomeSkip{position:absolute;z-index:2;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);padding:6px 12px;border-radius:4px;background:rgba(0,0,0,.45);color:#fff;font-size:12px;letter-spacing:.04em;pointer-events:none;opacity:.8}
 
 #spotBox{position:fixed;inset:0;z-index:9000;background:#000a;display:flex;align-items:center;justify-content:center;padding:14px}
@@ -362,6 +383,7 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 <body>
 
 <div id="welcomeOverlay" role="button" aria-label="Skip welcome introduction">
+  <div id="welcomeBackground"></div>
   <img id="welcomeImage" alt="Discover Historic Connersville">
   <div id="welcomeSite" hidden>
     <svg id="wsLine"></svg>
@@ -907,6 +929,18 @@ if (skipWelcome) {
     if (window.WelcomeThemes && SITE.welcomeTheme && WelcomeThemes.list[SITE.welcomeTheme]) {
       const motion = !matchMedia("(prefers-reduced-motion: reduce)").matches;
       WELCOME_STEPS[0] = { gif: WelcomeThemes.url(SITE.welcomeTheme, SITE.welcomeText, SITE.place, motion) };
+    const bg = document.getElementById("welcomeBackground");
+const theme = SITE.welcomeTheme;
+
+const colors = {
+  halloween: "linear-gradient(180deg, #1b1030, #4a2275)",
+  fall: "linear-gradient(180deg, #fff0d2, #f2b97a)",
+  winter: "linear-gradient(180deg, #0d2740, #2a6aa3)"
+};
+
+if (bg) {
+  bg.style.setProperty("--welcome-bg", colors[theme] || "transparent");
+
     }
     startWelcome(spotId);
   });
