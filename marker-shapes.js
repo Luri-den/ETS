@@ -44,7 +44,6 @@
     Object.keys(custom || {}).forEach(k => out.push({ code: k, label: custom[k].label, clip: pointsToClip(custom[k].points), custom: true }));
     return out;
   }
-  // Turns a round marker button into a shaped one. Call it after the photo is inside the button.
   function apply(btn, code, custom) {
     const clip = clipFor(code, custom);
     if (!clip || btn.querySelector(".shp")) return false;
