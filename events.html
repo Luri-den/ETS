@@ -46,6 +46,7 @@ code{background:#eee;padding:1px 4px;border-radius:3px}
 <main>
   <p class="intro">An event is a saved copy of the site's data (and, if you want, its photos) kept in <code>events/event-name/</code> in your repository.
   <b>Applying</b> an event copies it over the live site, so visitors see that event's markers, spots, passport, and settings.
+  Each event also gets its own link (<code>Demo2.html?event=name</code>), and events you mark for the switcher appear in the About panel on the map so guests can move between them.
   GitHub copies files it already has, so nothing is uploaded and nothing is stored twice.</p>
   <div id="status" class="msg">Reading the repository&hellip;</div>
 
@@ -57,6 +58,7 @@ code{background:#eee;padding:1px 4px;border-radius:3px}
       <div class="sz" id="slugNote"></div>
       <label for="evNote">Note (optional)</label>
       <input type="text" id="evNote" placeholder="Oct 18 and 19, runs from the library to the depot">
+      <label class="chk" style="margin-top:12px"><input type="checkbox" id="evPublic" checked> Show in the event switcher on the map</label>
     </div>
     <div>
       <label>Data files</label><div id="dataBox"></div>
@@ -173,18 +175,37 @@ function updateSavePreview() {
 $("dataBox").addEventListener("change", updateSavePreview);
 $("folderBox").addEventListener("change", updateSavePreview);
 
-async function snapshotWrites(slug, name, note, sel) {
+async function snapshotWrites(slug, name, note, sel, isPublic) {
   const prefix = "events/" + slug + "/", writes = [], want = new Set();
   for (const p of livePaths(sel)) {
     const e = tree.get(p);
     writes.push({ path: prefix + p, mode: e.mode, type: "blob", sha: e.sha });
     want.add(prefix + p);
   }
-  const m = await api("/git/blobs", "POST", { content: JSON.stringify({ name, note, saved: new Date().toISOString(), files: writes.length }, null, 2), encoding: "utf-8" });
+  const info = {
+    name, note, saved: new Date().toISOString(), files: writes.length, public: !!isPublic,
+    data: sel.data.filter(f => tree.has(f)),                                              // the map reads only these from the event
+    folders: sel.folders.filter(f => [...tree.keys()].some(p => p.startsWith(f + "/")))
+  };
+  const m = await api("/git/blobs", "POST", { content: JSON.stringify(info, null, 2), encoding: "utf-8" });
   writes.push({ path: prefix + "event.json", mode: "100644", type: "blob", sha: m.sha });
   want.add(prefix + "event.json");
   for (const p of tree.keys()) if (p.startsWith(prefix) && !want.has(p)) writes.push({ path: p, mode: "100644", type: "blob", sha: null });   // left over from an earlier save
   return writes;
+}
+
+// events/index.json is the list the map's event switcher reads. changes = { slug: { name, note, public } } for events written in this commit.
+async function indexWrite(changes) {
+  const slugs = new Set(eventSlugs());
+  Object.keys(changes).forEach(s => slugs.add(s));
+  const list = [];
+  slugs.forEach(slug => {
+    const m = changes[slug] || meta[slug] || {};
+    if (m.public) list.push({ slug, name: m.name || slug, note: m.note || "" });
+  });
+  list.sort((a, b) => a.name.localeCompare(b.name));
+  const b = await api("/git/blobs", "POST", { content: JSON.stringify(list, null, 2), encoding: "utf-8" });
+  return { path: "events/index.json", mode: "100644", type: "blob", sha: b.sha };
 }
 
 async function commit(writes, message) {
@@ -203,7 +224,10 @@ $("saveBtn").onclick = async () => {
   $("saveBtn").disabled = true;
   try {
     say("Saving&hellip;");
-    const c = await commit(await snapshotWrites(slug, name, note, selected()), "Save event: " + name);
+    const pub = $("evPublic").checked;
+    const writes = await snapshotWrites(slug, name, note, selected(), pub);
+    writes.push(await indexWrite({ [slug]: { name, note, public: pub } }));
+    const c = await commit(writes, "Save event: " + name);
     await load();
     say("&#10004; Saved <b>" + esc(name) + "</b> to <code>events/" + esc(slug) + "/</code>." + commitLink(c), "ok");
   } catch (e) { say("Could not save: " + esc(e.message), "err"); }
@@ -219,14 +243,30 @@ function renderList() {
     let bytes = 0; files.forEach(([, e]) => bytes += e.size || 0);
     const when = m.saved ? new Date(m.saved).toLocaleDateString() : "";
     return '<div class="card" data-slug="' + esc(slug) + '"><h3>' + esc(m.name || slug) + '</h3>' +
-      '<div class="sub"><code>events/' + esc(slug) + '/</code> &middot; ' + files.length + " files, " + fmtSize(bytes) + (when ? " &middot; saved " + esc(when) : "") + "</div>" +
+      '<div class="sub"><code>events/' + esc(slug) + '/</code> &middot; ' + files.length + " files, " + fmtSize(bytes) + (when ? " &middot; saved " + esc(when) : "") + (m.public ? " &middot; <b>in the switcher</b>" : "") + "</div>" +
       (m.note ? '<div class="sub">' + esc(m.note) + "</div>" : "") +
-      '<div class="row"><button class="go ap" type="button">Apply to live site</button><button class="rs" type="button">Re-save from live site</button></div>' +
+      '<div class="row"><button class="go ap" type="button">Apply to live site</button><button class="rs" type="button">Re-save from live site</button><button class="pub" type="button">' + (m.public ? "Remove from switcher" : "Add to switcher") + '</button><button class="cp" type="button">Copy link</button></div>' +
       '<div class="slot"></div></div>';
   }).join("");
   document.querySelectorAll("#list .card").forEach(card => {
     const slug = card.dataset.slug;
     card.querySelector(".ap").onclick = () => openApply(card, slug);
+    card.querySelector(".cp").onclick = async () => {
+      const url = new URL("Demo2.html?event=" + encodeURIComponent(slug), location.href).href;
+      try { await navigator.clipboard.writeText(url); say("Copied this link: <code>" + esc(url) + "</code> (good for a QR code)", "ok"); }
+      catch (e) { say("Link for this event: <code>" + esc(url) + "</code>", "ok"); }
+    };
+    card.querySelector(".pub").onclick = async () => {
+      const m = meta[slug] || { name: slug }, flag = !m.public;
+      try {
+        say("Updating&hellip;");
+        const info = Object.assign({}, m, { public: flag });
+        const b = await api("/git/blobs", "POST", { content: JSON.stringify(info, null, 2), encoding: "utf-8" });
+        const c = await commit([{ path: "events/" + slug + "/event.json", mode: "100644", type: "blob", sha: b.sha }, await indexWrite({ [slug]: info })], (flag ? "Add " : "Remove ") + slug + (flag ? " to" : " from") + " the event switcher");
+        await load();
+        say("&#10004; " + (flag ? "Added to" : "Removed from") + " the switcher." + commitLink(c), "ok");
+      } catch (e2) { say("Could not update: " + esc(e2.message), "err"); }
+    };
     card.querySelector(".rs").onclick = () => {
       $("evName").value = (meta[slug] && meta[slug].name) || slug;
       $("evNote").value = (meta[slug] && meta[slug].note) || "";
@@ -291,7 +331,7 @@ function openApply(card, slug) {
       if (q(".bk").checked) {
         const bn = q(".bkName").value.trim(), bs = slugify(bn);
         if (bs === slug) throw new Error("Give the backup a different name than the event you are applying.");
-        writes = (await snapshotWrites(bs, bn, "Saved automatically before applying " + (m.name || slug), allSel())).concat(writes);
+        writes = (await snapshotWrites(bs, bn, "Saved automatically before applying " + (m.name || slug), allSel(), false)).concat(writes);
       }
       const c = await commit(writes, "Apply event: " + (m.name || slug));
       await load();

@@ -119,6 +119,8 @@
   <h1>Connersville — Stories &amp; Spots</h1>
   <button id="pickFile">Pick spots.csv…</button>
   <input id="fileInput" type="file" accept=".csv,text/csv" hidden>
+  <button id="pickPhotos" title="Captions, credits and extra photos">Pick photos.csv…</button>
+  <input id="filePhotos" type="file" accept=".csv,text/csv" hidden>
   <span class="status" id="status">Loading…</span>
   <span class="grow"></span>
   <button id="reloadBtn" title="Re-fetch from this folder">↻ Reload</button>
@@ -250,11 +252,123 @@ $("reloadBtn").onclick = async () => {
     if (!res.ok) throw new Error(res.status + " " + res.statusText);
     ingest(await res.text(), "spots.csv");
     selected = null;
+    await loadPhotoRows();
     toast("Reloaded from server");
   } catch (e) {
     toast("Reload failed: " + e.message);
   }
 };
+
+/* ============================================================
+   photos.csv  (ITEM_ID, ORDER, PATH, CAPTION, CREDIT)
+   Row 1 per item = caption/credit for the main photo; rows 2+ = extra photos.
+   Loaded automatically from this folder, so saving never drops other rows.
+   ============================================================ */
+const PHOTO_COLS = ["ITEM_ID","ORDER","PATH","CAPTION","CREDIT"];
+let photoRows = [];
+let photosLoaded = false;
+const rowsFor = id => photoRows.filter(x => x.ITEM_ID === id).sort((a, b) => (parseFloat(a.ORDER) || 0) - (parseFloat(b.ORDER) || 0));
+const renumber = id => rowsFor(id).forEach((x, i) => { x.ORDER = String(i + 1); });
+function renameItem(oldId, newId){ photoRows.forEach(x => { if (x.ITEM_ID === oldId) x.ITEM_ID = newId; }); }
+function ingestPhotos(text, name){
+  photoRows = Papa.parse(text, { header: true, skipEmptyLines: "greedy" }).data.map(x => ({
+    ITEM_ID: String(x.ITEM_ID || "").trim(), ORDER: String(x.ORDER || "").trim(), PATH: String(x.PATH || "").trim(),
+    CAPTION: String(x.CAPTION || "").trim(), CREDIT: String(x.CREDIT || "").trim()
+  })).filter(x => x.ITEM_ID);
+  photosLoaded = true;
+  if (name) toast("Loaded " + name + " (" + photoRows.length + " rows)");
+}
+async function loadPhotoRows(){
+  try {
+    const res = await fetch("photos.csv", { cache: "no-store" });
+    if (res.ok) ingestPhotos(await res.text());
+    else if (res.status === 404) { photoRows = []; photosLoaded = true; }   // no photos.csv on the site yet
+  } catch (e) { /* opened from a file: use Pick photos.csv */ }
+  if (typeof selected !== "undefined" && selected) renderForm();
+}
+$("pickPhotos").onclick = () => $("filePhotos").click();
+$("filePhotos").onchange = e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { ingestPhotos(r.result, f.name); if (selected) renderForm(); };
+  r.readAsText(f);
+  e.target.value = "";
+};
+
+function renderGalEditor(scope, id){
+  const box = scope.querySelector("#galEditor");
+  if (!box) return;
+  const idNow = () => (scope.querySelector("#f-SPOT_ID") || {}).value || id;
+  const list = rowsFor(idNow());
+  box.innerHTML = '<div class="sub" style="margin:10px 0 4px"><b>Captions, credits and extra photos</b></div>' + list.map((x, i) => `
+    <div class="galrow" data-i="${i}" style="border:1px solid #d9dde2;border-radius:8px;padding:6px;margin-bottom:6px">
+      <div style="font-size:11px;color:#667;margin-bottom:3px">${i === 0 ? "Main photo (its file is the Photo path above; the Credit above is used if this credit is blank)" : "Extra photo " + i}</div>
+      ${i === 0 ? "" : '<div style="display:flex;gap:6px"><input type="text" class="g-path" placeholder="folder/photo.jpg" value="' + esc(x.PATH || "") + '" style="flex:1"><button class="small g-fbtn" type="button">Upload…</button><input type="file" class="g-file" accept="image/*" hidden></div>'}
+      <input type="text" class="g-cap" placeholder="Caption" value="${esc(x.CAPTION || "")}" style="margin-top:4px">
+      <input type="text" class="g-cred" placeholder="Credit (who took it or owns it)" value="${esc(x.CREDIT || "")}" style="margin-top:4px">
+      <div style="display:flex;gap:6px;margin-top:4px">
+        <button class="small g-up" type="button" ${i < 2 ? "disabled" : ""}>↑</button>
+        <button class="small g-dn" type="button" ${i === 0 || i === list.length - 1 ? "disabled" : ""}>↓</button>
+        <span style="flex:1"></span>
+        <button class="small warn g-del" type="button" ${i === 0 && list.length > 1 ? "disabled title='Remove the extra photos first'" : ""}>Remove</button>
+      </div>
+    </div>`).join("") + `<button class="small" id="galAdd" type="button">＋ ${list.length ? "Add extra photo" : "Add caption / credit"}</button>`;
+
+  box.querySelectorAll(".galrow").forEach(rowEl => {
+    const i = +rowEl.dataset.i, x = list[i];
+    const bind = (sel, key) => { const el = rowEl.querySelector(sel); if (el) el.oninput = () => { x[key] = el.value.trim(); }; };
+    bind(".g-cap", "CAPTION"); bind(".g-cred", "CREDIT");
+    const pathEl = rowEl.querySelector(".g-path");
+    if (pathEl) {
+      let t = null;
+      pathEl.oninput = () => {
+        x.PATH = pathEl.value.trim();
+        clearTimeout(t);
+        t = setTimeout(() => {
+          pathEl.style.borderColor = ""; pathEl.title = "";
+          if (!x.PATH) return;
+          if (stagedPhotos.some(p => p.name === x.PATH)) { pathEl.title = "Staged upload, not published yet"; return; }
+          const im = new Image();
+          im.onerror = () => { pathEl.style.borderColor = "#b42318"; pathEl.title = "Not found: check the folder, spelling and extension"; };
+          im.src = x.PATH;
+        }, 400);
+      };
+      pathEl.oninput();
+      const fb = rowEl.querySelector(".g-fbtn"), fi = rowEl.querySelector(".g-file");
+      fb.onclick = () => fi.click();
+      fi.onchange = () => {
+        const f = fi.files[0];
+        if (!f) return;
+        const sp = spots.find(z => z.row.SPOT_ID === idNow());
+        const folder = sp && sp.kind === "story" ? "stories" : "spots";
+        const ext = (f.name.split(".").pop() || "jpg").toLowerCase();
+        const suggested = folder + "/" + String(idNow()).toLowerCase().replace(/[^a-z0-9_-]+/g, "_") + "-" + Date.now().toString(36).slice(-4) + "." + ext;
+        const chosen = prompt("Photo path (relative to site root):", suggested);
+        if (chosen == null || !chosen.trim()) return;
+        const path = chosen.trim();
+        stagedPhotos = stagedPhotos.filter(p => p.name !== path);
+        stagedPhotos.push({ name: path, blob: f });
+        pathEl.value = path;
+        pathEl.oninput();
+        renderStaged();
+        toast("Staged " + path + " — download when you publish");
+        fi.value = "";
+      };
+    }
+    const move = dir => { const o = list[i + dir]; const tmp = x.ORDER; x.ORDER = o.ORDER; o.ORDER = tmp; renumber(idNow()); renderGalEditor(scope, id); };
+    rowEl.querySelector(".g-up").onclick = () => move(-1);
+    rowEl.querySelector(".g-dn").onclick = () => move(1);
+    rowEl.querySelector(".g-del").onclick = () => { photoRows = photoRows.filter(r => r !== x); renumber(idNow()); renderGalEditor(scope, id); };
+  });
+  box.querySelector("#galAdd").onclick = () => {
+    if (!photosLoaded && !photoRows.length) toast("If you already have a photos.csv, use Pick photos.csv first. Otherwise downloading will replace it.");
+    photoRows.push({ ITEM_ID: idNow(), ORDER: String(list.length + 1), PATH: "", CAPTION: "", CREDIT: "" });
+    renderGalEditor(scope, id);
+  };
+}
+
+loadPhotoRows();   // after everything above is defined
 
 function ingest(csvText, filename){
   const parsed = Papa.parse(csvText, { header:true, skipEmptyLines:"greedy" });
@@ -471,6 +585,8 @@ function renderForm(){
         <input type="text" id="f-SOURCE" value="${esc(r.SOURCE||"")}">
       </div>
 
+      <div id="galEditor"></div>
+
       <details class="future">
         <summary>Series &amp; Order (future)</summary>
         <div class="field" style="margin-top:8px">
@@ -499,7 +615,7 @@ function renderForm(){
     </div>
   `;
 
-  bindText(box, "f-SPOT_ID",    v => { r.SPOT_ID = v; renderList(); });
+  bindText(box, "f-SPOT_ID",    v => { renameItem(r.SPOT_ID, v); r.SPOT_ID = v; renderList(); });
   bindText(box, "f-TITLE",      v => { r.TITLE = v; renderList(); if (s.marker) s.marker.getElement().title = v; });
   bindText(box, "f-YEAR",       v => { r.YEAR = v; });
   bindText(box, "f-LAT",        v => { r.LAT = v; syncLL(s, v, r.LONG); });
@@ -510,6 +626,7 @@ function renderForm(){
   bindText(box, "f-SOURCE",     v => { r.SOURCE = v; });
   bindText(box, "f-SERIES",     v => { r.SERIES = v; });
   bindText(box, "f-ORDER",      v => { r.ORDER = v; });
+  renderGalEditor(box, r.SPOT_ID);
   bindText(box, "f-STAFF_NOTE", v => { r.STAFF_NOTE = v; });
 
   box.querySelector("#f-KIND").onchange = e => {
@@ -539,6 +656,7 @@ function renderForm(){
 
   box.querySelector("#delSpot").onclick = () => {
     if (!confirm("Delete " + (r.SPOT_ID||"") + "? This removes it from spots.csv.")) return;
+    photoRows = photoRows.filter(x => x.ITEM_ID !== r.SPOT_ID);
     spots = spots.filter(x => x !== s);
     selected = null;
     render();
@@ -729,6 +847,10 @@ $("publishBtn").onclick = () => {
   const rows = spots.map(s => pick(s.row, headers));
   const csv = Papa.unparse({ fields: headers, data: rows });
   download("spots.csv", csv);
+  if (photosLoaded || photoRows.length) {
+    const sorted = photoRows.slice().sort((a, b) => a.ITEM_ID.localeCompare(b.ITEM_ID) || (parseFloat(a.ORDER) || 0) - (parseFloat(b.ORDER) || 0));
+    download("photos.csv", Papa.unparse({ fields: PHOTO_COLS, data: sorted.map(x => pick(x, PHOTO_COLS)) }));
+  }
   toast(`Downloaded spots.csv · ${spots.length} items` +
         (stagedPhotos.length ? ` · ${stagedPhotos.length} staged photos below` : ""));
 };

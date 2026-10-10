@@ -1344,7 +1344,7 @@ function renderGalEditor(scope, id){
   box.innerHTML = '<div class="sub" style="margin:10px 0 4px">Captions, credits and extra photos</div>' + list.map((x, i) => `
     <div class="galrow" data-i="${i}" style="border:1px solid var(--line);border-radius:8px;padding:6px;margin-bottom:6px">
       <div style="font-size:11px;color:var(--muted);margin-bottom:3px">${i === 0 ? "Main photo (its file is chosen above)" : "Extra photo " + i}</div>
-      ${i === 0 ? "" : '<input type="text" class="g-path" placeholder="folder/photo.jpg" value="' + esc(x.PATH || "") + '">'}
+      ${i === 0 ? "" : '<div style="display:flex;gap:6px"><input type="text" class="g-path" placeholder="folder/photo.jpg" value="' + esc(x.PATH || "") + '" style="flex:1"><button class="small g-fbtn" type="button">Upload…</button><input type="file" class="g-file" accept="image/*" hidden></div>'}
       <input type="text" class="g-cap" placeholder="Caption" value="${esc(x.CAPTION || "")}" style="margin-top:4px">
       <input type="text" class="g-cred" placeholder="Credit (who took it or owns it)" value="${esc(x.CREDIT || "")}" style="margin-top:4px">
       <div class="actions" style="margin-top:4px">
@@ -1368,12 +1368,28 @@ function renderGalEditor(scope, id){
         t = setTimeout(() => {
           pathEl.style.borderColor = ""; pathEl.title = "";
           if (!x.PATH) return;
+          if (stagedPhotos.some(p => p.name === x.PATH || "photos/" + p.name === x.PATH)) { pathEl.title = "Staged upload, not published yet"; return; }
           const im = new Image();
           im.onerror = () => { pathEl.style.borderColor = "#b42318"; pathEl.title = "Not found: check the folder, spelling and extension"; };
           im.src = x.PATH;
         }, 400);
       };
       pathEl.oninput();
+      const fb = rowEl.querySelector(".g-fbtn"), fi = rowEl.querySelector(".g-file");
+      fb.onclick = () => fi.click();
+      fi.onchange = () => {
+        const f = fi.files[0];
+        if (!f) return;
+        const ext = (f.name.split(".").pop() || "jpg").toLowerCase();
+        const name = idNow() + "-" + Date.now().toString(36).slice(-4) + "." + ext;
+        stagedPhotos = stagedPhotos.filter(p => p.name !== name);
+        stagedPhotos.push({ name, blob: f });
+        pathEl.value = "photos/" + name;
+        pathEl.oninput();
+        renderStaged();
+        toast("Staged " + name + " — download when you publish");
+        fi.value = "";
+      };
     }
     const move = dir => { const o = list[i + dir]; const t = x.ORDER; x.ORDER = o.ORDER; o.ORDER = t; renumber(idNow()); renderGalEditor(scope, id); };
     rowEl.querySelector(".g-up").onclick = () => move(-1);

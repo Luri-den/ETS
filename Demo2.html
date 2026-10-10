@@ -41,6 +41,8 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 #tools button{padding:6px 10px;border:0;border-radius:4px;background:#fff;color:#000;cursor:pointer}
 #tools label{display:flex;align-items:center;gap:6px;flex:1 1 210px}
 #tools input[type=range]{flex:1}
+#aerialBtn[aria-pressed="true"]{background:#222;color:#fff}
+#tools [hidden]{display:none}   /* the label rule above would otherwise override the hidden attribute */
 
 #panel{position:absolute;z-index:6;left:0;right:0;bottom:0;max-height:55vh;overflow:auto;background:#fff;padding:12px 14px calc(14px + env(safe-area-inset-bottom));box-shadow:0 -2px 8px #0005;box-sizing:border-box}
 #panel {width:100%;max-height:240px;object-fit:cover;border-radius:6px;cursor:zoom-in}
@@ -75,6 +77,10 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 #eventCard h2{margin:6px 34px 10px 0}
 #eventCard p{margin:0;line-height:1.5;white-space:pre-line}
 #ev-x{position:absolute;right:8px;top:2px;font-size:30px;border:0;background:none;cursor:pointer}
+#eventCard h3{margin:16px 0 4px}
+.ev-link{display:block;padding:9px 12px;margin:6px 0;border:2px solid var(--bar,#E47303);border-radius:12px;text-decoration:none;color:#222;background:#fff}
+.ev-link small{display:block;opacity:.8}
+.ev-link.cur{background:var(--bar,#E47303);color:#fff;pointer-events:none}
 #spotCard{position:relative;background:#fff;border:6px solid #D55E00;border-radius:18px;max-width:560px;max-height:92vh;overflow:auto;padding:14px}
 #spotCard {width:100%;max-height:52vh;object-fit:contain;border-radius:8px;background:#eee;cursor:zoom-in}
 #spotCard h2{margin:10px 0 4px}
@@ -393,6 +399,7 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
     <button id="ev-x" type="button" aria-label="Close">&times;</button>
     <h2 id="ev-title"></h2>
     <p id="ev-text"></p>
+    <div id="ev-switch"></div>
   </div>
 </div>
 
@@ -405,6 +412,7 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
   <ul id="res" hidden></ul>
   <div id="tools">
     <button id="near" type="button">Near Me</button>
+    <button id="aerialBtn" type="button" aria-pressed="false">Aerial</button>
     <button id="eventBtn" type="button" hidden>About</button>
     <button id="tour" type="button" hidden>Take the Tour</button>
     <label>Year: <b id="yv">All</b> <input id="yr" type="range" aria-label="Show sites that existed in this year"></label>
@@ -493,7 +501,44 @@ const key = s => String(s || "").trim().toLowerCase();
    PASSPORT & ACHIEVEMENTS SYSTEM (visit tracker)
    ============================================================ */
 
-const UNLOCKED_KEY = "connersville_unlocked_stamps";
+/* ============================================================
+   EVENTS: Demo2.html?event=name loads that event's saved copy from events/name/
+   (made with events.html). Without ?event= the page shows the live site as usual.
+   ============================================================ */
+const EVENT_SLUG = (() => { const v = new URLSearchParams(location.search).get("event") || ""; return /^[a-z0-9][a-z0-9_-]*$/i.test(v) ? v.toLowerCase() : ""; })();
+const EVENT_DIR = EVENT_SLUG ? "events/" + EVENT_SLUG + "/" : "";
+const KEY_SUFFIX = EVENT_SLUG ? "@" + EVENT_SLUG : "";      // keeps each event's passport progress separate
+let EVENT_INFO = null;                                       // events/name/event.json: which data files and folders the event holds
+const EVENT_READY = EVENT_SLUG
+  ? fetch(EVENT_DIR + "event.json", { cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null).then(j => { EVENT_INFO = j; })
+  : Promise.resolve();
+let EVENTS_INDEX = [];                                       // events/index.json: events shown in the switcher
+const EVENTS_INDEX_READY = fetch("events/index.json", { cache: "no-store" })
+  .then(r => r.ok ? r.json() : [])
+  .catch(() => [])
+  .then(a => { EVENTS_INDEX = Array.isArray(a) ? a.filter(x => x && /^[a-z0-9][a-z0-9_-]*$/i.test(x.slug || "")) : []; });
+const EVENT_FOLDERS = () => (EVENT_INFO && Array.isArray(EVENT_INFO.folders)) ? EVENT_INFO.folders : ["photos", "spots", "stories", "anims"];
+// Photos, spots, stories and anims come from the event's own copy of those folders when it has one.
+function assetUrl(path) {
+  const p = String(path || "");
+  if (!EVENT_SLUG || /^([a-z]+:)?\/\//i.test(p) || p.startsWith("data:")) return p;
+  const m = /^(photos|spots|stories|anims)\//.exec(p);
+  return m && EVENT_FOLDERS().includes(m[1]) ? EVENT_DIR + p : p;
+}
+// Data files come from the event's copy. An event saved without a file does not borrow the live site's.
+async function dataFetch(file, opts) {
+  await EVENT_READY;
+  if (EVENT_SLUG) {
+    const listed = !!(EVENT_INFO && Array.isArray(EVENT_INFO.data));
+    if (!listed || EVENT_INFO.data.includes(file)) {
+      try { const r = await fetch(EVENT_DIR + file, opts); if (r.ok) return r; } catch (e) {}
+    }
+    if (listed) return new Response("", { status: 404 });
+  }
+  return fetch(file, opts);
+}
+
+const UNLOCKED_KEY = "connersville_unlocked_stamps" + KEY_SUFFIX;
 
 function getUnlockedStamps() {
   try {
@@ -561,7 +606,7 @@ function updatePassportUI() {
    WELCOME GIF INTRO
    ============================================================ */
 
-const WELCOME_DISPLAY_TIME = 3000;
+const WELCOME_DISPLAY_TIME = 1500;
 const WELCOME_TRANSITION_TIME = 650;
 const WELCOME_SITE_TIME = 4000;
 
@@ -773,6 +818,7 @@ SITE.fromCsv = false;
 SITE.passport = true;         // PASSPORT in site.csv: no = hide the whole passport
 SITE.passportRanks = true;    // PASSPORT_RANKS in site.csv: no = keep tasks and discoveries, drop stars and ranks
 SITE.yearSlider = true;       // YEAR_SLIDER in site.csv: no = hide the year slider
+SITE.aerialButton = true;       // AERIAL_BUTTON in site.csv: no = hide the aerial view button
 SITE.overlaySlider = true;    // OVERLAY_SLIDER in site.csv: no = no old-map overlays or slider at all
 SITE.welcomeTheme = "";       // WELCOME_THEME in site.csv: blank = the classic welcome1.gif; or halloween, fall, winter
 SITE.welcomeText = "";        // WELCOME_TEXT in site.csv: "Welcome to|{PLACE}" (| = new line)
@@ -780,7 +826,7 @@ SITE.place = "";              // PLACE in site.csv
 SITE.shapes = {};             // CATEGORY code -> shape code, from the SHAPE column of categories.csv
 SITE.customShapes = {};       // your own shapes, from shapes.csv
 SITE.event = { button: "About", title: "", text: "" };   // EVENT_BUTTON / EVENT_TITLE / EVENT_TEXT in site.csv
-const SETTINGS_READY = fetch("site.csv", { cache: "no-store" })
+const SETTINGS_READY = dataFetch("site.csv", { cache: "no-store" })
   .then(r => r.ok ? r.text() : "")
   .catch(() => "")
   .then(txt => {
@@ -809,6 +855,7 @@ const SETTINGS_READY = fetch("site.csv", { cache: "no-store" })
     SITE.passportRanks = (S.PASSPORT_RANKS || "yes").toLowerCase() !== "no";
     SITE.yearSlider = (S.YEAR_SLIDER || "yes").toLowerCase() !== "no";
     SITE.overlaySlider = (S.OVERLAY_SLIDER || "yes").toLowerCase() !== "no";
+    SITE.aerialButton = (S.AERIAL_BUTTON || "yes").toLowerCase() !== "no";
     SITE.welcomeTheme = (S.WELCOME_THEME || "").toLowerCase();
     SITE.welcomeText = S.WELCOME_TEXT || "";
     SITE.place = S.PLACE || "";
@@ -820,7 +867,7 @@ const SETTINGS_READY = fetch("site.csv", { cache: "no-store" })
    Row 1 of an item = caption and credit for its main photo (PATH blank = use the usual main photo).
    Rows 2+ = extra photos with their own PATH, caption and credit. Items with no rows work as before. */
 const PHOTO_ROWS = {};
-const PHOTOS_READY = fetch("photos.csv", { cache: "no-store" })
+const PHOTOS_READY = dataFetch("photos.csv", { cache: "no-store" })
   .then(r => r.ok ? r.text() : "")
   .catch(() => "")
   .then(txt => {
@@ -839,7 +886,7 @@ const PHOTOS_READY = fetch("photos.csv", { cache: "no-store" })
   });
 const photoNote = p => [p.caption, p.credit ? "Photo: " + p.credit : ""].filter(Boolean).join(" · ");
 function coverPath(id, fallback){ const a = PHOTO_ROWS[id]; return (a && a[0] && a[0].path) || fallback; }
-function coverNote(id){ const a = PHOTO_ROWS[id]; return a && a[0] ? photoNote(a[0]) : ""; }
+function coverNote(id, fallbackCredit){ const a = PHOTO_ROWS[id]; return a && a[0] ? photoNote({ caption: a[0].caption, credit: a[0].credit || fallbackCredit || "" }) : ""; }
 function buildGallery(id){
   const list = (PHOTO_ROWS[id] || []).slice(1).filter(p => p.path);
   if (!list.length) return null;
@@ -852,7 +899,7 @@ function buildGallery(id){
     im.loading = "lazy";
     im.dataset.caption = photoNote(p);
     im.onerror = () => f.remove();
-    im.src = p.path;
+    im.src = assetUrl(p.path);
     f.appendChild(im);
     if (photoNote(p)) { const c = document.createElement("figcaption"); c.textContent = photoNote(p); f.appendChild(c); }
     g.appendChild(f);
@@ -865,6 +912,7 @@ async function applySettingsToMap(){
   if (!SITE.fromCsv) return;
   if (!SITE.passport) $("passportBtn").style.display = "none";
   if (!SITE.yearSlider) $("yr").closest("label").style.display = "none";
+  if (!SITE.aerialButton) $("aerialBtn").hidden = true;
   if (SITE.event.title || SITE.event.text) {
     $("eventBtn").textContent = SITE.event.button;
     $("eventBtn").hidden = false;
@@ -937,7 +985,7 @@ function thumb(id, category, path){
   let i = 0;
   let typed = String(path || "").trim();   // PHOTO column: any folder/file; tried first
 
-  const go = () => { im.src = typed || ("photos/" + encodeURIComponent(id) + "." + EXT[i]); };
+  const go = () => { im.src = assetUrl(typed || ("photos/" + encodeURIComponent(id) + "." + EXT[i])); };
 
   im.onerror = () => {
     if (typed) { console.warn("Photo path not found for " + id + ": " + typed + " (trying photos/" + id + ")"); typed = ""; i = 0; go(); return; }
@@ -968,16 +1016,15 @@ function iconFor(cat){
    CSV LOADING
    ============================================================ */
 
-function load(file){
-  return new Promise(resolve =>
-    Papa.parse(file, {
-      download: true,
-      header: true,
-      skipEmptyLines: "greedy",
-      complete: r => resolve(r.data),
-      error: () => { console.warn("Could not load " + file); resolve([]); }
-    })
-  );
+async function load(file){
+  try {
+    const r = await dataFetch(file);
+    if (!r.ok) throw new Error(String(r.status));
+    return Papa.parse(await r.text(), { header: true, skipEmptyLines: "greedy" }).data;
+  } catch (e) {
+    console.warn("Could not load " + file);
+    return [];
+  }
 }
 
 /* ============================================================
@@ -990,8 +1037,8 @@ let TASKS  = [];
 async function loadPassportData(){
   try {
     const [S, T] = await Promise.all([
-      fetch("stamps.csv", { cache:"no-store" }).then(r => r.ok ? r.text() : "").catch(() => ""),
-      fetch("tasks.csv",  { cache:"no-store" }).then(r => r.ok ? r.text() : "").catch(() => "")
+      dataFetch("stamps.csv", { cache:"no-store" }).then(r => r.ok ? r.text() : "").catch(() => ""),
+      dataFetch("tasks.csv",  { cache:"no-store" }).then(r => r.ok ? r.text() : "").catch(() => "")
     ]);
     if (S) {
       const parsed = Papa.parse(S, { header:true, skipEmptyLines:"greedy" });
@@ -1044,7 +1091,8 @@ function makePin(item, cls){
 
 map.on("load", async () => {
 
-  map.addSource("boundary", { type:"geojson", data: SITE.files.boundary });
+  await EVENT_READY;
+  map.addSource("boundary", { type:"geojson", data: (EVENT_SLUG && EVENT_INFO && Array.isArray(EVENT_INFO.data) && EVENT_INFO.data.includes(SITE.files.boundary)) ? EVENT_DIR + SITE.files.boundary : SITE.files.boundary });
 
   map.addLayer({
     id: "boundary",
@@ -1055,6 +1103,8 @@ map.on("load", async () => {
 
   await applySettingsToMap();
   await PHOTOS_READY;
+  await EVENTS_INDEX_READY;
+  refreshEventButton();
 const [L,C,CATS,SHAPEROWS] = await Promise.all([
   load(SITE.files.locations),
   load(SITE.files.children),
@@ -1513,7 +1563,7 @@ async function initOverlays(){
   await SETTINGS_READY;
   if (!SITE.overlaySlider) return;
   try {
-    const res = await fetch("overlays.json", { cache:"no-store" });
+    const res = await dataFetch("overlays.json", { cache:"no-store" });
     if (res.ok) {
       const loaded = await res.json();
       if (Array.isArray(loaded) && loaded.length) SITE.overlays = loaded;
@@ -1656,11 +1706,11 @@ $("res").onclick = e => {
 
     const qcp = coverPath(id, r.PHOTO);
     $("sp-img").hidden = !qcp;
-    if (qcp) $("sp-img").src = qcp;
+    if (qcp) $("sp-img").src = assetUrl(qcp);
     $("sp-title").textContent = r.TITLE || "What used to be here?";
     $("sp-when").textContent = r.YEAR || "";
     $("sp-text").textContent = r.DETAILS || "";
-    $("sp-credit").textContent = coverNote(id) || (r.CREDIT ? "Photo: " + r.CREDIT : "");
+    $("sp-credit").textContent = coverNote(id, r.CREDIT) || (r.CREDIT ? "Photo: " + r.CREDIT : "");
     $("sp-img").dataset.caption = coverNote(id);
     const qGal = buildGallery(id);
     if (qGal) $("sp-credit").after(qGal);
@@ -1755,10 +1805,10 @@ $("res").onclick = e => {
 
     if (cp) {
       $("sp-img").hidden = false;
-      $("sp-img").src = cp;
+      $("sp-img").src = assetUrl(cp);
       const anim = /(?:^|\/)([^/]+)\.(jpe?g|png|webp)$/i.exec(cp || "");
       if (anim) {
-        const path = "anims/" + anim[1] + ".mp4";
+        const path = assetUrl("anims/" + anim[1] + ".mp4");
         vid.onloadeddata = () => { vid.hidden = false; vid.play().catch(() => { vid.hidden = true; }); };
         vid.onended      = () => { vid.hidden = true; };
         vid.onerror      = () => { vid.hidden = true; };
@@ -1773,7 +1823,7 @@ $("res").onclick = e => {
     $("sp-when").textContent = r.YEAR || "";
     $("sp-text").textContent = r.DETAILS || "";
     $("sp-credit").textContent =
-      [coverNote(it.id) || (r.CREDIT ? "Photo: " + r.CREDIT : ""), r.SOURCE ? "Source: " + r.SOURCE : ""]
+      [coverNote(it.id, r.CREDIT) || (r.CREDIT ? "Photo: " + r.CREDIT : ""), r.SOURCE ? "Source: " + r.SOURCE : ""]
         .filter(Boolean).join(" · ");
     $("sp-img").dataset.caption = coverNote(it.id);
     const oldGal = $("spotCard").querySelector(".gal");
@@ -1829,7 +1879,7 @@ $("res").onclick = e => {
         wrap.className = "photo-anim";
         const still = new Image();
         still.alt = "";
-        still.src = cp;
+        still.src = assetUrl(cp);
         still.onerror = () => { still.remove(); };
         wrap.appendChild(still);
 
@@ -1843,13 +1893,13 @@ $("res").onclick = e => {
           v.onloadeddata = () => { v.hidden = false; v.play().catch(() => { v.hidden = true; }); };
           v.onended      = () => { v.hidden = true; };
           v.onerror      = () => { v.hidden = true; };
-          v.src = "anims/" + m[1] + ".mp4";
+          v.src = assetUrl("anims/" + m[1] + ".mp4");
           wrap.appendChild(v);
         }
 
         img = wrap;
       }
-      credit = [coverNote(it.id) || (r.CREDIT ? "Photo: " + r.CREDIT : ""), r.SOURCE ? "Source: " + r.SOURCE : ""]
+      credit = [coverNote(it.id, r.CREDIT) || (r.CREDIT ? "Photo: " + r.CREDIT : ""), r.SOURCE ? "Source: " + r.SOURCE : ""]
         .filter(Boolean).join(" · ");
       unlockStamp(it.id);
     } else if (it) {
@@ -2073,7 +2123,7 @@ $("res").onclick = e => {
 
   function animPathFor(photoSrc) {
     const m = /(?:^|\/)([^/]+)\.(jpe?g|png|webp)$/i.exec(photoSrc || "");
-    return m ? "anims/" + m[1] + ".mp4" : null;
+    return m ? assetUrl("anims/" + m[1] + ".mp4") : null;
   }
 
   function closeView() {
@@ -2176,9 +2226,9 @@ $("res").onclick = e => {
    ============================================================ */
 (function () {
 
-  const STAMP_KEY = "connersville_stamps_v2";
+  const STAMP_KEY = "connersville_stamps_v2" + KEY_SUFFIX;
   const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const LAST_STARS_KEY = "connersville_last_stars";
+  const LAST_STARS_KEY = "connersville_last_stars" + KEY_SUFFIX;
 
   const loadProgress = () => { try { return JSON.parse(localStorage.getItem(STAMP_KEY)) || {}; } catch { return {}; } };
   const saveProgress = p => { try { localStorage.setItem(STAMP_KEY, JSON.stringify(p)); } catch {} };
@@ -2768,12 +2818,74 @@ $("closePassport").onclick = () => {
 };
 
 /* ============================================================
+   AERIAL VIEW: USGS imagery everywhere, with Indiana's own (sharper) imagery on top when zoomed in
+   ============================================================ */
+const AERIAL = {
+  usgs: {
+    tiles: ["https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}"],
+    maxzoom: 16,
+    attribution: "Imagery: USGS The National Map / USDA NAIP"
+  },
+  indiana: {
+    tiles: ["https://di-ingov.img.arcgis.com/arcgis/rest/services/DynamicWebMercator/Indiana_Current_Imagery/ImageServer/exportImage?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=256,256&format=jpgpng&f=image"],
+    maxzoom: 20,
+    attribution: "Imagery: Indiana Geographic Information Office (IGIO)"
+  }
+};
+const inIndiana = c => c.lng > -88.1 && c.lng < -84.78 && c.lat > 37.77 && c.lat < 41.77;   // rough box; the layer is only added for Indiana maps
+function setAerial(on){
+  try {
+    if (on && !map.getSource("usgs-tiles")) {
+      const order = map.getStyle().layers.map(l => l.id);
+      const beforeId = order[order.indexOf("osm") + 1];   // just above the street map, below boundary lines and old-map overlays
+      map.addSource("usgs-tiles", { type: "raster", tiles: AERIAL.usgs.tiles, tileSize: 256, maxzoom: AERIAL.usgs.maxzoom, attribution: AERIAL.usgs.attribution });
+      map.addLayer({ id: "aerial-usgs", type: "raster", source: "usgs-tiles" }, beforeId);
+      if (inIndiana(map.getCenter())) {
+        map.addSource("indiana-tiles", { type: "raster", tiles: AERIAL.indiana.tiles, tileSize: 256, maxzoom: AERIAL.indiana.maxzoom, attribution: AERIAL.indiana.attribution });
+        map.addLayer({ id: "aerial-indiana", type: "raster", source: "indiana-tiles", minzoom: 13 }, beforeId);
+      }
+    }
+    ["aerial-usgs", "aerial-indiana"].forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", on ? "visible" : "none"); });
+    map.setLayoutProperty("osm", "visibility", on ? "none" : "visible");
+    $("aerialBtn").setAttribute("aria-pressed", on ? "true" : "false");
+  } catch (e) { console.warn("Aerial view is not ready yet", e); }
+}
+$("aerialBtn").onclick = () => setAerial($("aerialBtn").getAttribute("aria-pressed") !== "true");
+
+/* ============================================================
    EVENT / FOCUS PANEL (text comes from site.csv)
    ============================================================ */
+function renderEventSwitcher(){
+  const box = $("ev-switch");
+  box.innerHTML = "";
+  if (!EVENTS_INDEX.length) return;
+  const h = document.createElement("h3");
+  h.textContent = "Events";
+  box.appendChild(h);
+  const add = (label, note, href, current) => {
+    const a = document.createElement("a");
+    a.className = "ev-link" + (current ? " cur" : "");
+    a.href = href;
+    if (current) a.setAttribute("aria-current", "page");
+    a.textContent = label;
+    if (note) { const s = document.createElement("small"); s.textContent = note; a.appendChild(s); }
+    box.appendChild(a);
+  };
+  add("Main map", "", location.pathname, !EVENT_SLUG);
+  EVENTS_INDEX.forEach(ev => add(ev.name || ev.slug, ev.note || "", location.pathname + "?event=" + encodeURIComponent(ev.slug), ev.slug === EVENT_SLUG));
+}
+function refreshEventButton(){
+  const own = !!(SITE.event.title || SITE.event.text);
+  if (!own && !EVENTS_INDEX.length) return;
+  $("eventBtn").textContent = own ? SITE.event.button : "Events";
+  $("eventBtn").hidden = false;
+}
 function openEventPanel(){
   $("ev-title").textContent = SITE.event.title;
   $("ev-title").hidden = !SITE.event.title;
   $("ev-text").textContent = SITE.event.text;
+  $("ev-text").hidden = !SITE.event.text;
+  renderEventSwitcher();
   $("eventBox").hidden = false;
   $("ev-x").focus();
 }

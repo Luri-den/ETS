@@ -503,7 +503,8 @@ function renderMapMarkers(){
     }
     // style state
     const el = entry.el;
-    el.className = "mk " + item.kind;
+    // keep MapLibre's own classes (maplibregl-marker is what positions the marker on the map)
+    el.className = "mk " + item.kind + " " + [...el.classList].filter(c => c.startsWith("maplibregl-")).join(" ");
     if (inTour){
       el.classList.add("tour-stop");
       if (isStart) el.classList.add("tour-start");
