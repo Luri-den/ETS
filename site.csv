@@ -1,8 +1,8 @@
 KEY,VALUE
-PLACE,Connersville
-HEADER,Discover {PLACE}'s Spooky Past
-TAB_TITLE,Explore {PLACE}'s Spooky Past
-BAR_COLOR,#434370
+PLACE,Franklin County
+HEADER,Explore {PLACE}
+TAB_TITLE,Explore {PLACE}
+BAR_COLOR,#2c2d4e
 CENTER_LAT,39.647531
 CENTER_LNG,-85.138892
 ZOOM,14
@@ -18,7 +18,7 @@ PASSPORT_RANKS,no
 YEAR_SLIDER,no
 OVERLAY_SLIDER,no
 EVENT_BUTTON,About
-EVENT_TITLE,Spooky Season
-EVENT_TEXT,Boo!
+EVENT_TITLE,Latest Events
+EVENT_TEXT,What's happening in Franklin County.
 WELCOME_THEME,halloween
 WELCOME_TEXT,Welcome to|{PLACE}
