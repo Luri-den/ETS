@@ -1,3 +1,5 @@
 SPOT_ID,TITLE,LAT,LONG,YEAR,PHOTO,DETAILS,CREDIT,KIND,CATEGORY,SERIES,ORDER,SOURCE,STAFF_NOTE
-SAMPLE,600 Block (Central Ave.),39.6427766910195,-85.1382894717403,1940s,spots/600blockcentral.jpg,"A view of a bustling downtown taken on Central Avenue looking south, taken in the 1940s. The grand McFarlan Hotel overlooks a J.C. Penney Company store below. That traffic certainly looks scary!","Allen County Public Library in Fort Wayne, Indiana",spot,COMM,,,,
-ST-TRAM,The 1907 Tram Car and the Canal,39.6471425062738,-85.139387103405,1907,stories/1907canalcrash.jpg,"In 1907, a tram car crashed into the canal. Luckily there were no injuries, but it sure made waves!",,story,CANAL,,,,
+SPOT-001,Business 1,39.4185206788397,-85.0128103273748,,,,,spot,COMM,,,,
+SPOT-002,Business 2,39.4191002712565,-85.0128090809241,,,,,spot,COMM,,,,
+SPOT-003,Business 3,39.4196544237655,-85.0128241298475,,,,,spot,COMM,,,,
+SPOT-004,Business 4,39.4202163221605,-85.0127990483089,,,,,spot,COMM,,,,
