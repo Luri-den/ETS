@@ -13,7 +13,7 @@
   rect:     { label: "Rounded Rectangle", points: [[85,0],[92,2],[98,7],[100,15],[100,85],[98,92],[92,98],[85,100],[15,100],[8,98],[2,92],[0,85],[0,15],[2,7],[7,2],[15,0]] },
   speechbubble:{ label: "Speech Bubble", points: [[10,10],[50,10],[90,10],[100,20],[100,60],[90,70],[60,70],[50,100],[40,70],[10,70],[0,60],[0,20],[10,10]] },
   starburst:   { label: "Starburst",    points: [[50,0],[60,25],[90,10],[75,40],[100,50],[75,60],[90,90],[60,75],[50,100],[40,75],[10,90],[25,60],[0,50],[25,40],[10,10],[40,25],[50,0]] },
-  cornercircll: { label: "One Corner Circle (Lower Left)", points: [[0,0],[100,0],[100,100],[0,100],[0,0] }
+  cornercircll: { label: "One Corner Circle (Lower Left)", points: [[0,0],[100,0],[100,100],[0,100],[0,0]] }
 };
   const slug = s => String(s || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   const pointsToClip = pts => "polygon(" + pts.map(p => p[0] + "% " + p[1] + "%").join(",") + ")";
