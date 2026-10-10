@@ -98,8 +98,8 @@
       .join("");
 
     return '<svg xmlns="http://www.w3.org/2000/svg" ' +
-      'viewBox="0 0 900 600" width="100%" height="100%" ' +
-      'preserveAspectRatio="xMidYMid slice">' +
+  'viewBox="0 0 900 600" ' +
+  'preserveAspectRatio="xMidYMid slice">' +
 
       '<defs>' +
         '<linearGradient id="welcomeBg" x1="0" y1="0" x2="0" y2="1">' +
