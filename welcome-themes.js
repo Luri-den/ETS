@@ -71,12 +71,23 @@
     const line = (s, y, size, fill, weight) => '<text x="450" y="' + y + '" text-anchor="middle" font-family="' + t.font + '" font-style="' + t.style + '" font-weight="' + weight +
       '" font-size="' + size + '" fill="' + fill + '" stroke="' + t.halo + '" stroke-opacity=".4" stroke-width="' + Math.round(size / 12) + '" paint-order="stroke" stroke-linejoin="round">' + esc(s) + "</text>";
     const smallSvg = small.map((s, k) => line(s, 250 - (small.length - 1 - k) * 62, 52, t.t1, "normal")).join("");
-    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" width="900" height="600">' +
-      '<defs></defs>' +
-      '<defs></defs>' +
-      '<g><rect x="0" y="0" width="900" height="600" fill="#101020" fill-opacity="0.55"/>' + t.decor(on) + smallSvg +
+    
+return '<svg xmlns="http://www.w3.org/2000/svg" ' +
+  'viewBox="0 0 900 600" width="100%" height="100%" ' +
+  'preserveAspectRatio="xMidYMid slice">' +
 
-      line(big, small.length ? 360 : 330, bigSize, t.t2, "bold") + "</g></svg>";
+  '<defs>' +
+    '<linearGradient id="welcomeBg" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="' + t.bg[0] + '"/>' +
+      '<stop offset="100%" stop-color="' + t.bg[1] + '"/>' +
+    '</linearGradient>' +
+  '</defs>' +
+
+  '<rect x="0" y="0" width="900" height="600" fill="url(#welcomeBg)"/>' +
+  '<g>' + t.decor(on) + smallSvg +
+    line(big, small.length ? 360 : 330, bigSize, t.t2, "bold") +
+  '</g></svg>';
+
   }
 
   window.WelcomeThemes = {
