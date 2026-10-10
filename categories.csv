@@ -1,9 +1,8 @@
-CODE,LABEL,COLOR,ICON,RANKED
-CIV,Civic,#E2E1E0,courthouse,no
-COMM,Commercial,#E47303,store,no
-RES,Residential,#BDD76B,house,no
-IND,Industrial,#AF350A,factory,yes
-RAIL,Rail,#8B6F47,train,yes
-CANAL,Canal,#4A7C8C,boat,yes
-DOWNTOWN,Downtown,#7B5EA7,hotel,yes
-ARTCULTURE,ARTCULTURE,#ff00ff,bridge,no
+CODE,LABEL,COLOR,ICON,RANKED,SHAPE
+CIV,County Services,#E2E1E0,courthouse,no,circle
+COMM,Local Businesses,#E47303,store,no,diamond
+RAIL,The Whitewater Valley Railroad,#8B6F47,train,no,circle
+CANAL,The Whitewater Canal,#4A7C8C,boat,no,circle
+DOWNTOWN,Downtown Brookville,#7B5EA7,hotel,no,circle
+GEMS,Local Hidden Gems,#ffff80,monument,no,star
+ART,Art and Culture,#ff0080,bridge,no,square
