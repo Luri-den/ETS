@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Connersville — Stories &amp; Spots Editor</title>
+<title>Stories &amp; Spots Editor</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <style>
   :root{
@@ -116,7 +116,7 @@
 <body>
 
 <div id="top">
-  <h1>Connersville — Stories &amp; Spots</h1>
+  <h1>Stories &amp; Spots</h1>
   <button id="pickFile">Pick spots.csv…</button>
   <input id="fileInput" type="file" accept=".csv,text/csv" hidden>
   <button id="pickPhotos" title="Captions, credits and extra photos">Pick photos.csv…</button>
@@ -141,7 +141,7 @@
           <span class="lbl">New Story</span>
         </div>
       </div>
-      <div class="hint">Drag onto the map. Click any marker to edit. The site shows these only at high zoom or with "Show All Stories and Spots" on — the editor shows them always.</div>
+      <div class="hint">Drag onto the map. Click any marker to edit. The site shows these only at high zoom or with "Show All Stories and Spots" on the editor shows them always.</div>
     </div>
 
     <div class="sec">
@@ -173,7 +173,7 @@
 
 <script>
 /* ============================================================
-   Connersville — Stories & Spots Editor
+   Stories & Spots Editor
    ============================================================ */
 
 const $ = id => document.getElementById(id);
@@ -535,8 +535,8 @@ function renderForm(){
       <div class="field">
         <label>Kind</label>
         <select id="f-KIND">
-          <option value="spot"  ${kind==="spot"?"selected":""}>spot — camera icon</option>
-          <option value="story" ${kind==="story"?"selected":""}>story — sparkle icon</option>
+          <option value="spot"  ${kind==="spot"?"selected":""}>spot camera icon</option>
+          <option value="story" ${kind==="story"?"selected":""}>story sparkle icon</option>
         </select>
       </div>
 
@@ -552,7 +552,7 @@ function renderForm(){
             <select id="f-CATEGORY">
               <option value="">—</option>
               ${Object.entries(CATEGORIES).map(([k,v]) =>
-                `<option value="${k}" ${k===cat?"selected":""}>${k} — ${esc(v.label)}</option>`).join("")}
+                `<option value="${k}" ${k===cat?"selected":""}>${k} ${esc(v.label)}</option>`).join("")}
             </select>
             <span class="sw" id="catSw" style="background:${cat ? (CATEGORIES[cat]||{}).color : '#ccc'}"></span>
           </div>
@@ -779,7 +779,7 @@ $("downloadPhotos").onclick = () => {
   stagedPhotos.forEach(p => {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(p.blob);
-    // keep folder in the suggested name but browsers may flatten it — user can move file manually
+    // keep folder in the suggested name but browsers may flatten it user can move file manually
     a.download = p.name.split("/").pop();
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
