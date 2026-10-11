@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Connersville — Tours Editor</title>
+<title>Tours Editor</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <style>
   :root{
@@ -127,7 +127,7 @@
 <body>
 
 <div id="top">
-  <h1>Connersville — Tours</h1>
+  <h1>Tours</h1>
   <button id="pickTours">Pick tours.csv…</button>
   <input id="fileTours" type="file" accept=".csv,text/csv" hidden>
   <button id="pickStops">Pick tourstops.csv…</button>
@@ -182,7 +182,7 @@
 
 <script>
 /* ============================================================
-   Connersville — Tours Editor
+   Tours Editor
    Edits tours.csv and tourstops.csv, referencing items from
    locations.csv, childmarkers.csv, and spots.csv.
    ============================================================ */
@@ -241,7 +241,7 @@ const map = new maplibregl.Map({
 map.addControl(new maplibregl.NavigationControl({ showCompass:false }), "bottom-right");
 map.addControl(new maplibregl.ScaleControl(), "bottom-left");
 
-/* Marker storage — key by item.id so we don't duplicate */
+/* Marker storage key by item.id so we don't duplicate */
 let markerIndex = new Map(); // id → {marker, el}
 
 /* ============================================================
@@ -581,7 +581,7 @@ function renderTourLine(){
 }
 
 /* ============================================================
-   Right panel — tour form
+   Right panel tour form
    ============================================================ */
 
 function renderForm(){
@@ -613,7 +613,7 @@ function renderForm(){
         <div class="catrow">
           <select id="f-CATEGORY">
             ${Object.entries(CATEGORIES).map(([k,v]) =>
-              `<option value="${k}" ${k===cat?"selected":""}>${k} — ${esc(v.label)}</option>`).join("")}
+              `<option value="${k}" ${k===cat?"selected":""}>${k} ${esc(v.label)}</option>`).join("")}
           </select>
           <span class="sw" id="catSw" style="background:${CATEGORIES[cat]?.color||'#E47303'}"></span>
         </div>
@@ -785,11 +785,11 @@ function stopEditHtml(s, idx){
       <div class="field">
         <label>Item (points to a location, child, or spot/story)</label>
         <select id="${itemFieldId}">
-          <option value="">— choose —</option>
+          <option value="">choose —</option>
           ${Object.entries(grouped).map(([label, list]) => {
             if (!list.length) return "";
             return `<optgroup label="${label}">
-              ${list.map(i => `<option value="${esc(i.id)}" ${key(i.id)===key(current)?"selected":""}>${esc(i.id)} — ${esc(i.name)}</option>`).join("")}
+              ${list.map(i => `<option value="${esc(i.id)}" ${key(i.id)===key(current)?"selected":""}>${esc(i.id)} ${esc(i.name)}</option>`).join("")}
             </optgroup>`;
           }).join("")}
         </select>
@@ -960,7 +960,7 @@ $("publishBtn").onclick = () => {
   const toursCSV = Papa.unparse({ fields: headers.tour, data: tourRows });
   download("tours.csv", toursCSV);
 
-  // Tourstops — flatten
+  // Tourstops flatten
   const allStops = [];
   for (const t of tours){
     for (const s of t.stops){
