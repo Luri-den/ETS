@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Events: Save and Switch</title>
+<title>Events: save and switch</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;font-family:Arial,sans-serif;color:#222;background:#fafafa}
@@ -50,6 +50,14 @@ code{background:#eee;padding:1px 4px;border-radius:3px}
   GitHub copies files it already has, so nothing is uploaded and nothing is stored twice.</p>
   <div id="status" class="msg">Reading the repository&hellip;</div>
 
+  <h2>Design an event</h2>
+  <p class="intro">Build an event in the other tabs <b>without changing the live map</b>. The editors switch to the event's own folder, a red frame and a banner remind you where you are, and nothing is visible to visitors until you add the event to the switcher or give it dates.</p>
+  <div class="cols">
+    <div><label for="dnName">Event name</label><input type="text" id="dnName" placeholder="Fried Chicken Trail"><div class="sz" id="dnSlug"></div></div>
+    <div><label for="dnFrom">Start from</label><select id="dnFrom"></select></div>
+  </div>
+  <div style="margin-top:10px"><button class="go" id="dnBtn" type="button" disabled>Create the event and start designing</button></div>
+
   <h2>Save the live site as an event</h2>
   <div class="cols">
     <div>
@@ -73,9 +81,10 @@ code{background:#eee;padding:1px 4px;border-radius:3px}
 </main>
 <script src="publish.js"></script>
 <script src="schedule.js"></script>
+<script src="workspace.js"></script>
 <script>
 const $ = id => document.getElementById(id);
-const DATA = ["site.csv","locations.csv","childmarkers.csv","categories.csv","spots.csv","tours.csv","tourstops.csv","stamps.csv","tasks.csv","photos.csv","overlays.json","connersville.geojson"];
+const DATA = ["site.csv","locations.csv","childmarkers.csv","categories.csv","spots.csv","tours.csv","tourstops.csv","stamps.csv","tasks.csv","photos.csv","shapes.csv","overlays.json","connersville.geojson"];
 const FOLDERS = ["photos","spots","stories","anims"];
 const SKEY = "ghpublish.settings.v1", TKEY = "ghpublish.token.v1";   // same storage as the editors' Publish button
 
@@ -124,7 +133,7 @@ async function load() {
       } catch (x) {}
     }
     say("");
-    renderSave(); renderList();
+    renderSave(); renderList(); fillDesignFrom(); updateDesign();
   } catch (e) {
     say(/401|403/.test(e.message) ? "GitHub refused the token (" + esc(e.message) + "). Check &#9881; GitHub settings." : "Could not read the repository: " + esc(e.message), "err");
   }
@@ -247,16 +256,24 @@ function renderList() {
     let bytes = 0; files.forEach(([, e]) => bytes += e.size || 0);
     const when = m.saved ? new Date(m.saved).toLocaleDateString() : "";
     return '<div class="card" data-slug="' + esc(slug) + '"><h3>' + esc(m.name || slug) + '</h3>' +
-      '<div class="sub"><code>events/' + esc(slug) + '/</code> &middot; ' + files.length + " files, " + fmtSize(bytes) + (when ? " &middot; saved " + esc(when) : "") + (m.public ? " &middot; <b>in the switcher</b>" : "") + "</div>" +
+      '<div class="sub"><code>events/' + esc(slug) + '/</code> &middot; ' + files.length + " files, " + fmtSize(bytes) + (when ? " &middot; saved " + esc(when) : "") + (m.public ? " &middot; <b>in the switcher</b>" : "") + (Workspace.current() === slug ? ' &middot; <b style="color:#d4351c">designing now</b>' : "") + (!m.public && !m.auto ? " &middot; not published (no switcher entry, no dates)" : "") + "</div>" +
       (m.note ? '<div class="sub">' + esc(m.note) + "</div>" : "") +
       (m.schedule ? '<div class="sub">&#128197; ' + esc(EventSchedule.describe(m.schedule)) + " &middot; <b>" + esc(EventSchedule.statusText(EventSchedule.status(m.schedule)) || "") + "</b>" + (m.auto ? " &middot; opens automatically" : "") + "</div>" : "") +
-      '<div class="row"><button class="go ap" type="button">Apply to live site</button><button class="rs" type="button">Re-save from live site</button><button class="pub" type="button">' + (m.public ? "Remove from switcher" : "Add to switcher") + '</button><button class="cp" type="button">Copy link</button><button class="sch" type="button">' + (m.schedule ? "Edit dates" : "Set dates\u2026") + '</button></div>' +
+      '<div class="row">' + (Workspace.current() === slug ? '<button class="go dsg-off" type="button">Stop designing</button>' : '<button class="go dsg" type="button">Design this event</button>') + '<button class="pv" type="button">Preview</button><button class="ap" type="button">Apply to live site</button><button class="rs" type="button">Re-save from live site</button><button class="pub" type="button">' + (m.public ? "Remove from switcher" : "Add to switcher") + '</button><button class="cp" type="button">Copy link</button><button class="sch" type="button">' + (m.schedule ? "Edit dates" : "Set dates\u2026") + '</button></div>' +
       '<div class="slot"></div><div class="slot2"></div></div>';
   }).join("");
   document.querySelectorAll("#list .card").forEach(card => {
     const slug = card.dataset.slug;
     card.querySelector(".ap").onclick = () => openApply(card, slug);
     card.querySelector(".sch").onclick = () => openSchedule(card, slug);
+    card.querySelector(".pv").onclick = () => window.open(new URL("Demo2.html?event=" + encodeURIComponent(slug), location.href).href, "_blank");
+    const dsg = card.querySelector(".dsg"), dsgOff = card.querySelector(".dsg-off");
+    if (dsg) dsg.onclick = () => {
+      if (!confirm('Design "' + ((meta[slug] && meta[slug].name) || slug) + '"? The editor tabs will reload and switch to this event. Save or publish anything unsaved in them first.')) return;
+      Workspace.set(slug); renderList();
+      say("Now designing <b>" + esc((meta[slug] && meta[slug].name) || slug) + "</b>. Use the other tabs as usual. Publishing there saves into <code>events/" + esc(slug) + "/</code>, and the live map is not changed.", "ok");
+    };
+    if (dsgOff) dsgOff.onclick = () => { Workspace.set(""); renderList(); say("Back on the live site. The editor tabs now publish to the live map again.", "ok"); };
     card.querySelector(".cp").onclick = async () => {
       const url = new URL("Demo2.html?event=" + encodeURIComponent(slug), location.href).href;
       try { await navigator.clipboard.writeText(url); say("Copied this link: <code>" + esc(url) + "</code> (good for a QR code)", "ok"); }
@@ -347,6 +364,65 @@ function openApply(card, slug) {
   };
   refresh();
 }
+
+/* ---------- design an event: make its folder, then switch the editors to it ---------- */
+function fillDesignFrom() {
+  const sel = $("dnFrom"), keep = sel.value;
+  sel.innerHTML = '<option value="live">A copy of the live site (markers, spots, photos, everything)</option><option value="settings">Just the settings and categories (a fresh start)</option>' +
+    eventSlugs().map(s => '<option value="event:' + esc(s) + '">A copy of the event: ' + esc((meta[s] && meta[s].name) || s) + "</option>").join("");
+  if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+}
+function updateDesign() {
+  const slug = slugify($("dnName").value);
+  const bad = !slug ? "" : isReserved(slug) ? '"' + slug + '" is reserved. Choose another name.' : eventSlugs().includes(slug) ? "That name is already used. Pick another, or design the existing event below." : "";
+  $("dnSlug").textContent = slug ? (bad || "Folder: events/" + slug + "/") : "";
+  $("dnBtn").disabled = !slug || !!bad || !tree.size;
+}
+$("dnName").addEventListener("input", updateDesign);
+// GitHub Pages needs about a minute to publish a new folder. Switching the editors before then would show them empty files.
+async function waitForSite(slug) {
+  for (let i = 0; i < 45; i++) {
+    try { const r = await fetch("events/" + slug + "/event.json?t=" + Date.now(), { cache: "no-store" }); if (r.ok) return true; } catch (x) {}
+    say("Waiting for the website to publish the new event folder, which usually takes about a minute&hellip; (" + (i * 5) + " seconds so far)");
+    await new Promise(r => setTimeout(r, 5000));
+  }
+  return false;
+}
+$("dnBtn").onclick = async () => {
+  const name = $("dnName").value.trim(), slug = slugify(name), from = $("dnFrom").value, prefix = "events/" + slug + "/";
+  if (!confirm('Create "' + name + '" and switch the editor tabs to it? They will reload, so save or publish anything unsaved in them first.')) return;
+  $("dnBtn").disabled = true;
+  try {
+    say("Creating the event&hellip;");
+    const writes = [];
+    let data = [], folders = [];
+    if (from.startsWith("event:")) {
+      const src = from.slice(6), sp = "events/" + src + "/";
+      for (const [p, e] of eventFiles(src)) writes.push({ path: prefix + p.slice(sp.length), mode: e.mode, type: "blob", sha: e.sha });
+      const m = meta[src] || {};
+      data = Array.isArray(m.data) ? m.data : []; folders = Array.isArray(m.folders) ? m.folders : [];
+    } else {
+      const sel = from === "live" ? allSel() : { data: ["site.csv", "categories.csv", "shapes.csv"].filter(f => tree.has(f)), folders: [] };
+      for (const p of livePaths(sel)) { const e = tree.get(p); writes.push({ path: prefix + p, mode: e.mode, type: "blob", sha: e.sha }); }
+      data = sel.data.filter(f => tree.has(f));
+      folders = sel.folders.filter(f => [...tree.keys()].some(p => p.startsWith(f + "/")));
+    }
+    const now = new Date().toISOString();
+    const b = await api("/git/blobs", "POST", { content: JSON.stringify({ name, note: "", created: now, saved: now, files: writes.length, public: false, data, folders }, null, 2), encoding: "utf-8" });
+    writes.push({ path: prefix + "event.json", mode: "100644", type: "blob", sha: b.sha });
+    const c = await commit(writes, "Start designing event: " + name);
+    await load();
+    if (!(await waitForSite(slug))) {
+      renderList(); updateDesign();
+      say("The event was created, but the website has not published its folder yet. Wait a minute or two, then press <b>Design this event</b> on its card below." + commitLink(c));
+      return;
+    }
+    Workspace.set(slug);
+    renderList();
+    say("&#10004; Now designing <b>" + esc(name) + "</b>. Use the other tabs as usual: publishing there saves into <code>events/" + esc(slug) + "/</code> and the live map is not changed. It stays hidden from visitors until you add it to the switcher or give it dates below." + commitLink(c), "ok");
+  } catch (x) { say("Could not create the event: " + esc(x.message), "err"); }
+  updateDesign();
+};
 
 /* ---------- dates ---------- */
 const guessZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Indiana/Indianapolis"; } catch (x) { return "America/Indiana/Indianapolis"; } };
