@@ -51,6 +51,7 @@ code{background:#eee;padding:1px 4px;border-radius:3px}
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="marker-shapes.js"></script>
 <script src="welcome-themes.js"></script>
+<script src="schedule.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
@@ -391,7 +392,13 @@ async function run(){
   ["Demo2.html","icons.js","marker-shapes.js","welcome-themes.js"].forEach(f => fileJobs.push({ section: "Setup", ref: f, path: f, what: "page file", sev: "problem", fix: "Upload " + f + " to the top folder of the site." }));
   if (!evSlug) {
     const ix = await tryFetch("events/index.json");
-    if (ix && ix.ok) { try { (await ix.json()).forEach(e => fileJobs.push({ section: "Events", ref: "Event " + e.slug, path: "events/" + e.slug + "/event.json", what: "event", sev: "warn", fix: "The event is in the switcher but its folder is gone. Remove it from events/index.json." })); } catch (e) { add("warn", "Events", "events/index.json", "Cannot be read.", "Save an event again from the Events tab to rebuild it."); } }
+    if (ix && ix.ok) { try {
+      (await ix.json()).forEach(e => {
+        fileJobs.push({ section: "Events", ref: "Event " + e.slug, path: "events/" + e.slug + "/event.json", what: "event", sev: "warn", fix: "The event is listed but its folder is gone. Remove it from events/index.json." });
+        if (e.auto && !e.schedule) add("warn", "Events", "Event " + e.slug, "Is set to open automatically but has no dates.", "Set dates on its card in the Events tab.");
+        if (e.schedule && window.EventSchedule) EventSchedule.validate(e.schedule).forEach(p => add("problem", "Events", "Event " + e.slug, "Dates: " + p, "Fix them on the event's card in the Events tab."));
+      });
+    } catch (e) { add("warn", "Events", "events/index.json", "Cannot be read.", "Save an event again from the Events tab to rebuild it."); } }
   }
 
   render();

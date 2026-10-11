@@ -72,6 +72,7 @@ code{background:#eee;padding:1px 4px;border-radius:3px}
   <div id="list"><em>Loading&hellip;</em></div>
 </main>
 <script src="publish.js"></script>
+<script src="schedule.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const DATA = ["site.csv","locations.csv","childmarkers.csv","categories.csv","spots.csv","tours.csv","tourstops.csv","stamps.csv","tasks.csv","photos.csv","overlays.json","connersville.geojson"];
@@ -81,6 +82,7 @@ const SKEY = "ghpublish.settings.v1", TKEY = "ghpublish.token.v1";   // same sto
 let branch = "", head = "", baseTree = "", tree = new Map(), meta = {};
 
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+const isReserved = s => s === "main" || s === "index";   // "main" means the usual map in links
 const slugify = s => String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 const fmtSize = b => b >= 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
 const say = (html, cls) => { $("status").className = "msg " + (cls || ""); $("status").innerHTML = html; };
@@ -163,19 +165,19 @@ function updateSavePreview() {
   const name = $("evName").value.trim(), slug = slugify(name), sel = selected();
   const paths = livePaths(sel);
   let bytes = 0; paths.forEach(p => bytes += tree.get(p).size || 0);
-  $("slugNote").textContent = slug ? "Folder: events/" + slug + "/" : "";
+  $("slugNote").textContent = slug ? (isReserved(slug) ? "\"" + slug + "\" is reserved. Choose another name." : "Folder: events/" + slug + "/") : "";
   const exists = slug && eventSlugs().includes(slug);
   $("savePreview").innerHTML = paths.length
     ? paths.length + " files (" + fmtSize(bytes) + ") will be saved into <code>events/" + esc(slug || "…") + "/</code>. Saved copies add about that much to the size of the published site." +
       (exists ? '<br><b>An event with this name already exists. Saving will replace it.</b>' : "")
     : "Tick at least one file or folder.";
-  $("saveBtn").disabled = !(slug && paths.length);
+  $("saveBtn").disabled = !(slug && !isReserved(slug) && paths.length);
 }
 ["evName", "evNote"].forEach(id => $(id).addEventListener("input", updateSavePreview));
 $("dataBox").addEventListener("change", updateSavePreview);
 $("folderBox").addEventListener("change", updateSavePreview);
 
-async function snapshotWrites(slug, name, note, sel, isPublic) {
+async function snapshotWrites(slug, name, note, sel, isPublic, extra) {
   const prefix = "events/" + slug + "/", writes = [], want = new Set();
   for (const p of livePaths(sel)) {
     const e = tree.get(p);
@@ -187,6 +189,7 @@ async function snapshotWrites(slug, name, note, sel, isPublic) {
     data: sel.data.filter(f => tree.has(f)),                                              // the map reads only these from the event
     folders: sel.folders.filter(f => [...tree.keys()].some(p => p.startsWith(f + "/")))
   };
+  if (extra && extra.schedule) { info.schedule = extra.schedule; info.auto = !!extra.auto; }   // re-saving keeps the event's dates
   const m = await api("/git/blobs", "POST", { content: JSON.stringify(info, null, 2), encoding: "utf-8" });
   writes.push({ path: prefix + "event.json", mode: "100644", type: "blob", sha: m.sha });
   want.add(prefix + "event.json");
@@ -201,7 +204,7 @@ async function indexWrite(changes) {
   const list = [];
   slugs.forEach(slug => {
     const m = changes[slug] || meta[slug] || {};
-    if (m.public) list.push({ slug, name: m.name || slug, note: m.note || "" });
+    if (m.public || m.auto) list.push({ slug, name: m.name || slug, note: m.note || "", public: !!m.public, auto: !!m.auto, schedule: m.schedule || null });
   });
   list.sort((a, b) => a.name.localeCompare(b.name));
   const b = await api("/git/blobs", "POST", { content: JSON.stringify(list, null, 2), encoding: "utf-8" });
@@ -225,8 +228,9 @@ $("saveBtn").onclick = async () => {
   try {
     say("Saving&hellip;");
     const pub = $("evPublic").checked;
-    const writes = await snapshotWrites(slug, name, note, selected(), pub);
-    writes.push(await indexWrite({ [slug]: { name, note, public: pub } }));
+    const prev = meta[slug] || {};
+    const writes = await snapshotWrites(slug, name, note, selected(), pub, { schedule: prev.schedule, auto: prev.auto });
+    writes.push(await indexWrite({ [slug]: { name, note, public: pub, auto: prev.auto, schedule: prev.schedule } }));
     const c = await commit(writes, "Save event: " + name);
     await load();
     say("&#10004; Saved <b>" + esc(name) + "</b> to <code>events/" + esc(slug) + "/</code>." + commitLink(c), "ok");
@@ -245,12 +249,14 @@ function renderList() {
     return '<div class="card" data-slug="' + esc(slug) + '"><h3>' + esc(m.name || slug) + '</h3>' +
       '<div class="sub"><code>events/' + esc(slug) + '/</code> &middot; ' + files.length + " files, " + fmtSize(bytes) + (when ? " &middot; saved " + esc(when) : "") + (m.public ? " &middot; <b>in the switcher</b>" : "") + "</div>" +
       (m.note ? '<div class="sub">' + esc(m.note) + "</div>" : "") +
-      '<div class="row"><button class="go ap" type="button">Apply to live site</button><button class="rs" type="button">Re-save from live site</button><button class="pub" type="button">' + (m.public ? "Remove from switcher" : "Add to switcher") + '</button><button class="cp" type="button">Copy link</button></div>' +
-      '<div class="slot"></div></div>';
+      (m.schedule ? '<div class="sub">&#128197; ' + esc(EventSchedule.describe(m.schedule)) + " &middot; <b>" + esc(EventSchedule.statusText(EventSchedule.status(m.schedule)) || "") + "</b>" + (m.auto ? " &middot; opens automatically" : "") + "</div>" : "") +
+      '<div class="row"><button class="go ap" type="button">Apply to live site</button><button class="rs" type="button">Re-save from live site</button><button class="pub" type="button">' + (m.public ? "Remove from switcher" : "Add to switcher") + '</button><button class="cp" type="button">Copy link</button><button class="sch" type="button">' + (m.schedule ? "Edit dates" : "Set dates\u2026") + '</button></div>' +
+      '<div class="slot"></div><div class="slot2"></div></div>';
   }).join("");
   document.querySelectorAll("#list .card").forEach(card => {
     const slug = card.dataset.slug;
     card.querySelector(".ap").onclick = () => openApply(card, slug);
+    card.querySelector(".sch").onclick = () => openSchedule(card, slug);
     card.querySelector(".cp").onclick = async () => {
       const url = new URL("Demo2.html?event=" + encodeURIComponent(slug), location.href).href;
       try { await navigator.clipboard.writeText(url); say("Copied this link: <code>" + esc(url) + "</code> (good for a QR code)", "ok"); }
@@ -338,6 +344,72 @@ function openApply(card, slug) {
       say("&#10004; Applied <b>" + esc(m.name || slug) + "</b> to the live site. The page updates in about a minute." + commitLink(c) +
         "<br>Open the editors again (or reload them) so they pick up the new files.", "ok");
     } catch (e) { say("Could not apply: " + esc(e.message), "err"); q(".doIt").disabled = false; }
+  };
+  refresh();
+}
+
+/* ---------- dates ---------- */
+const guessZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Indiana/Indianapolis"; } catch (x) { return "America/Indiana/Indianapolis"; } };
+const pad2 = n => String(n).padStart(2, "0");
+function openSchedule(card, slug) {
+  const slot = card.querySelector(".slot2"), m = meta[slug] || { name: slug };
+  if (slot.innerHTML) { slot.innerHTML = ""; return; }
+  const s0 = Object.assign({ repeat: "once", tz: guessZone(), soonDays: 14 }, m.schedule || {});
+  const zones = [...new Set([s0.tz].concat(EventSchedule.ZONES))];
+  const A = EventSchedule.parseLocal(s0.start), B = EventSchedule.parseLocal(s0.end);
+  const part = (ms, k) => { if (ms == null) return k === "m" ? 11 : k === "d" ? 1 : ""; const d = new Date(ms); return k === "m" ? d.getUTCMonth() + 1 : k === "d" ? d.getUTCDate() : pad2(d.getUTCHours()) + ":" + pad2(d.getUTCMinutes()); };
+  const monthOpts = sel => EventSchedule.MONTHS.map((n, i) => '<option value="' + (i + 1) + '"' + (sel === i + 1 ? " selected" : "") + ">" + n + "</option>").join("");
+  const days = (s0.days || []).map(Number);
+  slot.innerHTML = '<div class="panel">' +
+    '<label>How often</label><select class="s-rep"><option value="once">Just once</option><option value="yearly">Every year</option><option value="monthly">Every month</option><option value="weekly">Every week</option></select>' +
+    '<label>Time zone</label><select class="s-tz">' + zones.map(z => '<option value="' + esc(z) + '"' + (z === s0.tz ? " selected" : "") + ">" + esc(z.replace(/_/g, " ")) + "</option>").join("") + "</select>" +
+    '<div class="s-once"><label>Starts</label><input type="datetime-local" class="s-start" value="' + esc(s0.repeat === "once" ? (s0.start || "") : "") + '"><label>Ends</label><input type="datetime-local" class="s-end" value="' + esc(s0.repeat === "once" ? (s0.end || "") : "") + '"></div>' +
+    '<div class="s-yearly"><label>Starts</label><div class="row"><select class="y-sm">' + monthOpts(part(A, "m")) + '</select><input type="number" class="y-sd" min="1" max="31" value="' + part(A, "d") + '" style="width:70px"><input type="time" class="y-st" value="' + (A != null ? part(A, "t") : "09:00") + '"></div>' +
+      '<label>Ends</label><div class="row"><select class="y-em">' + monthOpts(part(B, "m")) + '</select><input type="number" class="y-ed" min="1" max="31" value="' + part(B, "d") + '" style="width:70px"><input type="time" class="y-et" value="' + (B != null ? part(B, "t") : "18:00") + '"></div></div>' +
+    '<div class="s-monthly"><label>Starts on day of the month</label><div class="row"><input type="number" class="m-sd" min="1" max="31" value="' + esc(s0.startDay || 1) + '" style="width:70px"><input type="time" class="m-st" value="' + esc(s0.startTime || "09:00") + '"></div>' +
+      '<label>Ends on day of the month</label><div class="row"><input type="number" class="m-ed" min="1" max="31" value="' + esc(s0.endDay || 3) + '" style="width:70px"><input type="time" class="m-et" value="' + esc(s0.endTime || "17:00") + '"></div></div>' +
+    '<div class="s-weekly"><label>On these days</label><div class="row">' + EventSchedule.DAYS.map((n, i) => '<label class="chk" style="margin:0"><input type="checkbox" class="w-day" value="' + i + '"' + (days.includes(i) ? " checked" : "") + "> " + n + "</label>").join("") + '</div>' +
+      '<label>From</label><input type="time" class="w-st" value="' + esc(s0.startTime || "09:00") + '"><label>Until</label><input type="time" class="w-et" value="' + esc(s0.endTime || "17:00") + '"></div>' +
+    '<div class="s-soonbox"><label>Show "Coming soon" this many days before it starts</label><input type="number" class="s-soon" min="0" max="365" value="' + esc(s0.soonDays == null ? 14 : s0.soonDays) + '" style="width:90px"></div>' +
+    '<label class="chk"><input type="checkbox" class="s-auto"' + (m.auto ? " checked" : "") + '> Open this event automatically on the main map while it is on</label>' +
+    '<div class="preview s-prev"></div><div class="row"><button class="go s-save" type="button">Save dates</button><button class="s-clear" type="button">Remove dates</button><button class="s-cancel" type="button">Cancel</button></div></div>';
+  const q = x => slot.querySelector(x);
+  q(".s-rep").value = s0.repeat;
+  const read = () => {
+    const rep = q(".s-rep").value, s = { repeat: rep, tz: q(".s-tz").value, soonDays: +q(".s-soon").value || 0 };
+    if (rep === "once") { s.start = q(".s-start").value; s.end = q(".s-end").value; }
+    if (rep === "yearly") { s.start = "2000-" + pad2(q(".y-sm").value) + "-" + pad2(q(".y-sd").value || 1) + "T" + (q(".y-st").value || "00:00"); s.end = "2000-" + pad2(q(".y-em").value) + "-" + pad2(q(".y-ed").value || 1) + "T" + (q(".y-et").value || "00:00"); }
+    if (rep === "monthly") { s.startDay = +q(".m-sd").value; s.startTime = q(".m-st").value; s.endDay = +q(".m-ed").value; s.endTime = q(".m-et").value; }
+    if (rep === "weekly") { s.days = [...slot.querySelectorAll(".w-day:checked")].map(x => +x.value); s.startTime = q(".w-st").value; s.endTime = q(".w-et").value; }
+    return s;
+  };
+  const refresh = () => {
+    const rep = q(".s-rep").value;
+    ["once", "yearly", "monthly", "weekly"].forEach(k => { q(".s-" + k).hidden = k !== rep; });
+    q(".s-soonbox").hidden = rep === "weekly";
+    const s = read(), probs = EventSchedule.validate(s);
+    q(".s-prev").innerHTML = probs.length ? '<span style="color:#842029">' + esc(probs.join(" ")) + "</span>" : esc(EventSchedule.describe(s)) + "<br><b>" + esc(EventSchedule.statusText(EventSchedule.status(s))) + "</b>";
+    q(".s-save").disabled = probs.length > 0;
+  };
+  slot.querySelectorAll("input,select").forEach(i => { i.addEventListener("input", refresh); i.addEventListener("change", refresh); });
+  q(".s-cancel").onclick = () => { slot.innerHTML = ""; };
+  const saveInfo = async (info, msg, okText) => {
+    try {
+      say("Saving&hellip;");
+      const b = await api("/git/blobs", "POST", { content: JSON.stringify(info, null, 2), encoding: "utf-8" });
+      const c = await commit([{ path: "events/" + slug + "/event.json", mode: "100644", type: "blob", sha: b.sha }, await indexWrite({ [slug]: info })], msg);
+      await load();
+      say("&#10004; " + okText + commitLink(c), "ok");
+    } catch (x) { say("Could not save: " + esc(x.message), "err"); }
+  };
+  q(".s-save").onclick = () => {
+    const s = read();
+    if (EventSchedule.validate(s).length) return;
+    saveInfo(Object.assign({}, m, { schedule: s, auto: q(".s-auto").checked }), "Set dates for event: " + (m.name || slug), "Dates saved for <b>" + esc(m.name || slug) + "</b>. The map reads them straight away, so no one has to do anything on the day.");
+  };
+  q(".s-clear").onclick = () => {
+    const info = Object.assign({}, m); delete info.schedule; info.auto = false;
+    saveInfo(info, "Remove dates from event: " + (m.name || slug), "Dates removed.");
   };
   refresh();
 }

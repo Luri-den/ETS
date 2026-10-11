@@ -104,6 +104,12 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 .ev-link{display:block;padding:9px 12px;margin:6px 0;border:2px solid var(--bar,#E47303);border-radius:12px;text-decoration:none;color:#222;background:#fff}
 .ev-link small{display:block;opacity:.8}
 .ev-link.cur{background:var(--bar,#E47303);color:#fff;pointer-events:none}
+.ev-link.now:not(.cur){border-color:#d4351c}
+.ev-nowtag{font-weight:bold;color:#d4351c;opacity:1 !important}
+.ev-link.cur .ev-nowtag{color:#fff}
+#eventCard details{margin-top:10px}
+#eventCard summary{cursor:pointer;font-size:14px;margin-bottom:4px}
+#eventBtn.now{background:#d4351c;color:#fff;font-weight:bold}
 #spotCard{position:relative;background:#fff;border:6px solid #D55E00;border-radius:18px;max-width:560px;max-height:92vh;overflow:auto;padding:14px}
 #spotCard {width:100%;max-height:52vh;object-fit:contain;border-radius:8px;background:#eee;cursor:zoom-in}
 #spotCard h2{margin:10px 0 4px}
@@ -506,6 +512,7 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif}
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="welcome-themes.js"></script>
 <script src="marker-shapes.js"></script>
+<script src="schedule.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script>
   // Fallback: if the primary CDN fails, try unpkg
@@ -531,7 +538,7 @@ const key = s => String(s || "").trim().toLowerCase();
    EVENTS: Demo2.html?event=name loads that event's saved copy from events/name/
    (made with events.html). Without ?event= the page shows the live site as usual.
    ============================================================ */
-const EVENT_SLUG = (() => { const v = new URLSearchParams(location.search).get("event") || ""; return /^[a-z0-9][a-z0-9_-]*$/i.test(v) ? v.toLowerCase() : ""; })();
+const EVENT_SLUG = (() => { const v = new URLSearchParams(location.search).get("event") || ""; return v.toLowerCase() !== "main" && /^[a-z0-9][a-z0-9_-]*$/i.test(v) ? v.toLowerCase() : ""; })();   // ?event=main means "the usual map"
 const EVENT_DIR = EVENT_SLUG ? "events/" + EVENT_SLUG + "/" : "";
 const KEY_SUFFIX = EVENT_SLUG ? "@" + EVENT_SLUG : "";      // keeps each event's passport progress separate
 let EVENT_INFO = null;                                       // events/name/event.json: which data files and folders the event holds
@@ -543,6 +550,14 @@ const EVENTS_INDEX_READY = fetch("events/index.json", { cache: "no-store" })
   .then(r => r.ok ? r.json() : [])
   .catch(() => [])
   .then(a => { EVENTS_INDEX = Array.isArray(a) ? a.filter(x => x && /^[a-z0-9][a-z0-9_-]*$/i.test(x.slug || "")) : []; });
+// While a scheduled event is on, the plain page link opens it by itself. ?event=main (or a spot or place link) still gives the usual map.
+const AUTO_CHECK = EVENTS_INDEX_READY.then(() => {
+  if (EVENT_SLUG || !window.EventSchedule) return;
+  if (/[?&](event|spot|site|skipWelcome)=/i.test(location.search)) return;
+  const on = EVENTS_INDEX.filter(e => e.auto && e.schedule && EventSchedule.status(e.schedule).state === "now")
+    .sort((a, b) => EventSchedule.status(b.schedule).start - EventSchedule.status(a.schedule).start)[0];
+  if (on) location.replace(location.pathname + "?event=" + encodeURIComponent(on.slug) + location.hash);
+});
 const EVENT_FOLDERS = () => (EVENT_INFO && Array.isArray(EVENT_INFO.folders)) ? EVENT_INFO.folders : ["photos", "spots", "stories", "anims"];
 // Photos, spots, stories and anims come from the event's own copy of those folders when it has one.
 function assetUrl(path) {
@@ -554,6 +569,7 @@ function assetUrl(path) {
 // Data files come from the event's copy. An event saved without a file does not borrow the live site's.
 async function dataFetch(file, opts) {
   await EVENT_READY;
+  await AUTO_CHECK;
   if (EVENT_SLUG) {
     const listed = !!(EVENT_INFO && Array.isArray(EVENT_INFO.data));
     if (!listed || EVENT_INFO.data.includes(file)) {
@@ -2926,29 +2942,48 @@ $("aerialBtn").onclick = () => setAerial($("aerialBtn").getAttribute("aria-press
 /* ============================================================
    EVENT / FOCUS PANEL (text comes from site.csv)
    ============================================================ */
+const evStatus = ev => (window.EventSchedule && ev.schedule) ? EventSchedule.status(ev.schedule) : null;
 function renderEventSwitcher(){
   const box = $("ev-switch");
   box.innerHTML = "";
-  if (!EVENTS_INDEX.length) return;
+  const list = EVENTS_INDEX.filter(e => e.public !== false);
+  if (!list.length) return;
   const h = document.createElement("h3");
   h.textContent = "Events";
   box.appendChild(h);
-  const add = (label, note, href, current) => {
+  const add = (parent, label, lines, href, current, live) => {
     const a = document.createElement("a");
-    a.className = "ev-link" + (current ? " cur" : "");
+    a.className = "ev-link" + (current ? " cur" : "") + (live ? " now" : "");
     a.href = href;
     if (current) a.setAttribute("aria-current", "page");
-    a.textContent = label;
-    if (note) { const s = document.createElement("small"); s.textContent = note; a.appendChild(s); }
-    box.appendChild(a);
+    const t = document.createElement("span");
+    t.textContent = label;
+    a.appendChild(t);
+    lines.filter(Boolean).forEach(x => { const s = document.createElement("small"); s.textContent = x.text; if (x.live) s.className = "ev-nowtag"; a.appendChild(s); });
+    parent.appendChild(a);
   };
-  add("Main map", "", location.pathname, !EVENT_SLUG);
-  EVENTS_INDEX.forEach(ev => add(ev.name || ev.slug, ev.note || "", location.pathname + "?event=" + encodeURIComponent(ev.slug), ev.slug === EVENT_SLUG));
+  add(box, "Main map", [], location.pathname + "?event=main", !EVENT_SLUG, false);
+  const rank = { now: 0, soon: 1, later: 2, none: 3, ended: 4 };
+  const rows = list.map(ev => ({ ev, st: evStatus(ev) || { state: "none" } }))
+    .sort((a, b) => (rank[a.st.state] - rank[b.st.state]) || ((a.st.start || 0) - (b.st.start || 0)) || String(a.ev.name).localeCompare(String(b.ev.name)));
+  const line = r => [r.st.state !== "none" && { text: (r.st.state === "now" ? "\u25CF " : "") + EventSchedule.statusText(r.st), live: r.st.state === "now" }, r.ev.note && { text: r.ev.note }];
+  const link = r => location.pathname + "?event=" + encodeURIComponent(r.ev.slug);
+  rows.filter(r => r.st.state !== "ended").forEach(r => add(box, r.ev.name || r.ev.slug, line(r), link(r), r.ev.slug === EVENT_SLUG, r.st.state === "now"));
+  const past = rows.filter(r => r.st.state === "ended");
+  if (past.length) {
+    const det = document.createElement("details");
+    det.innerHTML = "<summary>Past events</summary>";
+    box.appendChild(det);
+    past.forEach(r => add(det, r.ev.name || r.ev.slug, line(r), link(r), r.ev.slug === EVENT_SLUG, false));
+  }
 }
 function refreshEventButton(){
   const own = !!(SITE.event.title || SITE.event.text);
-  if (!own && !EVENTS_INDEX.length) return;
-  $("eventBtn").textContent = own ? SITE.event.button : "Events";
+  const pub = EVENTS_INDEX.filter(e => e.public !== false);
+  if (!own && !pub.length) return;
+  const liveNow = pub.some(e => { const s = evStatus(e); return s && s.state === "now" && e.slug !== EVENT_SLUG; });
+  $("eventBtn").textContent = liveNow ? "Happening Now" : (own ? SITE.event.button : "Events");
+  $("eventBtn").classList.toggle("now", liveNow);
   $("eventBtn").hidden = false;
 }
 function openEventPanel(){

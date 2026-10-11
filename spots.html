@@ -194,6 +194,10 @@ const DEFAULT_CAT = "COMM";
 const SPOT_COLS = ["SPOT_ID","TITLE","LAT","LONG","YEAR","PHOTO","DETAILS","CREDIT","KIND","CATEGORY","SERIES","ORDER","SOURCE","STAFF_NOTE"];
 
 /* ---------- State ---------- */
+window.PhotoResize = window.PhotoResize || {   // stand-in so uploads still work if photo-resize.js was not uploaded
+  process: async f => ({ blob: f, ext: ((String(f.name || "").split(".").pop() || "jpg").toLowerCase()), resized: false, why: "off" }),
+  describe: () => "download when you publish", controlHtml: () => "", wire(){}, settings: () => ({ on: false })
+};
 let spots = [];         // {row, ll, marker, el, kind}
 let headers = SPOT_COLS.slice();
 let loaded = false;
@@ -337,12 +341,13 @@ function renderGalEditor(scope, id){
       pathEl.oninput();
       const fb = rowEl.querySelector(".g-fbtn"), fi = rowEl.querySelector(".g-file");
       fb.onclick = () => fi.click();
-      fi.onchange = () => {
-        const f = fi.files[0];
-        if (!f) return;
+      fi.onchange = async () => {
+        const picked = fi.files[0];
+        if (!picked) return;
+        const r = await PhotoResize.process(picked), f = r.blob;
         const sp = spots.find(z => z.row.SPOT_ID === idNow());
         const folder = sp && sp.kind === "story" ? "stories" : "spots";
-        const ext = (f.name.split(".").pop() || "jpg").toLowerCase();
+        const ext = r.ext;
         const suggested = folder + "/" + String(idNow()).toLowerCase().replace(/[^a-z0-9_-]+/g, "_") + "-" + Date.now().toString(36).slice(-4) + "." + ext;
         const chosen = prompt("Photo path (relative to site root):", suggested);
         if (chosen == null || !chosen.trim()) return;
@@ -352,7 +357,7 @@ function renderGalEditor(scope, id){
         pathEl.value = path;
         pathEl.oninput();
         renderStaged();
-        toast("Staged " + path + " — download when you publish");
+        toast("Staged " + path + ": " + PhotoResize.describe(r));
         fi.value = "";
       };
     }
@@ -689,6 +694,7 @@ function photoBlock(path, kind){
       <div class="thumb missing" id="photoThumb">no photo</div>
       <div class="meta">
         <div id="photoInfo">${path ? `<code>${esc(path)}</code>` : "Set a photo path above, or upload a file below."}</div>
+        ${PhotoResize.controlHtml()}
         <div class="actions">
           <button class="small" id="uploadPhoto" type="button">Upload photo…</button>
           <input type="file" id="photoInput" accept="image/*" hidden>
@@ -731,11 +737,13 @@ function wirePhotoBlock(scope, s){
   refreshPhotoPreview(scope, s.row.PHOTO || "");
 
   btn.onclick = () => input.click();
-  input.onchange = () => {
-    const f = input.files[0]; if (!f) return;
-    const ext = (f.name.split(".").pop() || "jpg").toLowerCase();
+  PhotoResize.wire(scope);
+  input.onchange = async () => {
+    const picked = input.files[0]; if (!picked) return;
+    const r = await PhotoResize.process(picked), f = r.blob;
+    const ext = r.ext;
     // derive a filename from the uploaded file's name
-    const base = (f.name.replace(/\.[^.]+$/, "") || "photo").replace(/[^a-z0-9_-]+/gi, "_");
+    const base = (picked.name.replace(/\.[^.]+$/, "") || "photo").replace(/[^a-z0-9_-]+/gi, "_");
     const folder = s.kind === "story" ? "stories" : "spots";
     const suggested = folder + "/" + base + "." + ext;
 
@@ -745,6 +753,7 @@ function wirePhotoBlock(scope, s){
     if (!path) return;
 
     s.row.PHOTO = path;
+    stagedPhotos = stagedPhotos.filter(p => p.name !== path);
     stagedPhotos.push({ name: path, blob: f });
 
     // update form field + preview
@@ -752,7 +761,8 @@ function wirePhotoBlock(scope, s){
     if (field) field.value = path;
     refreshPhotoPreview(scope, path);
     renderStaged();
-    toast("Staged " + path + " — download when you publish");
+    toast("Staged " + path + ": " + PhotoResize.describe(r));
+    input.value = "";
   };
 }
 
@@ -883,6 +893,7 @@ function toast(msg){
   toastTimer = setTimeout(() => t.classList.remove("on"), 2400);
 }
 </script>
+<script src="photo-resize.js"></script>
 <script src="publish.js"></script>
 <script>
 GHPublish.attach({
