@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Map Settings — Editor</title>
+<title>Map Settings Editor</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <style>
 *{box-sizing:border-box}
@@ -46,7 +46,7 @@ small{color:#777;font-size:11px;display:block;margin-top:3px}
 <body>
 
 <header>
-  <h1>Map Settings — Editor</h1>
+  <h1>Map Settings Editor</h1>
   <label class="btn" style="margin:0;font-weight:normal;color:#222">Load site.csv…<input type="file" id="fSite" accept=".csv,text/csv" hidden></label>
   <label class="btn" style="margin:0;font-weight:normal;color:#222">Show places (locations.csv)…<input type="file" id="fLocs" accept=".csv,text/csv" hidden></label>
   <button id="startBtn" type="button">Start from defaults</button>
@@ -346,7 +346,7 @@ function startFrom(text) {
       status("Load site.csv to begin, or click Start from defaults.");
     }
   } catch (e) {
-    // file:// or network error — fall back to the original message
+    // file:// or network error fall back to the original message
     status("Load site.csv to begin, or click Start from defaults.");
   }
 })();
