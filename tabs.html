@@ -3,11 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <title>Page Source Editing Hub</title>
+  <script src="workspace.js"></script>
   <style>
     body {
       font-family: sans-serif;
       margin: 20px;
     }
+
+    /* Which site am I editing? */
+    .ws-bar { padding: 8px 12px; margin-bottom: 10px; border-radius: 6px; background: #eef6ee; border: 1px solid #cfe5cf; font-size: 14px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .ws-bar.event { background: #d4351c; border-color: #d4351c; color: #fff; }
+    .ws-bar #wsText { flex: 1 1 320px; }
+    .ws-bar code { background: #ffffff33; padding: 1px 4px; border-radius: 3px; }
+    .ws-bar:not(.event) code { background: #0001; }
+    .ws-bar a { color: inherit; margin-right: 10px; }
+    .ws-bar button { font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 5px; border: 1px solid #fff; background: #fff; color: #d4351c; cursor: pointer; font-weight: bold; }
 
     /* Top Tabs Styling */
     .top-tabs {
@@ -66,6 +76,8 @@
   </style>
 </head>
 <body>
+
+  <div id="wsBar" class="ws-bar"><span id="wsText"></span><span id="wsActions"></span></div>
 
   <!-- 1. Top Level Navigation -->
   <div class="top-tabs" role="tablist">
@@ -181,6 +193,39 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
+  </script>
+
+  <script>
+(function () {
+  const bar = document.getElementById("wsBar"), text = document.getElementById("wsText"), acts = document.getElementById("wsActions");
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  async function eventName(slug) {
+    try { const r = await fetch("events/" + slug + "/event.json", { cache: "no-store" }); if (r.ok) { const j = await r.json(); return j.name || slug; } } catch (e) {}
+    return slug;
+  }
+  async function applyWorkspace(reload, from) {
+    const slug = Workspace.current();
+    if (slug) {
+      const name = await eventName(slug);
+      bar.className = "ws-bar event";
+      text.innerHTML = "<b>Designing event: " + esc(name) + "</b>. Everything you publish from these tabs goes into <code>events/" + esc(slug) + "/</code>. The live map is not changed.";
+      acts.innerHTML = '<a href="Demo2.html?event=' + encodeURIComponent(slug) + '" target="_blank" rel="noopener">Preview</a><button id="wsLeave" type="button">Back to the live site</button>';
+      document.getElementById("wsLeave").onclick = () => { Workspace.set("", true); applyWorkspace(true); };
+    } else {
+      bar.className = "ws-bar";
+      text.innerHTML = "Working on: <b>the live site</b>. Whatever you publish changes the live map. To build an event without that, use <b>Design an event</b> on the Events tab.";
+      acts.innerHTML = "";
+    }
+    const live = document.querySelector("#p9 iframe");
+    if (live) live.src = slug ? "Demo2.html?event=" + encodeURIComponent(slug) + "&t=" + Date.now() : "Demo2.html";
+    if (reload) document.querySelectorAll(".page-container iframe").forEach(f => {
+      if (f.closest("#p9") || (from && f.contentWindow === from)) return;
+      try { f.contentWindow.location.reload(); } catch (e) { f.src = f.getAttribute("src"); }
+    });
+  }
+  window.addEventListener("message", e => { if (e.origin === location.origin && e.data && e.data.type === "ets-workspace") applyWorkspace(true, e.source); });
+  applyWorkspace(false);
+})();
   </script>
 
 </body>

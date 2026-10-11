@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Boundary Editor</title>
+<title>Connersville — Boundary Editor</title>
+<script src="workspace.js"></script>
+<script>Workspace.block('The town outline is shared by every event. Go back to the live site to edit it.');</script>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <style>
   :root{
@@ -64,7 +66,7 @@
 <body>
 
 <div id="top">
-  <h1>Boundary Editor</h1>
+  <h1>Connersville — Boundary Editor</h1>
   <button id="pickFile">Pick connersville.geojson…</button>
   <input id="fileInput" type="file" accept=".geojson,.json,application/geo+json,application/json" hidden>
   <span class="status" id="status">Loading…</span>
@@ -120,7 +122,7 @@
 
 <script>
 /* ============================================================
-   Boundary Editor
+   Connersville — Boundary Editor
    Edits the coordinates of a single Polygon feature in a
    FeatureCollection, preserving properties and precision.
    ============================================================ */

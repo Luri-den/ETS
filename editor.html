@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Places Editor</title>
+<title>Connersville Map — Editor</title>
+<script src="workspace.js"></script>
+<script>Workspace.install();</script>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <style>
   :root{
@@ -133,7 +135,7 @@
 <body>
 
 <div id="top">
-  <h1>Places Editor</h1>
+  <h1>Connersville Map — Editor</h1>
   <button id="loadLocations">Load locations.csv…</button>
   <input id="fileLocations" type="file" accept=".csv,text/csv" hidden>
   <button id="loadChildren">Load childmarkers.csv…</button>
@@ -221,7 +223,7 @@
   <script src="publish.js"></script>
 <script>
 /* ============================================================
-   CSV Editor (Slice 1: places)
+   Connersville Map — CSV Editor (Slice 1: places)
    ============================================================ */
 
 const $ = id => document.getElementById(id);
@@ -369,6 +371,7 @@ $("reloadCSVs").onclick = async () => {
     if (locRes.ok) ingest(Papa.parse(await locRes.text(), { header:true, skipEmptyLines:"greedy" }), "loc", "locations.csv");
     if (chiRes.ok) ingest(Papa.parse(await chiRes.text(), { header:true, skipEmptyLines:"greedy" }), "child", "childmarkers.csv");
     selected = null;
+    await loadExtras();
     toast("Reloaded from server");
   } catch (e) {
     toast("Reload failed: " + e.message);
@@ -1329,6 +1332,25 @@ const rowsFor = id => photoRows.filter(x => x.ITEM_ID === id).sort((a, b) => (pa
 const renumber = id => rowsFor(id).forEach((x, i) => { x.ORDER = String(i + 1); });
 function renameItem(oldId, newId){ photoRows.forEach(x => { if (x.ITEM_ID === oldId) x.ITEM_ID = newId; }); }
 
+async function loadExtras(){   // photos.csv and shapes.csv from the same folder (or the event's folder)
+  try {
+    const r = await fetch("photos.csv", { cache: "no-store" });
+    if (r.ok) {
+      photoRows = Papa.parse(await r.text(), { header: true, skipEmptyLines: "greedy" }).data.map(x => ({
+        ITEM_ID: String(x.ITEM_ID||"").trim(), ORDER: String(x.ORDER||"").trim(), PATH: String(x.PATH||"").trim(),
+        CAPTION: String(x.CAPTION||"").trim(), CREDIT: String(x.CREDIT||"").trim()
+      })).filter(x => x.ITEM_ID);
+      photosLoaded = true;
+    } else if (r.status === 404) { photoRows = []; photosLoaded = true; }
+  } catch (x) {}
+  try {
+    const r = await fetch("shapes.csv", { cache: "no-store" });
+    if (r.ok) { customShapes = MarkerShapes.parseRows(Papa.parse(await r.text(), { header: true, skipEmptyLines: "greedy" }).data); shapesLoaded = true; }
+    else if (r.status === 404) shapesLoaded = true;
+  } catch (x) {}
+  render();
+}
+loadExtras();
 $("loadPhotos").onclick = () => $("filePhotos").click();
 $("filePhotos").onchange = e => {
   const f = e.target.files[0];

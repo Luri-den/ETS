@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Map Settings Editor</title>
+<title>Map Settings — Editor</title>
+<script src="workspace.js"></script>
+<script>Workspace.install();</script>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <style>
 *{box-sizing:border-box}
@@ -46,7 +48,7 @@ small{color:#777;font-size:11px;display:block;margin-top:3px}
 <body>
 
 <header>
-  <h1>Map Settings Editor</h1>
+  <h1>Map Settings — Editor</h1>
   <label class="btn" style="margin:0;font-weight:normal;color:#222">Load site.csv…<input type="file" id="fSite" accept=".csv,text/csv" hidden></label>
   <label class="btn" style="margin:0;font-weight:normal;color:#222">Show places (locations.csv)…<input type="file" id="fLocs" accept=".csv,text/csv" hidden></label>
   <button id="startBtn" type="button">Start from defaults</button>
@@ -334,23 +336,6 @@ function startFrom(text) {
   if (mapLoaded) gotoStart();
 }
 
-// Auto-load site.csv from the same folder (works on GitHub Pages)
-(async () => {
-  try {
-    const res = await fetch("site.csv", { cache: "no-store" });
-    if (res.ok) {
-      lastText = await res.text();
-      startFrom(lastText);
-      status("Loaded site.csv from this folder. Edit, then Download updated site.csv.");
-    } else {
-      status("Load site.csv to begin, or click Start from defaults.");
-    }
-  } catch (e) {
-    // file:// or network error fall back to the original message
-    status("Load site.csv to begin, or click Start from defaults.");
-  }
-})();
-
 $('fSite').addEventListener('change', async e => {
   const f = e.target.files[0];
   if (!f) return;
@@ -359,31 +344,25 @@ $('fSite').addEventListener('change', async e => {
   status('Loaded ' + f.name + '. Edit, then Download updated site.csv.');
   e.target.value = '';
 });
-
+// when designing an event, start from that event's own site.csv instead of waiting for a file
+if (window.Workspace && Workspace.slug) {
+  const go = () => fetch('site.csv', { cache: 'no-store' }).then(r => r.ok ? r.text() : null).then(t => {
+    if (t) { lastText = t; startFrom(t); status("Loaded this event's own site.csv. Edit, then Download updated site.csv."); }
+  }).catch(() => {});
+  const wait = n => (typeof mapLoaded !== 'undefined' && mapLoaded) || n > 40 ? go() : setTimeout(() => wait(n + 1), 250);
+  wait(0);
+}
 $('startBtn').onclick = () => {
   if (S && !confirm('Discard what is on screen and start from the built-in defaults?')) return;
   lastText = null; startFrom(null);
   status('Started from the Connersville defaults.');
 };
-
-$('reloadBtn').onclick = async () => {
-  if (!confirm('Throw away your edits and reload site.csv from the server?')) return;
-  try {
-    const res = await fetch("site.csv", { cache: "no-store" });
-    if (!res.ok) throw new Error(res.status + " " + res.statusText);
-    lastText = await res.text();
-    startFrom(lastText);
-    status('Reloaded site.csv from the server.');
-  } catch (e) {
-    // fall back to last local text if the fetch fails
-    if (lastText) {
-      startFrom(lastText);
-      status('Server fetch failed; reloaded from last loaded file.');
-    } else {
-      status('Reload failed: ' + e.message);
-    }
-  }
+$('reloadBtn').onclick = () => {
+  if (!confirm('Throw away your edits and reload?')) return;
+  startFrom(lastText);
+  status('Reloaded.');
 };
+
 $('fLocs').addEventListener('change', async e => {
   const f = e.target.files[0];
   if (!f) return;

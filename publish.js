@@ -105,6 +105,7 @@
       const b = await api("/git/blobs", "POST", { content: await toB64(files[i].blob), encoding: "base64" });
       tree.push({ path: files[i].path, mode: "100644", type: "blob", sha: b.sha });
     }
+    if (WS()) { say("Updating the event\u2019s file list\u2026"); tree.push(await eventInfoUpdate(base, files)); }
     say("Saving\u2026");
     const newTree = await api("/git/trees", "POST", { base_tree: base, tree });
     const commit = await api("/git/commits", "POST", { message, tree: newTree.sha, parents: [head] });
@@ -138,6 +139,28 @@
     const got = (await Promise.all(list)).filter(Boolean), seen = {};
     got.forEach(f => seen[f.name] = f);         // same name twice: keep the last
     return Object.values(seen);
+  }
+
+  /* ---------- Design Event mode: everything goes into events/<name>/ ---------- */
+  const WS = () => (window.Workspace && Workspace.current && Workspace.current()) ? { slug: Workspace.current(), dir: "events/" + Workspace.current() + "/" } : null;
+  const prefixPath = pth => { const w = WS(); if (!w) return pth; pth = String(pth || "").replace(/^\/+/, ""); return pth.startsWith(w.dir) ? pth : w.dir + pth; };
+  const DATA_FILES = ["site.csv","locations.csv","childmarkers.csv","categories.csv","spots.csv","tours.csv","tourstops.csv","stamps.csv","tasks.csv","photos.csv","shapes.csv","overlays.json","connersville.geojson"];
+  // keep the event's event.json in step: which data files and photo folders it really holds (the map reads only what is listed)
+  async function eventInfoUpdate(baseTree, chosen) {
+    const w = WS(), path = w.dir + "event.json";
+    const entries = (await api("/git/trees/" + baseTree + "?recursive=1")).tree.filter(x => x.type === "blob");
+    const have = new Set(entries.map(x => x.path));
+    chosen.forEach(f => have.add(f.path));
+    let info = {};
+    const old = entries.find(x => x.path === path);
+    if (old) { try { const b = await api("/git/blobs/" + old.sha); info = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b.content.replace(/\s/g, "")), c => c.charCodeAt(0)))); } catch (e) { info = {}; } }
+    info.data = DATA_FILES.filter(f => have.has(w.dir + f));
+    info.folders = ["photos", "spots", "stories", "anims"].filter(f => [...have].some(q => q.startsWith(w.dir + f + "/")));
+    info.files = [...have].filter(q => q.startsWith(w.dir) && q !== path).length;
+    info.updated = new Date().toISOString();
+    if (!info.name) info.name = w.slug;
+    const b = await api("/git/blobs", "POST", { content: JSON.stringify(info, null, 2), encoding: "utf-8" });
+    return { path, mode: "100644", type: "blob", sha: b.sha };
   }
 
   function defaultRoute(name) {
@@ -226,11 +249,12 @@
 
   function reviewDialog(initial, opts) {
     const route = opts.route || defaultRoute;
-    const rows = initial.map(f => ({ name: f.name, blob: f.blob, path: route(f.name) || defaultRoute(f.name), on: true }));
+    const rows = initial.map(f => ({ name: f.name, blob: f.blob, path: prefixPath(route(f.name) || defaultRoute(f.name)), on: true }));
     const s = settings();
     const ov = overlay(`
       <h3>Publish to GitHub</h3>
       <div class="sub">${esc(s.owner)}/${esc(s.repo)} \u00b7 ${esc(s.branch || "default branch")} \u00b7 one commit for everything below</div>
+      ${WS() ? '<div class="ghp-msg" style="color:#d4351c;font-weight:600;margin:0 0 8px">Designing event: ' + esc(WS().slug) + '. These files go into ' + esc(WS().dir) + ' and the live map is not changed.</div>' : ""}
       <div id="ghp-list"></div>
       <div class="ghp-row" style="margin-top:8px"><button id="ghp-add">\uff0b Add files\u2026</button><input type="file" id="ghp-file" multiple hidden></div>
       <label>Commit message</label><input type="text" id="ghp-msgin">
@@ -256,18 +280,18 @@
       $("ghp-go").textContent = "Publish " + n + " file" + (n === 1 ? "" : "s");
       $("ghp-go").disabled = !n;
       const names = rows.filter(r => r.on).slice(0, 3).map(r => r.path.split("/").pop()).join(", ");
-      if (!$("ghp-msgin").dataset.edited) $("ghp-msgin").value = n ? "Update " + names + (n > 3 ? " and " + (n - 3) + " more" : "") + " from the editor" : "";
+      if (!$("ghp-msgin").dataset.edited) $("ghp-msgin").value = n ? (WS() ? "[" + WS().slug + "] " : "") + "Update " + names + (n > 3 ? " and " + (n - 3) + " more" : "") + " from the editor" : "";
     }
     $("ghp-msgin").oninput = e => { e.target.dataset.edited = "1"; };
     $("ghp-add").onclick = () => $("ghp-file").click();
     $("ghp-file").onchange = e => {
-      [...e.target.files].forEach(f => rows.push({ name: f.name, blob: f, path: route(f.name) || defaultRoute(f.name), on: true }));
+      [...e.target.files].forEach(f => rows.push({ name: f.name, blob: f, path: prefixPath(route(f.name) || defaultRoute(f.name)), on: true }));
       e.target.value = ""; draw();
     };
     $("ghp-cancel").onclick = () => ov.remove();
 
     $("ghp-go").onclick = async () => {
-      const chosen = rows.filter(r => r.on).map(r => ({ path: r.path.trim().replace(/^\/+/, ""), blob: r.blob }));
+      const chosen = rows.filter(r => r.on).map(r => ({ path: prefixPath(r.path.trim().replace(/^\/+/, "")), blob: r.blob }));
       const bad = chosen.find(f => !f.path || f.path.split("/").includes("..") || f.path.endsWith("/"));
       if (bad) return msg("That path isn't valid: \u201c" + bad.path + "\u201d", "err");
       if (new Set(chosen.map(f => f.path)).size !== chosen.length) return msg("Two files have the same destination.", "err");
@@ -278,7 +302,7 @@
         $("ghp-m").className = "ghp-msg ok";
         $("ghp-m").innerHTML = "\u2714 Published " + chosen.length + " file" + (chosen.length === 1 ? "" : "s") +
           '. <a href="https://github.com/' + esc(s2.owner) + "/" + esc(s2.repo) + "/commit/" + c.sha + '" target="_blank" rel="noopener">View commit</a>' +
-          "<br>The live site updates in about a minute.";
+          (WS() ? '<br>Saved into the event. The live map is unchanged. <a href="' + esc(new URL("Demo2.html?event=" + WS().slug, location.href).href) + '" target="_blank" rel="noopener">Preview the event</a> (it can take a minute to appear).' : "<br>The live site updates in about a minute.");
         $("ghp-cancel").textContent = "Close"; $("ghp-cancel").disabled = false;
         if (opts.onPublished) { try { opts.onPublished(chosen); } catch (e) {} }
       } catch (e) {

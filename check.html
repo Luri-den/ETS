@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Check Data</title>
+<title>Check my data</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;font-family:Arial,sans-serif;color:#222;background:#fafafa}
@@ -52,6 +52,7 @@ code{background:#eee;padding:1px 4px;border-radius:3px}
 <script src="marker-shapes.js"></script>
 <script src="welcome-themes.js"></script>
 <script src="schedule.js"></script>
+<script src="workspace.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
@@ -127,7 +128,13 @@ function dupes(section, ref, list, idOf, where){
 }
 
 /* ---------- the checks ---------- */
+let running = false, again = false;
 async function run(){
+  if (running) { again = true; return; }
+  running = true;
+  try { await runOnce(); } finally { running = false; if (again) { again = false; run(); } }
+}
+async function runOnce(){
   issues = []; counts = { files: 0, photos: 0 }; headCache = new Map();
   $("run").disabled = true; $("copy").disabled = true; $("note").textContent = ""; $("out").innerHTML = ""; $("sum").innerHTML = "";
   evSlug = $("src").value; evInfo = null;
@@ -477,7 +484,15 @@ $("copy").onclick = async () => {
 (async () => {
   const r = await tryFetch("events/index.json");
   if (!r || !r.ok) return;
-  try { (await r.json()).forEach(e => { const o = document.createElement("option"); o.value = e.slug; o.textContent = "Event: " + (e.name || e.slug); $("src").appendChild(o); }); } catch (e) {}
+  try { (await r.json()).filter(e => e.public !== false).forEach(e => { const o = document.createElement("option"); o.value = e.slug; o.textContent = "Event: " + (e.name || e.slug); $("src").appendChild(o); }); } catch (e) {}
+})();
+(async () => {   // when designing an event, check that event
+  const w = window.Workspace && Workspace.current();
+  if (!w) return;
+  await new Promise(r => setTimeout(r, 400));
+  if (![...$("src").options].some(o => o.value === w)) { const o = document.createElement("option"); o.value = w; o.textContent = "Event being designed: " + w; $("src").appendChild(o); }
+  $("src").value = w;
+  run();
 })();
 run();
 </script>
