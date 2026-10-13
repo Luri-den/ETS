@@ -52,6 +52,7 @@ code{background:#eee;padding:1px 4px;border-radius:3px}
 <script src="marker-shapes.js"></script>
 <script src="welcome-themes.js"></script>
 <script src="schedule.js"></script>
+<script src="marker-fill.js"></script>
 <script src="workspace.js"></script>
 <script>
 const $ = id => document.getElementById(id);
@@ -201,6 +202,9 @@ async function runOnce(){
       const ref = code;
       if (v(r, "COLOR") && !/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v(r, "COLOR"))) add("warn", "Categories", ref, 'Its color "' + v(r, "COLOR") + '" is not like #E47303.', "Pick the color again in the Places editor.");
       if (icons.size && v(r, "ICON") && !icons.has(v(r, "ICON"))) add("warn", "Categories", ref, 'Its icon "' + v(r, "ICON") + '" is not in icons.js, so a plain building shows.', "Choose an icon in the Places editor.");
+      const fl = lc(v(r, "FILL"));
+      if (fl && window.MarkerFill && !MarkerFill.cleanPattern(fl)) add("warn", "Categories", ref, 'Its fill "' + fl + '" is not a known pattern (' + MarkerFill.PATTERNS.map(p => p.code).join(", ") + "), so the icon shows instead.", "Pick a color or pattern in the Places editor.");
+      ["FILL_COLOR","FILL_COLOR2"].forEach(k => { if (v(r, k) && !/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v(r, k))) add("warn", "Categories", ref, k + ' "' + v(r, k) + '" is not a color like #E47303.', "Pick the color again in the Places editor."); });
       const sh = lc(v(r, "SHAPE"));
       if (sh && window.MarkerShapes && !MarkerShapes.BUILTIN[sh] && !customShapes[sh]) add("warn", "Categories", ref, 'Its shape "' + sh + '" does not exist, so the marker stays round.', "Choose a shape in the Places editor.");
     });

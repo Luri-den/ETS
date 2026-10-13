@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Connersville — Boundary Editor</title>
+<title>Border or Boundary Editor</title>
 <script src="workspace.js"></script>
 <script>Workspace.block('The town outline is shared by every event. Go back to the live site to edit it.');</script>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
@@ -66,8 +66,8 @@
 <body>
 
 <div id="top">
-  <h1>Connersville — Boundary Editor</h1>
-  <button id="pickFile">Pick connersville.geojson…</button>
+  <h1>Boundary Editor</h1>
+  <button id="pickFile">Pick border.geojson…</button>
   <input id="fileInput" type="file" accept=".geojson,.json,application/geo+json,application/json" hidden>
   <span class="status" id="status">Loading…</span>
   <span class="grow"></span>
@@ -94,14 +94,14 @@
 
     <div class="sec"><h2>Actions</h2></div>
     <div style="padding:0 14px;display:flex;flex-direction:column;gap:6px">
-      <button id="fitBtn">Fit to boundary</button>
-      <button id="toggleBtn" class="on">Hide vertex handles</button>
-      <button id="peekBtn">Show raw coordinates</button>
-      <button id="resetBtn" class="warn">Reset to loaded file</button>
+      <button id="fitBtn">Fit to Boundary</button>
+      <button id="toggleBtn" class="on">Hide Vertex Handles</button>
+      <button id="peekBtn">Show Raw Coordinates</button>
+      <button id="resetBtn" class="warn">Reset to Loaded File</button>
     </div>
 
     <div class="hint" style="margin-top:10px;border-top:1px solid #eef1f5;padding-top:10px">
-      <b>Note:</b> properties are preserved exactly. Only coordinates change.
+      <b>Note:</b> Properties are preserved exactly. Only coordinates change.
     </div>
   </aside>
 
@@ -122,7 +122,7 @@
 
 <script>
 /* ============================================================
-   Connersville — Boundary Editor
+   border — Boundary Editor
    Edits the coordinates of a single Polygon feature in a
    FeatureCollection, preserving properties and precision.
    ============================================================ */
@@ -182,20 +182,20 @@ $("fileInput").onchange = e => {
 // Auto-load from same folder (GitHub Pages); swallowed on file://
 (async () => {
   try {
-    const res = await fetch("connersville.geojson", { cache: "no-store" });
-    if (res.ok) ingest(await res.text(), "connersville.geojson");
-    else setStatus("Click 'Pick connersville.geojson…' to begin");
+    const res = await fetch("border.geojson", { cache: "no-store" });
+    if (res.ok) ingest(await res.text(), "border.geojson");
+    else setStatus("Click 'Pick border.geojson…' to begin");
   } catch (e) {
-    setStatus("Click 'Pick connersville.geojson…' to begin");
+    setStatus("Click 'Pick border.geojson…' to begin");
   }
 })();
 
 $("reloadBtn").onclick = async () => {
-  if (!confirm("Reload connersville.geojson from the server? Unsaved changes will be lost.")) return;
+  if (!confirm("Reload border.geojson from the server? Unsaved changes will be lost.")) return;
   try {
-    const res = await fetch("connersville.geojson", { cache:"no-store" });
+    const res = await fetch("border.geojson", { cache:"no-store" });
     if (!res.ok) throw new Error(res.status + " " + res.statusText);
-    ingest(await res.text(), "connersville.geojson");
+    ingest(await res.text(), "border.geojson");
     toast("Reloaded from server");
   } catch (e) {
     toast("Reload failed: " + e.message);
@@ -526,7 +526,7 @@ $("peekBtn").onclick = () => {
 $("resetBtn").onclick = () => {
   if (!original) return;
   if (!confirm("Reset to the loaded file? Unsaved changes will be lost.")) return;
-  ingest(JSON.stringify(original), "connersville.geojson");
+  ingest(JSON.stringify(original), "border.geojson");
   toast("Reset to loaded version");
 };
 
@@ -560,11 +560,11 @@ $("publishBtn").onclick = () => {
   const blob = new Blob([json], { type: "application/geo+json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "connersville.geojson";
+  a.download = "border.geojson";
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 
-  toast("Downloaded connersville.geojson · " + (ring.length - 1) + " vertices");
+  toast("Downloaded border.geojson · " + (ring.length - 1) + " vertices");
 };
 
 /* ============================================================

@@ -89,16 +89,18 @@
     <button class="top-tab" data-target="p6" data-blurb="Overlay Maps. Align old maps to the current map by resizing, skewing, and rotating them. Edits overlays.json.">Historical Overlay</button>
     <button class="top-tab" data-target="p7" data-blurb="Edit and preview stars, stamps, and tasks in the Passport system. Edits stamps.csv and tasks.csv.">Passport</button>
     <button class="top-tab" data-target="p8" data-blurb="Edit photos using masks to create short psuedo-3D videos to place in the /anims folder.">2.5D Generator</button>
-    <button class="top-tab" data-target="p10" data-blurb="Events. Save the live site as an event (a named folder of markers, spots, passport, settings and photos), or apply a saved event to switch what the live page shows.">Events</button>
+    <button class="top-tab" data-target="p9" data-blurb="Events. Save data as an event (a named folder of markers, spots, passport, settings and photos), or apply a saved event to switch what the live page shows.">Events</button>
+    <button class="top-tab" data-target="p10" data-blurb="QR codes. Make a printable label for a spot, story, place, event or the whole map: a QR code with a caption, a source line (like County Library), your colors, and an optional picture in the middle. Print one label or a whole sheet.">QR codes</button>
     <button class="top-tab" data-target="p11" data-blurb="Check my data. Scans your files for mistakes that would quietly break the map: missing photos, children with no parent, tours that stop at places that are gone, typos in IDs. It only reads; nothing is changed.">Check</button>
-    <button class="top-tab" data-target="p12" data-blurb="QR codes. Make a printable label for a spot, story, place, event or the whole map: a QR code with a caption, a source line (like County Library), your colors, and an optional picture in the middle. Print one label or a whole sheet.">QR codes</button>
-    <button class="top-tab" data-target="p9" data-blurb="Open the live map to view changes once they are completed and uploaded.">Live View</button>
-    <!-- Add tabs 4 through 7 identically here -->
+    <button class="top-tab" data-target="p12" data-blurb="Design and upload images of a building interior.">Building Interior</button>
+    <button class="top-tab" data-target="p13" data-blurb="Open the live map to view changes once they are completed and uploaded.">Live View</button>
+    
+    <!-- Add tabs identically here -->
   </div>
 
   <!-- 2. Dynamic Blurb Area -->
   <div class="blurb-container">
-    <p id="dynamic-blurb">Welcome to the Editing Hub. Select any of the tabs above to edit basic information and settings for that function. Each tab auto-loads its assigned CSV or JSON files from the main folder. This
+    <p id="dynamic-blurb">Welcome to the Editing Hub! Select any of the tabs above to edit basic information and settings for that function. Each tab auto-loads its assigned CSV or JSON files from the main folder. This
       allows you to edit visually by dragging pins, ticking checkboxes, setting thresholds, and aligning images. Using the Download Updated button on the tab will download the updated file to your computer. Upload that file back into 
       your hosting site in the same place from which it came. The live site view will update itself once the updates are published and loaded.</p>
   </div>
@@ -138,19 +140,23 @@
       <iframe src="25dgenerator.html"></iframe>
     </div>
 
-    <div id="p10" class="page-container">
+    <div id="p9" class="page-container">
       <iframe src="events.html"></iframe>
+    </div>
+
+        <div id="p10" class="page-container">
+      <iframe src="qr.html"></iframe>
     </div>
 
     <div id="p11" class="page-container">
       <iframe src="check.html"></iframe>
     </div>
-
+    
     <div id="p12" class="page-container">
-      <iframe src="qr.html"></iframe>
+      <iframe src="BLDG/index.html"></iframe>
     </div>
 
-      <div id="p9" class="page-container">
+          <div id="p13" class="page-container">
       <iframe src="Demo2.html"></iframe>
     </div>
     <!-- Add containers for p4 through p7 identically here -->
@@ -216,10 +222,10 @@ document.addEventListener("DOMContentLoaded", () => {
       text.innerHTML = "Working on: <b>the live site</b>. Whatever you publish changes the live map. To build an event without that, use <b>Design an event</b> on the Events tab.";
       acts.innerHTML = "";
     }
-    const live = document.querySelector("#p9 iframe");
+    const live = document.querySelector("#p13 iframe");
     if (live) live.src = slug ? "Demo2.html?event=" + encodeURIComponent(slug) + "&t=" + Date.now() : "Demo2.html";
     if (reload) document.querySelectorAll(".page-container iframe").forEach(f => {
-      if (f.closest("#p9") || (from && f.contentWindow === from)) return;
+      if (f.closest("#p13") || (from && f.contentWindow === from)) return;
       try { f.contentWindow.location.reload(); } catch (e) { f.src = f.getAttribute("src"); }
     });
   }

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Connersville Map — Editor</title>
+<title>Places Editor</title>
 <script src="workspace.js"></script>
 <script>Workspace.install();</script>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
@@ -135,7 +135,7 @@
 <body>
 
 <div id="top">
-  <h1>Connersville Map — Editor</h1>
+  <h1>Places Editor</h1>
   <button id="loadLocations">Load locations.csv…</button>
   <input id="fileLocations" type="file" accept=".csv,text/csv" hidden>
   <button id="loadChildren">Load childmarkers.csv…</button>
@@ -157,7 +157,7 @@
 </div>
 <div class="list" id="catList"></div>
 <div class="palette" style="margin-top:6px">
-  <button class="small" id="addCat" type="button">＋ Add category</button>
+  <button class="small" id="addCat" type="button">＋ Add Category</button>
   <button class="small" id="loadCats" type="button">Load categories.csv…</button>
   <input id="fileCats" type="file" accept=".csv,text/csv" hidden>
 </div>
@@ -166,7 +166,7 @@
 </div>
 <div class="list" id="shapeList"></div>
 <div class="palette" style="margin-top:6px">
-  <button class="small" id="addShape" type="button">＋ Add shape</button>
+  <button class="small" id="addShape" type="button">＋ Add Shape</button>
   <button class="small" id="loadShapes" type="button">Load shapes.csv…</button>
   <input id="fileShapes" type="file" accept=".csv,text/csv" hidden>
 </div>
@@ -182,7 +182,7 @@
           <span class="lbl">New Child</span>
         </div>
       </div>
-      <div class="hint">Drag onto the map. A child needs a parent — the editor picks the nearest one and you can change it in the form.</div>
+      <div class="hint">Drag onto the map. A child needs a parent! The editor picks the nearest one, but you can change it in the form.</div>
     </div>
 
     <div class="sec">
@@ -219,11 +219,12 @@
 <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="icons.js"></script>
 <script src="marker-shapes.js"></script>
+<script src="marker-fill.js"></script>
 <script src="photo-resize.js"></script>
   <script src="publish.js"></script>
 <script>
 /* ============================================================
-   Connersville Map — CSV Editor (Slice 1: places)
+   CSV Editor (Slice 1: places)
    ============================================================ */
 
 const $ = id => document.getElementById(id);
@@ -280,6 +281,9 @@ const DEFAULT_CAT = "COMM";
 window.PhotoResize = window.PhotoResize || {   // stand-in so uploads still work if photo-resize.js was not uploaded
   process: async f => ({ blob: f, ext: ((String(f.name || "").split(".").pop() || "jpg").toLowerCase()), resized: false, why: "off" }),
   describe: () => "download when you publish", controlHtml: () => "", wire(){}, settings: () => ({ on: false })
+};
+window.MarkerFill = window.MarkerFill || {   // stand-in so the editor still works if marker-fill.js was not uploaded
+  PATTERNS: [], cleanPattern: () => "", defaults: () => ({}), url: () => "", fromRow: () => null, normalize: c => c, tileHtml: () => "", panelHtml: () => "", wire(){}
 };
 window.MarkerShapes = window.MarkerShapes || {   // stand-in so the editor still works if marker-shapes.js was not uploaded
   BUILTIN: { circle: { label: "Circle", clip: "" } }, TEMPLATES: {}, clipFor: () => "", apply(){}, parseRows: () => ({}), parsePoints: () => null,
@@ -533,7 +537,8 @@ function makePinEl(o, kind){
     if (++i < EXT.length) { tryNext(); return; }
     img.onerror = null;
     img.classList.add("is-default");
-    img.src = iconUrl(iconKeyFor(cat));
+    img.src = catImage(CATEGORIES[cat]);
+    if ((CATEGORIES[cat] || {}).fill) img.classList.add("is-fill");
     b.classList.add("nophoto");
   };
   tryNext();
@@ -1178,7 +1183,7 @@ function renderCats(){
     row.className = "row" + (selected && selected.kind === "category" && selected.ref === code ? " sel" : "");
     row.innerHTML =
       `<span class="dot" style="background:${esc(c.color)}"></span>` +
-      `<img class="cicon" src="${iconUrl(c.icon)}" alt="">` +
+      `<img class="cicon" src="${catImage(c)}" alt="" style="${c.fill ? "border-radius:4px;object-fit:cover" : ""}">` +
       `<span class="name">${esc(code)}</span>` +
       `<span class="id">${c.ranked ? "ranked · " : ""}${usage(code)}</span>`;
     row.onclick = () => select("category", code);
@@ -1241,8 +1246,9 @@ function renderCategoryForm(box, code){
         <label>Icon (shown when a place has no photo)</label>
         <div class="icongrid" id="c-icons">
           ${Object.entries(ICONS).map(([k, i]) =>
-            `<button type="button" class="ic ${k === c.icon ? "on" : ""}" data-icon="${k}" title="${esc(i.label)}"><img src="${iconUrl(k)}" alt="${esc(i.label)}"></button>`).join("")}
+            `<button type="button" class="ic ${!c.fill && k === c.icon ? "on" : ""}" data-icon="${k}" title="${esc(i.label)}"><img src="${iconUrl(k)}" alt="${esc(i.label)}"></button>`).join("")}${MarkerFill.tileHtml(c)}
         </div>
+        ${MarkerFill.panelHtml(c)}
         <div class="sub" id="c-iconname">${esc((ICONS[c.icon] || {}).label || "")}</div>
       </div>
 
@@ -1268,13 +1274,16 @@ function renderCategoryForm(box, code){
     renderPins();
   });
 
-  box.querySelectorAll("#c-icons .ic").forEach(b => b.onclick = () => {
+  box.querySelectorAll("#c-icons .ic[data-icon]").forEach(b => b.onclick = () => {
     c.icon = b.dataset.icon;
+    c.fill = "";
     box.querySelectorAll("#c-icons .ic").forEach(x => x.classList.toggle("on", x === b));
     box.querySelector("#c-iconname").textContent = ICONS[c.icon].label;
     renderCats();
     renderPins();
   });
+
+  MarkerFill.wire(box, c, () => { renderCats(); renderPins(); });
 
   box.querySelector("#c-del").onclick = () => {
     const msg = n
@@ -1299,8 +1308,13 @@ $("addCat").onclick = () => {
   toast("Added " + code + ". Pick its color and icon on the right.");
 };
 
+const CAT_KNOWN = ["CODE","LABEL","COLOR","ICON","RANKED","SHAPE","FILL","FILL_COLOR","FILL_COLOR2"];
+let catExtraCols = [];
+const catImage = c => (c && c.fill) ? MarkerFill.url(c.fill, c.fillColor, c.fillColor2) : iconUrl((c && c.icon) || "generic");
 function ingestCats(parsed){
   const next = {};
+  catExtraCols = ((parsed.meta && parsed.meta.fields) || []).map(f => String(f).trim()).filter(f => f && !CAT_KNOWN.includes(f));   // columns this editor does not manage (for example SHAPE) are kept as they are, so saving never drops them
+
   const hasRanked = parsed.data.length && Object.prototype.hasOwnProperty.call(parsed.data[0], "RANKED");
   parsed.data.forEach(r => {
     const code = String(r.CODE||"").trim().toUpperCase();
@@ -1313,7 +1327,9 @@ function ingestCats(parsed){
       color,
       icon: ICONS[icon] ? icon : ((old && old.icon) || "generic"),
       ranked: hasRanked ? isYes(r.RANKED) : !!(old && old.ranked),
-      shape: MarkerShapes.slug(r.SHAPE || "") || (old && old.shape) || ""
+      shape: MarkerShapes.slug(r.SHAPE || "") || (old && old.shape) || "",
+      ...(MarkerFill.fromRow(r, color) || (old && old.fill ? { fill: old.fill, fillColor: old.fillColor, fillColor2: old.fillColor2 } : { fill: "" })),
+      extra: Object.fromEntries(catExtraCols.map(k => [k, String(r[k] == null ? "" : r[k])]))
     };
   });
   if (!Object.keys(next).length) return;
@@ -1599,8 +1615,8 @@ $("publishBtn").onclick = () => {
 
   download("locations.csv", locCSV);
   download("childmarkers.csv", childCSV);
-    const catRows = Object.entries(CATEGORIES).map(([CODE, c]) => ({ CODE, LABEL: c.label, COLOR: c.color, ICON: c.icon, RANKED: c.ranked ? "yes" : "no", SHAPE: c.shape || "circle" }));
-  download("categories.csv", Papa.unparse({ fields: ["CODE","LABEL","COLOR","ICON","RANKED","SHAPE"], data: catRows }));
+    const catRows = Object.entries(CATEGORIES).map(([CODE, c]) => Object.assign({}, c.extra || {}, { CODE, LABEL: c.label, COLOR: c.color, ICON: c.icon, RANKED: c.ranked ? "yes" : "no", SHAPE: c.shape || "circle", FILL: c.fill || "", FILL_COLOR: c.fill ? c.fillColor : "", FILL_COLOR2: c.fill ? c.fillColor2 : "" }));
+  download("categories.csv", Papa.unparse({ fields: ["CODE","LABEL","COLOR","ICON","RANKED","SHAPE","FILL","FILL_COLOR","FILL_COLOR2"].concat(catExtraCols), data: catRows }));
   if (shapesLoaded || Object.keys(customShapes).length) {
     const shapeRows = Object.entries(customShapes).map(([CODE, s]) => ({ CODE, LABEL: s.label, POINTS: s.points.map(p => (+p[0].toFixed(1)) + " " + (+p[1].toFixed(1))).join(";") }));
     download("shapes.csv", Papa.unparse({ fields: ["CODE","LABEL","POINTS"], data: shapeRows }));

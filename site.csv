@@ -1,24 +1,34 @@
 KEY,VALUE
-PLACE,Connersville
-HEADER,Discover {PLACE}'s Spooky Past
-TAB_TITLE,Explore {PLACE}'s Spooky Past
-BAR_COLOR,#434370
-CENTER_LAT,39.647531
-CENTER_LNG,-85.138892
+PLACE,Franklin County
+HEADER,Explore {PLACE}
+TAB_TITLE,Explore {PLACE}
+BAR_COLOR,#932924
+CENTER_LAT,39.423081
+CENTER_LNG,-85.012956
 ZOOM,14
-BOUNDS_WEST,-85.4
-BOUNDS_SOUTH,39.45
-BOUNDS_EAST,-84.95
-BOUNDS_NORTH,39.8
+BOUNDS_WEST,-85.399468
+BOUNDS_SOUTH,39.216178
+BOUNDS_EAST,-84.728653
+BOUNDS_NORTH,39.737168
 MIN_ZOOM,
 MAX_ZOOM,
 FIT_TO_MARKERS,yes
-PASSPORT,no
-PASSPORT_RANKS,no
-YEAR_SLIDER,no
-OVERLAY_SLIDER,no
+PASSPORT,yes
+PASSPORT_RANKS,yes
+PRIZES,yes
+YEAR_SLIDER,yes
+OVERLAY_SLIDER,yes
+AERIAL_BUTTON,yes
 EVENT_BUTTON,About
-EVENT_TITLE,Spooky Season
-EVENT_TEXT,Boo!
-WELCOME_THEME,halloween
+EVENT_TITLE,What's Going On?
+EVENT_TEXT,"Tap a place. A card slides up from the bottom. Drag the little bar at the top of the card up for a bigger view, or down to dismiss.
+
+Filter by category. Use the pills at the top. Tap to hide or show a category; tap ""Reset"" to bring them all back.
+
+Compare old and new. When an old map is on, drag the ⇆ handle left and right to wipe between then and now.
+
+Share a place. Open a place and tap ""Share this place"" — the link will take your friend straight there.
+
+Save for offline use. Open your passport (🏆 in the top-right) and tap ""Save this map for offline use."" After it finishes, the map, photos, and stories work without a signal. Great for walking tours."
+WELCOME_THEME,fall
 WELCOME_TEXT,Welcome to|{PLACE}

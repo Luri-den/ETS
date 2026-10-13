@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Connersville — Stories &amp; Spots Editor</title>
+<title>Stories &amp; Spots Editor</title>
 <script src="workspace.js"></script>
 <script>Workspace.install();</script>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
@@ -55,12 +55,9 @@
   #map{position:absolute;inset:0}
 
   /* markers, matching Demo2.html */
-  .kmark{width:44px;height:44px;border:0;background:none;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center}
-  .kmark svg{filter:drop-shadow(0 0 2px #fff) drop-shadow(0 0 2px #fff)}
-  .kmark.story svg{animation:ktw 2.4s ease-in-out infinite}
+  /* marker size, icons and animations live in spot-markers.js (shared with the public map) */
   .kmark.sel{outline:3px solid #ff9800;outline-offset:3px;border-radius:50%}
-  @keyframes ktw{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.25);opacity:.7}}
-  @media(prefers-reduced-motion:reduce){.kmark.story svg{animation:none}}
+  .fxtoggle{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap;user-select:none}
 
   /* ---------- right panel ---------- */
   #right{background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding-bottom:30px}
@@ -118,12 +115,13 @@
 <body>
 
 <div id="top">
-  <h1>Connersville — Stories &amp; Spots</h1>
+  <h1>Stories &amp; Spots</h1>
   <button id="pickFile">Pick spots.csv…</button>
   <input id="fileInput" type="file" accept=".csv,text/csv" hidden>
   <button id="pickPhotos" title="Captions, credits and extra photos">Pick photos.csv…</button>
   <input id="filePhotos" type="file" accept=".csv,text/csv" hidden>
   <span class="status" id="status">Loading…</span>
+  <label class="fxtoggle" title="Preview marker animations while you edit. Only affects this screen; nothing is saved to the CSV."><input type="checkbox" id="fxToggle"> Marker effects</label>
   <span class="grow"></span>
   <button id="reloadBtn" title="Re-fetch from this folder">↻ Reload</button>
   <button id="publishBtn" class="primary" disabled>Download updated spots.csv</button>
@@ -140,10 +138,10 @@
         </div>
         <div class="chip" draggable="true" data-add="story">
           <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 1l2.6 7.4L22 11l-7.4 2.6L12 21l-2.6-7.4L2 11l7.4-2.6z" fill="#D55E00" stroke="#fff" stroke-width="1.2"/></svg>
-          <span class="lbl">New Story</span>
+          <span class="lbl">New Story Spot</span>
         </div>
       </div>
-      <div class="hint">Drag onto the map. Click any marker to edit. The site shows these only at high zoom or with "Show All Stories and Spots" on — the editor shows them always.</div>
+      <div class="hint">Drag onto the map. Click any marker to edit. The site shows these only at high zoom or with "Show All Stories and Spots" on. The editor always shows them.</div>
     </div>
 
     <div class="sec">
@@ -157,7 +155,7 @@
   </div>
 
   <aside id="right">
-    <div id="form"><div class="empty">Nothing selected.<br><br>Click a marker, or drag <kbd>New Photo Spot</kbd> / <kbd>New Story</kbd> onto the map.</div></div>
+    <div id="form"><div class="empty">Nothing selected.<br><br>Click a marker, or drag <kbd>New Photo Spot</kbd> / <kbd>New Story Spot</kbd> onto the map.</div></div>
   </aside>
 </div>
 
@@ -172,15 +170,21 @@
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="spot-markers.js"></script>
 
 <script>
 /* ============================================================
-   Connersville — Stories & Spots Editor
+   Stories & Spots Editor
    ============================================================ */
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const key = s => String(s||"").trim().toLowerCase();
+
+if (!window.SpotMarkers) {
+  document.getElementById("status").textContent = "spot-markers.js is missing. Upload it next to this page.";
+  throw new Error("spot-markers.js not found");
+}
 
 const CATEGORIES = {
   CIV:   { label:"Civic",          color:"#E2E1E0" },
@@ -192,8 +196,8 @@ const CATEGORIES = {
 };
 const DEFAULT_CAT = "COMM";
 
-/* Exact header order from the sample you provided */
-const SPOT_COLS = ["SPOT_ID","TITLE","LAT","LONG","YEAR","PHOTO","DETAILS","CREDIT","KIND","CATEGORY","SERIES","ORDER","SOURCE","STAFF_NOTE"];
+/* Exact header order */
+const SPOT_COLS = ["SPOT_ID","TITLE","LAT","LONG","YEAR","PHOTO","DETAILS","CREDIT","KIND","CATEGORY","SERIES","ORDER","SOURCE","STAFF_NOTE","ICON","ICON_COLOR","EFFECT"];
 
 /* ---------- State ---------- */
 window.PhotoResize = window.PhotoResize || {   // stand-in so uploads still work if photo-resize.js was not uploaded
@@ -424,15 +428,55 @@ function fitAll(){
 function setStatus(s){ $("status").textContent = s; }
 
 /* ============================================================
-   Icons (matching Demo2.html)
+   Icons, colors and effects come from spot-markers.js
+   (the same file the public map uses)
    ============================================================ */
 
-function iconSvg(kind, color){
-  if (kind === "story"){
-    return `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 1l2.6 7.4L22 11l-7.4 2.6L12 21l-2.6-7.4L2 11l7.4-2.6z" fill="${color}" stroke="#fff" stroke-width="1.2"/></svg>`;
-  }
-  return `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1" fill="${color}"/><rect x="2" y="6" width="20" height="14" rx="3" fill="${color}" stroke="#fff" stroke-width="1.2"/><circle cx="12" cy="13" r="4" fill="#fff"/></svg>`;
+function iconOf(s){
+  const r = SpotMarkers.resolve(s.row, s.kind);
+  return SpotMarkers.svg(r.icon, r.color);
 }
+
+/* Redraw one marker after its look changed, without rebuilding the whole map */
+function refreshLook(s){
+  if (s.el){
+    SpotMarkers.fill(s.el, s.row, s.kind);
+    if (selected === s) s.el.classList.add("sel");
+  }
+  renderList();
+}
+
+/* The three "Marker look" dropdowns. A blank value means "the default for this kind". */
+function lookSelects(r, kind){
+  const g = SpotMarkers.GROUPS[kind], S = SpotMarkers;
+  const opts = (vals, labelOf, def, cur) =>
+    `<option value="">${esc(labelOf(def))} (default)</option>` +
+    vals.filter(v => v !== def).map(v => `<option value="${esc(v)}" ${v === cur ? "selected" : ""}>${esc(labelOf(v))}</option>`).join("");
+
+  const ic = String(r.ICON||"").trim().toLowerCase();
+  const iconCur = g.icons.includes(ic) && ic !== g.def ? ic : "";
+
+  const raw = String(r.ICON_COLOR||"").trim();
+  const rawL = raw.toLowerCase();
+  const pal = g.colors.map(c => c.toLowerCase());
+  const colorCur = pal.includes(rawL) && rawL !== g.defColor.toLowerCase() ? rawL : "";
+  const custom = /^#[0-9a-f]{6}$/i.test(raw) && !pal.includes(rawL);
+
+  const ef = String(r.EFFECT||"").trim().toLowerCase();
+  const effCur = S.EFFECT_LABELS[ef] && ef !== g.defEffect ? ef : "";
+
+  return {
+    icon:   opts(g.icons, v => S.ICON_LABELS[v], g.def, iconCur),
+    color:  opts(pal, v => S.COLOR_NAMES[v], g.defColor.toLowerCase(), colorCur) +
+            (custom ? `<option value="${esc(raw)}" selected>Custom ${esc(raw)}</option>` : ""),
+    effect: opts(Object.keys(S.EFFECT_LABELS), v => S.EFFECT_LABELS[v], g.defEffect, effCur)
+  };
+}
+
+/* Editor-only switch: preview animations on or off */
+const fxMotion = SpotMarkers.motion("kfx-editor");
+$("fxToggle").checked = fxMotion.on;
+$("fxToggle").onchange = e => fxMotion.set(e.target.checked);
 
 /* ============================================================
    Rendering
@@ -452,9 +496,8 @@ function renderMarkers(){
     if (!s.ll) return;
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "kmark " + s.kind;
     b.title = s.row.TITLE || s.row.SPOT_ID || "";
-    b.innerHTML = iconSvg(s.kind, s.kind === "story" ? "#D55E00" : "#333333");
+    SpotMarkers.fill(b, s.row, s.kind);
     b.addEventListener("click", e => { e.stopPropagation(); select(s); });
 
     const marker = new maplibregl.Marker({ element: b, draggable: true })
@@ -493,7 +536,7 @@ function renderList(){
     const row = document.createElement("div");
     row.className = "row" + (selected === s ? " sel" : "");
     row.innerHTML =
-      iconSvg(s.kind, s.kind === "story" ? "#D55E00" : "#333333") +
+      iconOf(s) +
       `<span class="name">${esc(s.row.TITLE || "(untitled)")}</span>` +
       `<span class="id">${esc(s.row.SPOT_ID||"")}</span>`;
     row.onclick = () => select(s);
@@ -524,6 +567,7 @@ function renderForm(){
   const kind = s.kind;
   const cat = String(r.CATEGORY||"").trim().toUpperCase() || DEFAULT_CAT;
 
+  const look = lookSelects(r, kind);
   box.innerHTML = `
     <div class="form">
       <span class="badge ${kind === 'story' ? 'story' : ''}">${kind === "story" ? "Story" : "Photo spot"}</span>
@@ -537,9 +581,22 @@ function renderForm(){
       <div class="field">
         <label>Kind</label>
         <select id="f-KIND">
-          <option value="spot"  ${kind==="spot"?"selected":""}>spot — camera icon</option>
-          <option value="story" ${kind==="story"?"selected":""}>story — sparkle icon</option>
+          <option value="spot"  ${kind==="spot"?"selected":""}>Spot: Shows an Area, such as Before / After</option>
+          <option value="story" ${kind==="story"?"selected":""}>Story: What Happened Here, a Story / Photo</option>
         </select>
+      </div>
+
+      <div class="field">
+        <label>Marker look</label>
+        <div class="pair">
+          <select id="f-ICON" title="Icon">${look.icon}</select>
+          <div style="display:flex;gap:6px">
+            <select id="f-ICON_COLOR" title="Color" style="flex:1;min-width:0">${look.color}</select>
+            <input type="color" id="f-COLORPICK" title="Pick any color" value="${esc(SpotMarkers.resolve(r, kind).color.toLowerCase())}" style="width:38px;height:34px;padding:2px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;flex:none">
+          </div>
+        </div>
+        <select id="f-EFFECT" title="Effect" style="margin-top:8px">${look.effect}</select>
+        <div class="sub">Icon, color, effect. Blank means the default for a ${kind}. The square picks any color. Spots and stories keep their own icon sets, so they stay distinguishable. Very pale colors fade into the white outline.</div>
       </div>
 
       <div class="field">
@@ -639,7 +696,29 @@ function renderForm(){
   box.querySelector("#f-KIND").onchange = e => {
     r.KIND = e.target.value;
     s.kind = e.target.value === "story" ? "story" : "spot";
+    // each kind has its own icon set: clear an icon that belongs to the other kind (a color you chose stays)
+    const g = SpotMarkers.GROUPS[s.kind];
+    if (!g.icons.includes(String(r.ICON||"").trim().toLowerCase())) r.ICON = "";
     render();
+  };
+
+  const picker = box.querySelector("#f-COLORPICK");
+  ["ICON", "ICON_COLOR", "EFFECT"].forEach(col => {
+    box.querySelector("#f-" + col).onchange = e => {
+      r[col] = e.target.value;
+      picker.value = SpotMarkers.resolve(r, s.kind).color.toLowerCase();   // keep the square in sync with the dropdown
+      refreshLook(s);
+    };
+  });
+  // the color square: any color, shown in the dropdown as "Custom #rrggbb"
+  picker.oninput = e => {
+    const hex = e.target.value;
+    r.ICON_COLOR = hex;
+    const sel = box.querySelector("#f-ICON_COLOR");
+    let o = sel.querySelector("option[data-custom]");
+    if (!o) { o = document.createElement("option"); o.dataset.custom = "1"; sel.appendChild(o); }
+    o.value = hex; o.textContent = "Custom " + hex; o.selected = true;
+    refreshLook(s);
   };
 
   box.querySelector("#f-CATEGORY").onchange = e => {

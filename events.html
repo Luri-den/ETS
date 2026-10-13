@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Events: save and switch</title>
+<title>Events: Save and Switch</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;font-family:Arial,sans-serif;color:#222;background:#fafafa}
@@ -44,13 +44,13 @@ code{background:#eee;padding:1px 4px;border-radius:3px}
   <button id="gear" type="button">&#9881; GitHub settings</button>
 </header>
 <main>
-  <p class="intro">An event is a saved copy of the site's data (and, if you want, its photos) kept in <code>events/event-name/</code> in your repository.
+  <p class="intro">An event is a saved copy of the site's data (and, if you want, its photos) kept in <code>events / event-name /</code> in your repository.
   <b>Applying</b> an event copies it over the live site, so visitors see that event's markers, spots, passport, and settings.
   Each event also gets its own link (<code>Demo2.html?event=name</code>), and events you mark for the switcher appear in the About panel on the map so guests can move between them.
   GitHub copies files it already has, so nothing is uploaded and nothing is stored twice.</p>
   <div id="status" class="msg">Reading the repository&hellip;</div>
 
-  <h2>Design an event</h2>
+  <h2>Design an Event</h2>
   <p class="intro">Build an event in the other tabs <b>without changing the live map</b>. The editors switch to the event's own folder, a red frame and a banner remind you where you are, and nothing is visible to visitors until you add the event to the switcher or give it dates.</p>
   <div class="cols">
     <div><label for="dnName">Event name</label><input type="text" id="dnName" placeholder="Fried Chicken Trail"><div class="sz" id="dnSlug"></div></div>
@@ -58,25 +58,25 @@ code{background:#eee;padding:1px 4px;border-radius:3px}
   </div>
   <div style="margin-top:10px"><button class="go" id="dnBtn" type="button" disabled>Create the event and start designing</button></div>
 
-  <h2>Save the live site as an event</h2>
+  <h2>Save the Live Site and an Event</h2>
   <div class="cols">
     <div>
-      <label for="evName">Event name</label>
+      <label for="evName">Event Name</label>
       <input type="text" id="evName" placeholder="Fried Chicken Trail">
       <div class="sz" id="slugNote"></div>
-      <label for="evNote">Note (optional)</label>
+      <label for="evNote">Note (Optional)</label>
       <input type="text" id="evNote" placeholder="Oct 18 and 19, runs from the library to the depot">
       <label class="chk" style="margin-top:12px"><input type="checkbox" id="evPublic" checked> Show in the event switcher on the map</label>
     </div>
     <div>
-      <label>Data files</label><div id="dataBox"></div>
+      <label>Data Files</label><div id="dataBox"></div>
       <label>Folders</label><div id="folderBox"></div>
     </div>
   </div>
   <div class="preview" id="savePreview"></div>
   <button class="go" id="saveBtn" type="button" disabled>Save as event</button>
 
-  <h2>Saved events</h2>
+  <h2>Saved Events</h2>
   <div id="list"><em>Loading&hellip;</em></div>
 </main>
 <script src="publish.js"></script>
@@ -84,7 +84,7 @@ code{background:#eee;padding:1px 4px;border-radius:3px}
 <script src="workspace.js"></script>
 <script>
 const $ = id => document.getElementById(id);
-const DATA = ["site.csv","locations.csv","childmarkers.csv","categories.csv","spots.csv","tours.csv","tourstops.csv","stamps.csv","tasks.csv","photos.csv","shapes.csv","overlays.json","connersville.geojson"];
+const DATA = ["site.csv","locations.csv","childmarkers.csv","categories.csv","spots.csv","tours.csv","tourstops.csv","stamps.csv","tasks.csv","prizes.csv","photos.csv","shapes.csv","overlays.json","connersville.geojson"];
 const FOLDERS = ["photos","spots","stories","anims"];
 const SKEY = "ghpublish.settings.v1", TKEY = "ghpublish.token.v1";   // same storage as the editors' Publish button
 

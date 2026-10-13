@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Map Settings — Editor</title>
+<title>Site Settings Editor</title>
 <script src="workspace.js"></script>
 <script>Workspace.install();</script>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
@@ -42,16 +42,25 @@ small{color:#777;font-size:11px;display:block;margin-top:3px}
 #warn div{background:#f8d7da;border-radius:4px;padding:6px 8px;margin-top:6px}
 .pin-center{width:26px;height:26px;border-radius:50%;border:4px solid #d40000;background:#fff8;box-shadow:0 0 0 2px #fff,0 1px 5px #0008;cursor:grab}
 .handle{width:18px;height:18px;background:#0072B2;border:3px solid #fff;box-shadow:0 1px 4px #0008;cursor:grab}
+select{width:100%;padding:6px;font-size:14px;border:1px solid #bbb;border-radius:4px}
+input[type=range]{padding:0;border:0}
+.zl{font-size:12px;font-weight:bold;color:#555;margin:8px 0 3px}
+#board .zone{min-height:40px;display:flex;flex-wrap:wrap;gap:6px;padding:6px;border:2px dashed #bbb;border-radius:6px;background:#fff}
+#board .zone.hot{border-color:#28a745;background:#eefaf0}
+.chip{touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab;background:#e9ecef;border:1px solid #aaa;border-radius:999px;padding:6px 11px;font-size:12px}
+.chip.lock{background:#fff3cd}
+.chip.dragging{opacity:.35}
+.chip.ghost{position:fixed;z-index:99;pointer-events:none;opacity:.92;box-shadow:0 2px 8px #0006}
 @media(max-width:760px){main{flex-direction:column}#side{width:100%;max-height:48%;border-left:0;border-top:1px solid #ccc}}
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Map Settings — Editor</h1>
+  <h1>Site Settings Editor</h1>
   <label class="btn" style="margin:0;font-weight:normal;color:#222">Load site.csv…<input type="file" id="fSite" accept=".csv,text/csv" hidden></label>
-  <label class="btn" style="margin:0;font-weight:normal;color:#222">Show places (locations.csv)…<input type="file" id="fLocs" accept=".csv,text/csv" hidden></label>
-  <button id="startBtn" type="button">Start from defaults</button>
+  <label class="btn" style="margin:0;font-weight:normal;color:#222">Show Places (locations.csv)…<input type="file" id="fLocs" accept=".csv,text/csv" hidden></label>
+  <button id="startBtn" type="button">Start from Defaults</button>
   <button id="reloadBtn" type="button" disabled>↻ Reload</button>
   <button id="dlBtn" type="button" class="go" disabled>Download updated site.csv</button>
 </header>
@@ -61,30 +70,47 @@ small{color:#777;font-size:11px;display:block;margin-top:3px}
   <div id="map"></div>
 
   <aside id="side" class="off">
-    <h2>Page name and color</h2>
+    <h2>Page Name and Color</h2>
     <div id="pvBar"></div>
     <div id="pvTab"></div>
 
-    <label>Place name</label>
+    <label>Place Name</label>
     <input data-k="PLACE" placeholder="Connersville">
-    <label>Top bar text</label>
+    <label>Top Bar Text</label>
     <input data-k="HEADER">
     <small>{PLACE} is replaced with the place name above.</small>
-    <label>Browser tab title</label>
+    <label>Browser Tab Title</label>
     <input data-k="TAB_TITLE">
-    <label>Top bar color</label>
+    <label>Top Bar Color</label>
     <div class="two"><input type="color" data-k="BAR_COLOR"><input data-k="BAR_COLOR" placeholder="#E47303"></div>
 
-    <h2>Welcome screen</h2>
+    <h2>Top Bar Layout</h2>
+    <small>Press and drag a button into another box. Top bar order is left to right and wraps to new rows. Yellow buttons can't leave the top bar.</small>
+    <div id="board">
+      <div class="zl">Top bar</div><div class="zone" id="zTop" data-z="top"></div>
+      <div class="zl">Inside the More &#9662; drawer</div><div class="zone" id="zMore" data-z="more"></div>
+      <div class="zl">Hidden</div><div class="zone" id="zOff" data-z="off"></div>
+    </div>
+    <small id="layNote"></small>
+    <small>"&harr; Flexible space" pushes everything after it to the right edge. "&crarr; New row" starts a new line. A saved layout applies to phones too. The checkboxes further down (year slider, aerial, About text) still decide whether a control exists at all.</small>
+    <div class="row"><button type="button" id="layReset">Back to built-in layout</button></div>
+    <label>Search bar width, computer: <b id="qwdV"></b></label>
+    <input type="range" min="25" max="100" step="5" data-k="SEARCH_WIDTH">
+    <label>Search bar width, phone: <b id="qwpV"></b></label>
+    <input type="range" min="50" max="100" step="5" data-k="SEARCH_WIDTH_PHONE">
+    <label>Button style</label>
+    <select data-k="BAR_STYLE"><option value="">Pill (rounded)</option><option value="bar">Bar (square corners)</option></select>
+
+    <h2>Welcome Screen</h2>
     <label>Theme</label>
     <select data-k="WELCOME_THEME" id="wtSel"></select>
-    <label>Welcome text</label>
+    <label>Welcome Text</label>
     <input data-k="WELCOME_TEXT" placeholder="Welcome to|{PLACE}">
     <small>{PLACE} is replaced with the place name. Use | to start a new line; the last line is the big one.</small>
     <img id="wtPrev" alt="Welcome screen preview" style="width:100%;border-radius:10px;margin-top:8px;background:#ddd">
     <small id="wtNote"></small>
 
-    <h2>Start view (drag the red circle)</h2>
+    <h2>Start View (drag the red circle)</h2>
     <label class="chk"><input type="checkbox" data-k="FIT_TO_MARKERS"> Fit to all markers on load (ignores the start view below)</label>
     <div class="grid">
       <div><label>Latitude</label><input data-k="CENTER_LAT" inputmode="decimal"></div>
@@ -93,11 +119,11 @@ small{color:#777;font-size:11px;display:block;margin-top:3px}
     <label>Zoom</label>
     <input data-k="ZOOM" inputmode="decimal">
     <div class="row">
-      <button type="button" id="useView">Use current map view</button>
-      <button type="button" id="goStart">Go to start view</button>
+      <button type="button" id="useView">Use Current Map View</button>
+      <button type="button" id="goStart">Go to Start View</button>
     </div>
 
-    <h2>Allowed area (drag the blue squares)</h2>
+    <h2>Allowed Area (drag the blue squares)</h2>
     <div class="grid">
       <div><label>West</label><input data-k="BOUNDS_WEST" inputmode="decimal"></div>
       <div><label>East</label><input data-k="BOUNDS_EAST" inputmode="decimal"></div>
@@ -118,6 +144,10 @@ small{color:#777;font-size:11px;display:block;margin-top:3px}
     <label class="chk"><input type="checkbox" data-k="PASSPORT"> Show the History Passport</label>
     <label class="chk"><input type="checkbox" data-k="PASSPORT_RANKS"> Use stars and ranks</label>
     <small>Turn ranks off to keep the discovery collection and tasks without any stars. Which categories can earn ranks is set per category in the Places editor.</small>
+
+    <h2>Prizes</h2>
+    <label class="chk"><input type="checkbox" data-k="PRIZES"> Show prize progress in the passport</label>
+    <small>When off, the prize section is hidden from visitors and the Prizes tab in the Passport editor is disabled. Prizes are built in the Passport editor.</small>
 
     <h2>Sliders</h2>
     <label class="chk"><input type="checkbox" data-k="YEAR_SLIDER"> Show the year slider</label>
@@ -156,6 +186,7 @@ const DEFAULTS = {
   FIT_TO_MARKERS: "yes",
   PASSPORT: "yes",
   PASSPORT_RANKS: "yes",
+  PRIZES: "yes",
   YEAR_SLIDER: "yes",
   OVERLAY_SLIDER: "yes",
   AERIAL_BUTTON: "yes",
@@ -163,7 +194,9 @@ const DEFAULTS = {
   EVENT_TITLE: "",
   EVENT_TEXT: "",
   WELCOME_THEME: "",
-  WELCOME_TEXT: "Welcome to|{PLACE}"
+  WELCOME_TEXT: "Welcome to|{PLACE}",
+  BAR_STYLE: "", SEARCH_WIDTH: "", SEARCH_WIDTH_PHONE: "",
+  LAYOUT_TOP: "", LAYOUT_MORE: "", LAYOUT_OFF: ""
 };
 
 (function () {   // theme choices
@@ -261,6 +294,7 @@ function syncUI(except) {
     else f.value = v;
   });
   preview();
+  renderBoard();
 }
 
 function preview() {
@@ -344,38 +378,116 @@ $('fSite').addEventListener('change', async e => {
   status('Loaded ' + f.name + '. Edit, then Download updated site.csv.');
   e.target.value = '';
 });
-// when designing an event, start from that event's own site.csv instead of waiting for a file
-if (window.Workspace && Workspace.slug) {
-  const go = () => fetch('site.csv', { cache: 'no-store' }).then(r => r.ok ? r.text() : null).then(t => {
-    if (t) { lastText = t; startFrom(t); status("Loaded this event's own site.csv. Edit, then Download updated site.csv."); }
-  }).catch(() => {});
-  const wait = n => (typeof mapLoaded !== 'undefined' && mapLoaded) || n > 40 ? go() : setTimeout(() => wait(n + 1), 250);
-  wait(0);
-}
-$('startBtn').onclick = () => {
-  if (S && !confirm('Discard what is on screen and start from the built-in defaults?')) return;
-  lastText = null; startFrom(null);
-  status('Started from the Connersville defaults.');
-};
-$('reloadBtn').onclick = () => {
-  if (!confirm('Throw away your edits and reload?')) return;
-  startFrom(lastText);
-  status('Reloaded.');
-};
 
-$('fLocs').addEventListener('change', async e => {
-  const f = e.target.files[0];
-  if (!f) return;
-  const rows = Papa.parse(await f.text(), { header: true, skipEmptyLines: 'greedy' }).data;
-  const feats = rows
-    .map(r => [parseFloat(r.LONG), parseFloat(r.LAT)])
-    .filter(c => c.every(v => !isNaN(v)))
-    .map(c => ({ type: 'Feature', geometry: { type: 'Point', coordinates: c }, properties: {} }));
-  locData = { type: 'FeatureCollection', features: feats };
-  if (mapLoaded) map.getSource('locs').setData(locData);
-  status('Showing ' + feats.length + ' places from ' + f.name + ' as orange dots.');
-  e.target.value = '';
+// Auto-load site.csv on page open:
+//  - while designing an event, Workspace.slug is set and the editors fetch the event's own copy
+//  - otherwise this is the live site: fetch the site.csv that lives next to this page
+(async () => {
+  // wait for the map to finish loading, so startFrom() has somewhere to draw
+  let tries = 0;
+  while (!mapLoaded && tries++ < 40) await new Promise(r => setTimeout(r, 250));
+
+  try {
+    const res = await fetch('site.csv', { cache: 'no-store' });
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.trim()) {
+        lastText = text;
+        startFrom(text);
+        status((window.Workspace && Workspace.slug ? "Loaded this event's own site.csv." : "Loaded site.csv.") + " Edit, then Download updated site.csv.");
+        return;
+      }
+    }
+  } catch (e) { /* fall through */ }
+
+  // no site.csv on the server yet — leave the panel disabled so the user can use Start from defaults
+  status('No site.csv found next to this page. Click "Start from defaults" to build one, or pick a file.');
+})();
+// ---------- top bar layout board ----------
+const CTRL = { search: 'Search bar', near: 'Near Me', event: 'About button', more: 'More \u25BE', tour: 'Take the Tour', tours: 'Tours',
+  stories: 'Stories & Spots', chips: 'Category pills', aerial: 'Aerial', year: 'Year slider', oldmaps: 'Old Maps', passport: 'Passport',
+  spacer: '\u2194 Flexible space', newrow: '\u21B5 New row' };
+const DEF_TOP = ['search','near','event','more','aerial','tour','tours','stories','chips','spacer','passport','year','oldmaps'];
+const NO_MORE = ['search','more','spacer','newrow'], NO_OFF = ['search','more'];
+let drag = null;
+
+function getLayout() {
+  const list = k => (S[k] || '').split(',').map(x => x.trim()).filter(x => CTRL[x]);
+  let top = list('LAYOUT_TOP'), more = list('LAYOUT_MORE'), off = list('LAYOUT_OFF');
+  if (!top.length && !more.length && !off.length) { top = DEF_TOP.slice(); off = ['newrow']; }
+  const seen = new Set();
+  const uniq = a => a.filter(id => !seen.has(id) && seen.add(id));
+  top = uniq(top); more = uniq(more.filter(id => !NO_MORE.includes(id))); off = uniq(off.filter(id => !NO_OFF.includes(id)));
+  Object.keys(CTRL).forEach(id => { if (!seen.has(id)) (id === 'spacer' || id === 'newrow' ? off : top).push(id); });
+  return { top, more, off };
+}
+
+function renderBoard() {
+  if (!S || drag) return;
+  const L = getLayout();
+  [['top', 'zTop'], ['more', 'zMore'], ['off', 'zOff']].forEach(([z, id]) => {
+    $(id).innerHTML = '';
+    L[z].forEach(c => {
+      const d = el('chip' + (NO_MORE.includes(c) && NO_OFF.includes(c) ? ' lock' : ''));
+      d.textContent = CTRL[c]; d.dataset.id = c; $(id).appendChild(d);
+    });
+  });
+  $('layNote').textContent = (S.LAYOUT_TOP || S.LAYOUT_MORE || S.LAYOUT_OFF)
+    ? 'Custom layout: it will be saved in site.csv.'
+    : 'Showing the built-in computer layout. Nothing changes until you move something.';
+  $('qwdV').textContent = S.SEARCH_WIDTH ? S.SEARCH_WIDTH + '%' : 'default';
+  $('qwpV').textContent = S.SEARCH_WIDTH_PHONE ? S.SEARCH_WIDTH_PHONE + '%' : 'default';
+}
+
+function saveBoard() {
+  const g = id => [...$(id).children].map(c => c.dataset.id).join(',');
+  S.LAYOUT_TOP = g('zTop'); S.LAYOUT_MORE = g('zMore'); S.LAYOUT_OFF = g('zOff');
+}
+
+$('board').addEventListener('pointerdown', e => {
+  const c = e.target.closest('.chip');
+  if (!c || !S) return;
+  e.preventDefault();
+  drag = { c, x: e.clientX, y: e.clientY, on: false };
 });
+window.addEventListener('pointermove', e => {
+  if (!drag) return;
+  if (!drag.on) {
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;
+    drag.on = true; drag.c.classList.add('dragging');
+    drag.g = drag.c.cloneNode(true); drag.g.classList.remove('dragging'); drag.g.classList.add('ghost');
+    document.body.appendChild(drag.g);
+  }
+  drag.g.style.left = (e.clientX + 8) + 'px'; drag.g.style.top = (e.clientY + 8) + 'px';
+  document.querySelectorAll('#board .zone').forEach(z => z.classList.remove('hot'));
+  const hit = document.elementFromPoint(e.clientX, e.clientY);
+  const z = hit && hit.closest('#board .zone');
+  if (!z) return;
+  const id = drag.c.dataset.id;
+  if ((z.dataset.z === 'more' && NO_MORE.includes(id)) || (z.dataset.z === 'off' && NO_OFF.includes(id))) return;
+  z.classList.add('hot');
+  let before = null;
+  for (const k of z.querySelectorAll('.chip:not(.dragging)')) {
+    const r = k.getBoundingClientRect();
+    if (e.clientY < r.top || (e.clientY <= r.bottom && e.clientX < r.left + r.width / 2)) { before = k; break; }
+  }
+  z.insertBefore(drag.c, before);
+});
+function endDrag() {
+  if (!drag) return;
+  const d = drag; drag = null;
+  document.querySelectorAll('#board .zone').forEach(z => z.classList.remove('hot'));
+  if (d.g) d.g.remove();
+  d.c.classList.remove('dragging');
+  if (d.on) { saveBoard(); syncUI(); }
+}
+window.addEventListener('pointerup', endDrag);
+window.addEventListener('pointercancel', endDrag);
+$('layReset').onclick = () => {
+  if (!S) return;
+  ['LAYOUT_TOP', 'LAYOUT_MORE', 'LAYOUT_OFF', 'SEARCH_WIDTH', 'SEARCH_WIDTH_PHONE', 'BAR_STYLE'].forEach(k => S[k] = '');
+  syncUI();
+};
 
 // ---------- download ----------
 $('dlBtn').onclick = () => {

@@ -56,9 +56,9 @@
   }
 
   const THEMES = {
-    halloween: { label: "Halloween ghosts", font: "Georgia,'Times New Roman',serif", style: "italic", bg: ["#1b1030", "#4a2275"], t1: "#f3dcff", t2: "#ff8a1f", halo: "#000", decor: ghosts },
-    fall:      { label: "Fall leaves", font: "'Palatino Linotype',Palatino,Georgia,serif", style: "normal", bg: ["#fff0d2", "#f2b97a"], t1: "#6b3410", t2: "#b3350f", halo: "#fff", decor: leaves },
-    winter:    { label: "Winter snow", font: "'Trebuchet MS',Verdana,sans-serif", style: "normal", bg: ["#0d2740", "#2a6aa3"], t1: "#d9eeff", t2: "#ffffff", halo: "#000", decor: snow }
+    halloween: { label: "Halloween Ghosts", font: "Georgia,'Times New Roman',serif", style: "italic", bg: ["#1b1030", "#4a2275"], t1: "#f3dcff", t2: "#ff8a1f", halo: "#000", decor: ghosts },
+    fall:      { label: "Fall Leaves", font: "'Palatino Linotype',Palatino,Georgia,serif", style: "normal", bg: ["#fff0d2", "#f2b97a"], t1: "#6b3410", t2: "#b3350f", halo: "#fff", decor: leaves },
+    winter:    { label: "Winter Snow", font: "'Trebuchet MS',Verdana,sans-serif", style: "normal", bg: ["#0d2740", "#2a6aa3"], t1: "#d9eeff", t2: "#ffffff", halo: "#000", decor: snow }
   };
 
   function build(key, text, place, on) {

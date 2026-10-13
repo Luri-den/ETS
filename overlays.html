@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Connersville — Overlay Editor</title>
+<title>Map Overlay Editor</title>
 <script src="workspace.js"></script>
 <script>Workspace.block('The old-map overlays are shared by every event. Go back to the live site to edit them.');</script>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
@@ -96,7 +96,7 @@
 <body>
 
 <div id="top">
-  <h1>Connersville — Overlay Editor</h1>
+  <h1>Map Overlay Editor</h1>
   <button id="pickFile">Pick overlays.json…</button>
   <input id="fileInput" type="file" accept=".json,application/json" hidden>
   <span class="status" id="status">Loading…</span>
@@ -147,7 +147,7 @@
 
 <script>
 /* ============================================================
-   Connersville — Overlay Editor
+  Map Overlay Editor
    Aligns historical map images to real-world coordinates by
    dragging the four corners of a quad on a MapLibre map.
    ============================================================ */
@@ -734,6 +734,7 @@ $("addOverlay").onclick = () => {
     ]
   };
   overlays.push(o);
+  $("publishBtn").disabled = false;
   selected = o;
   originalCoords = JSON.parse(JSON.stringify(o.coords));
   removeSource();
