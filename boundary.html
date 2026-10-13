@@ -288,6 +288,15 @@ $("reloadBtn").onclick = async () => {
   }
 };
 
+const res = await fetch(url);
+const text = await res.text();
+console.log('Raw response:', text.slice(0, 500));
+let data;
+try { data = JSON.parse(text); } catch (e) {
+  console.error('Parse failed. Full text:', text);
+  throw new Error('TIGERweb returned non-JSON');
+}
+  
 function ingest(text, filename){
   let parsed;
   try { parsed = JSON.parse(text); }
