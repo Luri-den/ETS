@@ -685,6 +685,7 @@ async function loadCountyNames(stateFips) {
             + `?where=STATE='${stateFips}'`
             + `&outFields=NAME,STATE,COUNTY`
             + `&returnGeometry=false&f=json`;
+        console.log('SEARCH URL:', url);
   const res = await fetch(url);
   const data = await res.json();
   const map = {};
