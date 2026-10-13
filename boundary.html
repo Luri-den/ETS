@@ -698,8 +698,8 @@ async function loadCountyNames(stateFips) {
 async function searchTigerweb(type, name, stateFips) {
   const cfg = SERVICE_MAP[type];
   const safeName = name.trim().replace(/'/g, "''").toUpperCase();
-let where = `UPPER(BASENAME) LIKE '%${safeName}%'`;
-if (cfg.needsState) where += ` AND STATE='${stateFips}'`;
+  let where = `UPPER(BASENAME) LIKE '%${safeName}%'`;
+  if (cfg.needsState) where += ` AND STATEFP='${stateFips}'`;
 
   const url = `https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/`
             + `${cfg.service}/MapServer/${cfg.layer}/query`
@@ -708,6 +708,7 @@ if (cfg.needsState) where += ` AND STATE='${stateFips}'`;
 
   const res = await fetch(url);
   const data = await res.json();
+  if (data.error) console.error('TIGERweb error:', data.error);
   return (data.features || []).filter(f => f.geometry);
 }
 
