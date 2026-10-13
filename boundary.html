@@ -671,9 +671,9 @@ function toast(msg){
    ============================================================ */
 
 const SERVICE_MAP = {
-  PLACE:  { service: 'tigerWMS_Current/Places_CouSub_ConCity_SubMCD', layer: 11, needsState: true },
-  COUNTY: { service: 'tigerWMS_Current/State_County', layer: 1, needsState: true },
-  STATE:  { service: 'tigerWMS_Current/State_County', layer: 0, needsState: false }
+  PLACE:  { service: 'Places_CouSub_ConCity_SubMCD', layer: 4, needsState: true },
+  COUNTY: { service: 'State_County',                  layer: 1, needsState: true },
+  STATE:  { service: 'State_County',                  layer: 0, needsState: false }
 };
 
 const countyNameCache = {};   // stateFips -> { countyFips: name }
