@@ -1783,22 +1783,28 @@ async function initOverlays(){
   const o = SITE.overlays;
   if (!o.length) return;
 
-  o.forEach((x,n) => {
-    map.addSource("ov" + n, { type:"image", url: x.url, coordinates: x.coords });
+  // Old maps are big images. Load each one only when the visitor first shows it, not at page start.
+  const added = new Set();
+  const ensure = n => {
+    if (added.has(n)) return;
+    added.add(n);
+    map.addSource("ov" + n, { type:"image", url: o[n].url, coordinates: o[n].coords });
     map.addLayer({
       id: "ov" + n, type: "raster", source: "ov" + n,
       paint: { "raster-opacity": 0 }
-    }, "boundary");
-  });
+    }, map.getLayer("boundary") ? "boundary" : undefined);
+  };
 
   $("ovs").innerHTML = o.map((x,n) => `<option value="${n}">${esc(x.name)}</option>`).join("");
   $("ovs").hidden = o.length < 2;
   $("ovw").hidden = false;
   syncMoreBtn();
 
-  const apply = () => o.forEach((x,n) =>
-    map.setPaintProperty("ov" + n, "raster-opacity", n == $("ovs").value ? $("ov").value / 100 : 0)
-  );
+  const apply = () => o.forEach((x,n) => {
+    const shown = n == $("ovs").value && $("ov").value > 0;
+    if (shown) ensure(n);
+    if (added.has(n)) map.setPaintProperty("ov" + n, "raster-opacity", n == $("ovs").value ? $("ov").value / 100 : 0);
+  });
   $("ov").oninput = () => { apply(); updateMoreDot(); };
   $("ovs").onchange = apply;
 }
