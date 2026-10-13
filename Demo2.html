@@ -704,7 +704,7 @@ html.sq #tools.open #toolsMore{border-radius:6px}
   </div>
 </div>
 
-  <div id="map" style="display: none;"></div>
+<div id="map"></div>
 <aside id="panel" hidden aria-live="polite"></aside>
 
 <div id="passportDrawer">
@@ -748,13 +748,18 @@ html.sq #tools.open #toolsMore{border-radius:6px}
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="welcome-themes.js"></script>
+<script src="marker-shapes.js"></script>
+<script src="schedule.js"></script>
+<script src="marker-fill.js"></script>
+<script src="spot-markers.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script>
   if (typeof Papa === "undefined") {
     document.write('<script src="https://unpkg.com/papaparse@5.4.1/dist/papaparse.min.js"><\/script>');
   }
 </script>
-  <script src="dist/bundle.js"></script>
+<script src="icons.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 
