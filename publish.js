@@ -338,5 +338,11 @@
     };
   }
 
-  window.GHPublish = { attach, publish, settingsDialog };
+  async function listFiles() {              // every file path in the repo (used by "Make missing thumbnails")
+    const head = (await api("/git/ref/heads/" + await branchName())).object.sha;
+    const base = (await api("/git/commits/" + head)).tree.sha;
+    return (await api("/git/trees/" + base + "?recursive=1")).tree.filter(x => x.type === "blob").map(x => x.path);
+  }
+
+  window.GHPublish = { attach, publish, settingsDialog, listFiles };
 })();

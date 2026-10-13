@@ -221,6 +221,8 @@
 <script src="marker-shapes.js"></script>
 <script src="marker-fill.js"></script>
 <script src="photo-resize.js"></script>
+<script src="photo-thumb.js"></script>
+<script>window.PhotoThumb = window.PhotoThumb || { entry: async () => null, addButton() {} };</script>
   <script src="publish.js"></script>
 <script>
 /* ============================================================
@@ -1056,6 +1058,7 @@ function wirePhotoBlock(scope, id, row){
     const name = id + "." + r.ext;
     stagedPhotos = stagedPhotos.filter(p => p.name !== name);
     stagedPhotos.push({ name, blob: f });
+    stageThumb("photos/" + name, f);
     // show in the panel
     const im = new Image();
     im.onload = () => {
@@ -1084,7 +1087,7 @@ $("downloadPhotos").onclick = () => {
   stagedPhotos.forEach(p => {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(p.blob);
-    a.download = p.name;
+    a.download = p.dl || p.name;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   });
@@ -1431,6 +1434,7 @@ function renderGalEditor(scope, id){
         const name = idNow() + "-" + Date.now().toString(36).slice(-4) + "." + r.ext;
         stagedPhotos = stagedPhotos.filter(p => p.name !== name);
         stagedPhotos.push({ name, blob: f });
+        stageThumb("photos/" + name, f);
         pathEl.value = "photos/" + name;
         pathEl.oninput();
         renderStaged();
@@ -1685,10 +1689,20 @@ document.addEventListener("keydown", e => {
     render();
   }
 });
+  async function stageThumb(fullPath, blob) {      // also stage a small copy at folder/thumbs/name.jpg
+    try {
+      const t = await PhotoThumb.entry(fullPath, blob);
+      if (!t) return;
+      stagedPhotos = stagedPhotos.filter(p => p.name !== t.name);
+      stagedPhotos.push(t); renderStaged();
+    } catch (e) {}
+  }
   GHPublish.attach({
   buttons: ["publishBtn", "downloadPhotos"],
+  route: name => { const p = stagedPhotos.find(x => x.dl === name); return p ? p.name : undefined; },
   onPublished: () => { stagedPhotos = []; renderStaged(); }
 });
+  PhotoThumb.addButton("publishBtn", t => { stagedPhotos = stagedPhotos.filter(p => p.name !== t.name); stagedPhotos.push(t); }, renderStaged);
 </script>
 </body>
 </html>

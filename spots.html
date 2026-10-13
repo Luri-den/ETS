@@ -360,6 +360,7 @@ function renderGalEditor(scope, id){
         const path = chosen.trim();
         stagedPhotos = stagedPhotos.filter(p => p.name !== path);
         stagedPhotos.push({ name: path, blob: f });
+        stageThumb(path, f);
         pathEl.value = path;
         pathEl.oninput();
         renderStaged();
@@ -836,6 +837,7 @@ function wirePhotoBlock(scope, s){
     s.row.PHOTO = path;
     stagedPhotos = stagedPhotos.filter(p => p.name !== path);
     stagedPhotos.push({ name: path, blob: f });
+    stageThumb(path, f);
 
     // update form field + preview
     const field = scope.querySelector("#f-PHOTO");
@@ -861,7 +863,7 @@ $("downloadPhotos").onclick = () => {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(p.blob);
     // keep folder in the suggested name but browsers may flatten it — user can move file manually
-    a.download = p.name.split("/").pop();
+    a.download = p.dl || p.name.split("/").pop();
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   });
@@ -975,17 +977,28 @@ function toast(msg){
 }
 </script>
 <script src="photo-resize.js"></script>
+<script src="photo-thumb.js"></script>
+<script>window.PhotoThumb = window.PhotoThumb || { entry: async () => null, addButton() {} };</script>
 <script src="publish.js"></script>
 <script>
+  async function stageThumb(fullPath, blob) {      // also stage a small copy at folder/thumbs/name.jpg
+    try {
+      const t = await PhotoThumb.entry(fullPath, blob);
+      if (!t) return;
+      stagedPhotos = stagedPhotos.filter(p => p.name !== t.name);
+      stagedPhotos.push(t); renderStaged();
+    } catch (e) {}
+  }
 GHPublish.attach({
   buttons: ["publishBtn", "downloadPhotos"],
   // The editor strips folders from its downloads, so look the full path (spots/... or stories/...) back up
   route: name => {
-    const p = stagedPhotos.find(x => x.name.split("/").pop() === name);
+    const p = stagedPhotos.find(x => x.dl === name) || stagedPhotos.find(x => !x.dl && x.name.split("/").pop() === name);
     return p ? p.name.replace(/^\/+/, "") : undefined;
   },
   onPublished: () => { stagedPhotos = []; renderStaged(); }
 });
+  PhotoThumb.addButton("publishBtn", t => { stagedPhotos = stagedPhotos.filter(p => p.name !== t.name); stagedPhotos.push(t); }, renderStaged);
 </script>
 </body>
 </html>

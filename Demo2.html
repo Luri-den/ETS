@@ -845,6 +845,11 @@ function majorSites() {
   return flagged.length ? flagged : places;
 }
 
+let passportUiTimer = 0;
+function schedulePassportUI() {          // photo loads call this: rebuild the stamp grid at most once per 400 ms
+  if (passportUiTimer) return;
+  passportUiTimer = setTimeout(() => { passportUiTimer = 0; updatePassportUI(); }, 400);
+}
 function updatePassportUI() {
   const unlocked = getUnlockedStamps();
   const sites = majorSites();
@@ -862,7 +867,7 @@ function updatePassportUI() {
     const thumbSrc = PHOTO_SRC[s.id] || iconFor(s.d && s.d.CATEGORY);
     return `
       <div class="stamp-card ${isUnlocked ? 'unlocked' : ''}" data-id="${esc(s.id)}">
-        <img src="${esc(thumbSrc)}" alt="" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'40\' height=\'40\'><rect width=\'40\' height=\'40\' fill=\'%23ddd\'/></svg>'">
+        <img src="${esc(thumbSrc)}" alt="" loading="lazy" decoding="async" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'40\' height=\'40\'><rect width=\'40\' height=\'40\' fill=\'%23ddd\'/></svg>'">
         <div>${esc(s.name)}</div>
       </div>
     `;
@@ -1268,13 +1273,22 @@ let travelInProgress = false;
 const EXT = ["jpg","jpeg","png","webp","JPG","PNG"];
 const PHOTO_SRC = {};
 
+// The editors save a small copy of each photo at folder/thumbs/name.jpg; try that first, then the full photo.
+const thumbOf = p => String(p).replace(/^(?:(.*)\/)?([^\/]+?)(?:\.[^.\/]+)?$/, (m, d, b) => (d ? d + "/" : "") + "thumbs/" + b + ".jpg");
+
 function thumb(id, category, path){
   const im = new Image();
   im.alt = "";
+  im.decoding = "async";
   let i = 0;
   let typed = String(path || "").trim();
-  const go = () => { im.src = assetUrl(typed || ("photos/" + encodeURIComponent(id) + "." + EXT[i])); };
+  let tryThumb = !/^(https?:)?\/\//i.test(typed);
+  const go = () => {
+    if (tryThumb) { im.src = assetUrl(thumbOf(typed || ("photos/" + encodeURIComponent(id) + ".jpg"))); return; }
+    im.src = assetUrl(typed || ("photos/" + encodeURIComponent(id) + "." + EXT[i]));
+  };
   im.onerror = () => {
+    if (tryThumb) { tryThumb = false; go(); return; }      // no thumbnail yet: use the full photo
     if (typed) { console.warn("Photo path not found for " + id + ": " + typed); typed = ""; i = 0; go(); return; }
     if (++i < EXT.length) { go(); return; }
     console.warn("No photo for " + id + ", using category icon");
@@ -1286,7 +1300,7 @@ function thumb(id, category, path){
   im.onload = () => {
     if (im.classList.contains("is-default")) return;
     PHOTO_SRC[id] = im.currentSrc || im.src;
-    updatePassportUI();
+    schedulePassportUI();
   };
   go();
   return im;
