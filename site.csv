@@ -1,18 +1,18 @@
 KEY,VALUE
-PLACE,Franklin County
+PLACE,Fayette County
 HEADER,Explore {PLACE}
 TAB_TITLE,Explore {PLACE}
-BAR_COLOR,#932924
-CENTER_LAT,39.423081
-CENTER_LNG,-85.012956
+BAR_COLOR,#400040
+CENTER_LAT,39.640252
+CENTER_LNG,-85.14086
 ZOOM,14
-BOUNDS_WEST,-85.399468
-BOUNDS_SOUTH,39.216178
-BOUNDS_EAST,-84.728653
-BOUNDS_NORTH,39.737168
+BOUNDS_WEST,-85.417502
+BOUNDS_SOUTH,39.454954
+BOUNDS_EAST,-84.886981
+BOUNDS_NORTH,39.85164
 MIN_ZOOM,
 MAX_ZOOM,
-FIT_TO_MARKERS,yes
+FIT_TO_MARKERS,no
 PASSPORT,yes
 PASSPORT_RANKS,yes
 PRIZES,yes
@@ -30,5 +30,11 @@ Compare old and new. When an old map is on, drag the ⇆ handle left and right t
 Share a place. Open a place and tap ""Share this place"" — the link will take your friend straight there.
 
 Save for offline use. Open your passport (🏆 in the top-right) and tap ""Save this map for offline use."" After it finishes, the map, photos, and stories work without a signal. Great for walking tours."
-WELCOME_THEME,fall
+WELCOME_THEME,halloween
 WELCOME_TEXT,Welcome to|{PLACE}
+BAR_STYLE,
+SEARCH_WIDTH,
+SEARCH_WIDTH_PHONE,
+LAYOUT_TOP,
+LAYOUT_MORE,
+LAYOUT_OFF,
