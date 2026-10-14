@@ -66,6 +66,20 @@
   /* preview of raw JSON for debugging / inspection */
   #peek{position:absolute;z-index:6;right:10px;bottom:10px;max-width:520px;max-height:180px;overflow:auto;background:#ffffffec;border:1px solid var(--line);border-radius:6px;padding:8px 10px;font:11px ui-monospace,Menlo,monospace;color:#374151;white-space:pre-wrap;word-break:break-word;display:none}
   #peek.on{display:block}
+
+  /* boundary line controls */
+  .linectl{margin:4px 14px 10px;padding:10px;border:1px solid var(--line);border-radius:8px;background:#fafbfc}
+  .lrow{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .llabel{width:62px;font-size:12px;color:var(--muted);flex:none}
+  .swatch{display:flex;align-items:center;gap:8px;cursor:pointer;font:12px ui-monospace,Menlo,monospace;color:var(--ink)}
+  .swatch input[type=color]{width:34px;height:26px;padding:0;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer}
+  .lrow input[type=range]{flex:1;min-width:0;accent-color:var(--accent)}
+  .lrow output{width:26px;text-align:right;font-size:12px;font-variant-numeric:tabular-nums;color:var(--muted)}
+  .seg{display:flex;flex:1;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .seg button{flex:1;border:0;border-radius:0;padding:5px 0;font-size:12px;background:#fff;border-right:1px solid var(--line)}
+  .seg button:last-child{border-right:0}
+  .seg button.on{background:var(--accent);color:#fff}
+  #linePreview{display:block;width:100%;height:34px;margin-top:2px;border:1px solid var(--line);border-radius:6px;background:#e9edf2}
 </style>
 </head>
 <body>
@@ -96,15 +110,33 @@
       <p style="margin:0 0 8px"><b>Shift-click</b> a vertex to delete it (minimum 3 unique points).</p>
       <p style="margin:0"><b>Hide/Show</b> toggles the vertex handles so you can see the clean line.</p>
     </div>
-<p label>Color <input type="color" id="lineColor" value="#d9480f"></label></p>
-<p label>Thickness <input type="range" id="lineWidth" min="1" max="12" value="3"></label></p>
-<p label>Style
-  <select id="lineStyle">
-    <option value="solid">Solid</option>
-    <option value="dashed">Dashed</option>
-    <option value="dotted">Dotted</option>
-  </select>
-</label></p>
+<div class="sec"><h2>Boundary line</h2></div>
+    <div class="linectl">
+      <div class="lrow">
+        <span class="llabel">Color</span>
+        <label class="swatch" title="Pick a color">
+          <input type="color" id="lineColor" value="#E47303">
+          <span id="lineColorHex">#E47303</span>
+        </label>
+      </div>
+      <div class="lrow">
+        <span class="llabel">Thickness</span>
+        <input type="range" id="lineWidth" min="1" max="12" step="0.5" value="2">
+        <output id="lineWidthOut">2</output>
+      </div>
+      <div class="lrow">
+        <span class="llabel">Style</span>
+        <input type="hidden" id="lineStyle" value="dashed">
+        <div class="seg" id="lineStyleSeg">
+          <button type="button" data-v="solid">Solid</button>
+          <button type="button" data-v="dashed">Dashed</button>
+          <button type="button" data-v="dotted">Dotted</button>
+        </div>
+      </div>
+      <svg id="linePreview" viewBox="0 0 200 34" preserveAspectRatio="none" aria-label="Line preview">
+        <line id="linePreviewLine" x1="8" y1="17" x2="192" y2="17" stroke="#E47303" stroke-width="2"/>
+      </svg>
+    </div>
     <div class="sec"><h2>Actions</h2></div>
     <div style="padding:0 14px;display:flex;flex-direction:column;gap:6px">
       <button id="fitBtn">Fit to Boundary</button>
@@ -114,7 +146,7 @@
     </div>
 
     <div class="hint" style="margin-top:10px;border-top:1px solid #eef1f5;padding-top:10px">
-      <b>Note:</b> Properties are preserved exactly. Only coordinates change.
+      <b>Note:</b> Properties are preserved. Coordinates change, and the line style is saved as <code>stroke</code>, <code>stroke-width</code> and <code>stroke-dasharray</code>.
     </div>
   </aside>
 
@@ -359,6 +391,7 @@ function ingest(text, filename){
   ring.forEach(([lng, lat]) => bounds.extend([lng, lat]));
   map.fitBounds(bounds, { padding: 60, duration: 0 });
 
+  restoreLineStyle(f.properties);
   renderAll();
   setStatus("Loaded " + filename + " · " + (ring.length - 1) + " vertices");
 
@@ -425,9 +458,10 @@ function renderBoundary(){
       id: "boundary-line",
       type: "line",
       source: "boundary",
-      layout: { "line-cap":"round", "line-join":"round" },
-      paint: { "line-color": "#E47303", "line-width": 2.5, "line-dasharray":[3,2] }
+      layout: { "line-cap":"butt", "line-join":"round" },
+      paint: { "line-color": "#E47303", "line-width": 2, "line-dasharray":[3,2] }
     });
+    applyLineStyle();
   }
 }
 
@@ -521,23 +555,62 @@ function round(n){ return +(+n).toFixed(precision); }
 
 const DASHES = {
   solid:  null,
-  dashed: [4, 2],
+  dashed: [3, 2],
   dotted: [1, 2]
 };
 
-function applyLineStyle() {
-  const layerId = 'boundary-line';   // <-- use your actual line layer's id
-  if (!map.getLayer(layerId)) return;
+function updateLinePreview() {
+  const color = $('lineColor').value;
+  const width = Number($('lineWidth').value);
+  const style = $('lineStyle').value;
+  const line  = $('linePreviewLine');
+  line.setAttribute('stroke', color);
+  line.setAttribute('stroke-width', width);
+  const d = DASHES[style];
+  // map dash lengths are multiples of line width, so scale the same way here
+  if (d) line.setAttribute('stroke-dasharray', d.map(n => n * width).join(' '));
+  else   line.removeAttribute('stroke-dasharray');
+  $('lineColorHex').textContent = color.toUpperCase();
+  $('lineWidthOut').textContent = width;
+  document.querySelectorAll('#lineStyleSeg button').forEach(btn =>
+    btn.classList.toggle('on', btn.dataset.v === style));
+}
 
+function applyLineStyle() {
+  updateLinePreview();
+  const layerId = 'boundary-line';
+  if (!map || !map.getLayer(layerId)) return;
   map.setPaintProperty(layerId, 'line-color', $('lineColor').value);
   map.setPaintProperty(layerId, 'line-width', Number($('lineWidth').value));
   map.setPaintProperty(layerId, 'line-dasharray', DASHES[$('lineStyle').value]);
 }
 
-['lineColor', 'lineWidth', 'lineStyle'].forEach(id =>
-  $(id).addEventListener('input', applyLineStyle));
-  
-  /* ============================================================
+// Read style from a loaded file's properties (leaves the controls alone if the file has none)
+function restoreLineStyle(p) {
+  p = p || {};
+  if (/^#[0-9a-f]{6}$/i.test(p['stroke'] || '')) $('lineColor').value = p['stroke'];
+  const w = Number(p['stroke-width']);
+  if (w > 0) $('lineWidth').value = Math.min(12, Math.max(1, w));
+  if (Object.prototype.hasOwnProperty.call(DASHES, p['stroke-dasharray'])) {
+    $('lineStyle').value = p['stroke-dasharray'];
+  }
+  applyLineStyle();
+}
+
+// Write the current style into the feature's properties (called on download)
+function stampLineStyle(f) {
+  f.properties = f.properties || {};
+  f.properties['stroke'] = $('lineColor').value;
+  f.properties['stroke-width'] = Number($('lineWidth').value);
+  f.properties['stroke-dasharray'] = $('lineStyle').value;   // "solid" | "dashed" | "dotted"
+}
+
+['lineColor', 'lineWidth'].forEach(id => $(id).addEventListener('input', applyLineStyle));
+document.querySelectorAll('#lineStyleSeg button').forEach(btn =>
+  btn.addEventListener('click', () => { $('lineStyle').value = btn.dataset.v; applyLineStyle(); }));
+updateLinePreview();
+
+/* ============================================================
    Vertex operations
    ============================================================ */
 
@@ -668,6 +741,9 @@ $("publishBtn").onclick = () => {
     // MultiPolygon: only first ring edited (we warned about this)
     feature.geometry.coordinates[0][0] = ring;
   }
+
+  // Save the chosen line style into the feature properties
+  stampLineStyle(feature);
 
   // Serialize with a compact but readable shape
   const json = JSON.stringify(doc, null, 2);

@@ -1368,12 +1368,27 @@ function makePin(item, cls){
 
 map.on("load", async () => {
   await EVENT_READY;
-  map.addSource("boundary", { type:"geojson", data: (EVENT_SLUG && EVENT_INFO && Array.isArray(EVENT_INFO.data) && EVENT_INFO.data.includes(SITE.files.boundary)) ? EVENT_DIR + SITE.files.boundary : SITE.files.boundary });
+  const boundaryUrl = (EVENT_SLUG && EVENT_INFO && Array.isArray(EVENT_INFO.data) && EVENT_INFO.data.includes(SITE.files.boundary)) ? EVENT_DIR + SITE.files.boundary : SITE.files.boundary;
+  // Line style comes from the GeoJSON (stroke / stroke-width / stroke-dasharray); defaults match the old look.
+  const BDASH = { solid:null, dashed:[3,2], dotted:[1,2] };
+  let bData = null, bColor = "#E47303", bWidth = 2, bDash = BDASH.dashed;
+  try {
+    bData = await (await fetch(boundaryUrl)).json();
+    const feats = bData.features || [bData];
+    const bp = (feats.find(f => f.properties && f.properties.stroke) || feats[0] || {}).properties || {};
+    if (/^#[0-9a-f]{6}$/i.test(bp.stroke || "")) bColor = bp.stroke;
+    if (Number(bp["stroke-width"]) > 0) bWidth = Number(bp["stroke-width"]);
+    if (Object.prototype.hasOwnProperty.call(BDASH, bp["stroke-dasharray"])) bDash = BDASH[bp["stroke-dasharray"]];
+  } catch (e) { bData = null; }
+  map.addSource("boundary", { type:"geojson", data: bData || boundaryUrl });
+  const bPaint = { "line-color": bColor, "line-width": bWidth };
+  if (bDash) bPaint["line-dasharray"] = bDash;
   map.addLayer({
     id: "boundary",
     type: "line",
     source: "boundary",
-    paint: { "line-color":"#E47303", "line-width":2, "line-dasharray":[3,2] }
+    layout: { "line-join": "round" },
+    paint: bPaint
   });
 
   await applySettingsToMap();
