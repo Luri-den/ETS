@@ -52,6 +52,21 @@ input[type=range]{padding:0;border:0}
 .chip.dragging{opacity:.35}
 .chip.ghost{position:fixed;z-index:99;pointer-events:none;opacity:.92;box-shadow:0 2px 8px #0006}
 @media(max-width:760px){main{flex-direction:column}#side{width:100%;max-height:48%;border-left:0;border-top:1px solid #ccc}}
+.grp{border:1px solid #d5d5d5;border-radius:6px;background:#fff;margin:0 0 8px}
+.grp>summary{cursor:pointer;padding:10px 12px;font-weight:bold;font-size:14px;display:block}
+.grp>summary small{font-weight:normal;margin-top:2px}
+.grp[open]>summary{border-bottom:1px solid #e3e3e3;background:#f3f6fa}
+.grp-body{padding:4px 12px 12px}
+#side .grp h2{font-size:13px;margin:14px 0 6px;color:#333}
+#side .grp-body>h2:first-child{margin-top:6px}
+.seg{display:inline-flex;gap:4px}
+.seg button.on{background:#ffd966}
+#pv{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;background:#e9ecef}
+#pv[hidden]{display:none}
+#pvTools{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:6px 8px;background:#f8f9fa;border-bottom:1px solid #ccc;font-size:13px}
+#pvWrap{position:relative;flex:1;min-height:0;overflow:hidden}
+#pvFrame{position:absolute;left:50%;top:50%;border:10px solid #222;border-radius:26px;background:#fff}
+#pvFrame.desk{border:2px solid #555;border-radius:6px}
 </style>
 </head>
 <body>
@@ -62,12 +77,17 @@ input[type=range]{padding:0;border:0}
   <label class="btn" style="margin:0;font-weight:normal;color:#222">Show Places (locations.csv)…<input type="file" id="fLocs" accept=".csv,text/csv" hidden></label>
   <button id="startBtn" type="button">Start from Defaults</button>
   <button id="reloadBtn" type="button" disabled>↻ Reload</button>
+  <span class="seg"><button id="viewMap" type="button" class="on">Map</button><button id="viewPhone" type="button">Phone preview</button><button id="viewDesk" type="button">Computer preview</button></span>
   <button id="dlBtn" type="button" class="go" disabled>Download updated site.csv</button>
 </header>
 <div id="status">Load site.csv to begin, or click Start from defaults.</div>
 
 <main>
   <div id="map"></div>
+  <div id="pv" hidden>
+    <div id="pvTools"><b id="pvTitle">Preview</b> <button id="pvRefresh" type="button">&#8635; Refresh</button> <button id="pvIntro" type="button">&#9654; Replay the opening intro</button> <small style="margin:0">Shows your changes before you save or publish, a moment after each change.</small></div>
+    <div id="pvWrap"><iframe id="pvFrame" title="Preview of your page"></iframe></div>
+  </div>
 
   <aside id="side" class="off">
     <h2>Page Name and Color</h2>
@@ -199,6 +219,11 @@ input[type=range]{padding:0;border:0}
     <textarea data-k="EVENT_TEXT" placeholder="What is happening, when, and what visitors should look for."></textarea>
     <small>The button only appears when there is a title or text. Press Enter for a new paragraph. {PLACE} is replaced with the place name.</small>
 
+    <h2>Phone Settings</h2>
+    <label>Bottom bar shows on</label>
+    <select data-k="BOTTOM_ON"><option value="">Phones only (on computers those buttons move to the top bar)</option><option value="all">Phones and computers</option></select>
+    <small>Choose what goes in the Bottom bar in the layout box under Buttons and Bars. The bottom of a phone is the easiest place to reach with one thumb.</small>
+
     <div id="warn"></div>
   </aside>
 </main>
@@ -232,7 +257,7 @@ const DEFAULTS = {
   EVENT_TEXT: "",
   WELCOME_THEME: "",
   WELCOME_TEXT: "Welcome to|{PLACE}",
-  BAR_STYLE: "", SEARCH_WIDTH: "", SEARCH_WIDTH_PHONE: "",
+  BAR_STYLE: "", SEARCH_WIDTH: "", SEARCH_WIDTH_PHONE: "", BOTTOM_ON: "",
   PASSPORT_STYLE: "", RING_COLOR: "", RING_TRACK: "", RING_TEXT: "", INTRO_STYLE: "", INTRO_FEATURES: "", INTRO_CARD: "", FONT_BODY: "", FONT_HEAD: "",
   LAYOUT_TOP: "", LAYOUT_MORE: "", LAYOUT_OFF: "", LAYOUT_BOTTOM: "", LAYOUT_FLOAT: "", ZOOM_POS: ""
 };
@@ -541,6 +566,81 @@ $('dlBtn').onclick = () => {
   document.body.appendChild(a); a.click(); a.remove();
   status('Downloaded site.csv. Upload it to your site next to the map page, replacing the old one.');
 };
+
+/* ---------- collapsible groups ---------- */
+(function () {
+  const side = $('side'), warn = $('warn');
+  const pw = side.querySelector('[data-k="SEARCH_WIDTH_PHONE"]');           // the phone search width belongs with the phone settings
+  if (pw && pw.previousElementSibling) { side.insertBefore(pw.previousElementSibling, warn); side.insertBefore(pw, warn); }
+  const secs = []; let cur = null;
+  [...side.children].forEach(n => {
+    if (n === warn) return;
+    if (n.tagName === 'H2') { cur = { title: n.textContent.trim(), nodes: [n] }; secs.push(cur); } else if (cur) cur.nodes.push(n);
+  });
+  const GROUPS = [
+    ['Look and Feel', 'The page title, colors and fonts.', ['Page Name and Color', 'Fonts']],
+    ['Buttons and Bars', 'Which buttons show, where they sit, and how they look.', ['Bar Layout', 'Passport Look', 'Sliders']],
+    ['Opening Intro', 'The welcome screen and what happens right after it.', ['Welcome Screen']],
+    ['Map Area', 'Where the map starts and how far visitors can roam.', ['Start View', 'Allowed Area']],
+    ['Passport and Prizes', 'The stamp collection and its rewards.', ['Passport', 'Prizes']],
+    ['Event Panel', 'A message about something happening now.', ['Event or focus panel']],
+    ['Phone Settings', 'Choices that only matter on a phone.', ['Phone Settings']]
+  ];
+  const used = new Set();
+  const make = (title, desc, titles, open) => {
+    const d = document.createElement('details'); d.className = 'grp'; d.open = !!open;
+    d.innerHTML = '<summary>' + title + '<small>' + desc + '</small></summary><div class="grp-body"></div>';
+    const body = d.querySelector('.grp-body');
+    titles.forEach(t => secs.filter(s => !used.has(s) && (s.title === t || s.title.startsWith(t + ' ('))).forEach(s => { used.add(s); s.nodes.forEach(n => body.appendChild(n)); }));
+    return d;
+  };
+  const frag = document.createDocumentFragment();
+  GROUPS.forEach((g, i) => frag.appendChild(make(g[0], g[1], g[2], i === 0)));
+  secs.filter(s => !used.has(s)).forEach(s => frag.appendChild(make(s.title, '', [s.title], false)));
+  side.insertBefore(frag, warn);
+})();
+
+/* ---------- live preview of the real page, using the settings as they are right now ---------- */
+const PREVIEW_PAGE = 'Demo2.html';
+const PV_SIZE = { phone: [390, 780], desk: [1280, 800] };
+let pvMode = '', pvTimer = null, pvBlob = '';
+function settingsCsv() {
+  const rows = ORDER.map(k => ({ KEY: k, VALUE: S[k] })).concat(Object.entries(extra).map(([KEY, VALUE]) => ({ KEY, VALUE })));
+  return Papa.unparse(rows, { columns: ['KEY', 'VALUE'] });
+}
+function pvFit() {
+  if (!pvMode) return;
+  const f = $('pvFrame'), w = $('pvWrap'), sz = PV_SIZE[pvMode];
+  f.style.width = sz[0] + 'px'; f.style.height = sz[1] + 'px';
+  f.classList.toggle('desk', pvMode === 'desk');
+  const k = Math.min((w.clientWidth - 16) / (sz[0] + 20), (w.clientHeight - 16) / (sz[1] + 20), 1);
+  f.style.transform = 'translate(-50%,-50%) scale(' + Math.max(k, 0.2) + ')';
+}
+function pvLoad(withIntro) {
+  if (!S || !pvMode) return;
+  const old = pvBlob;
+  pvBlob = URL.createObjectURL(new Blob([settingsCsv()], { type: 'text/csv' }));
+  $('pvFrame').src = PREVIEW_PAGE + '?preview=1&settings=' + encodeURIComponent(pvBlob) + (withIntro ? '' : '&skipWelcome');
+  if (old) setTimeout(() => URL.revokeObjectURL(old), 15000);
+}
+function pvSoon() { if (!pvMode) return; clearTimeout(pvTimer); pvTimer = setTimeout(() => pvLoad(false), 700); }
+function setView(mode) {
+  if (mode && !S) { status('Load site.csv or click Start from Defaults first, then the preview can show your changes.'); return; }
+  pvMode = mode;
+  $('map').style.display = mode ? 'none' : '';
+  $('pv').hidden = !mode;
+  ['viewMap', 'viewPhone', 'viewDesk'].forEach(id => $(id).classList.remove('on'));
+  $(mode === 'phone' ? 'viewPhone' : mode === 'desk' ? 'viewDesk' : 'viewMap').classList.add('on');
+  if (mode) { pvFit(); pvLoad(false); } else { try { map.resize(); } catch (e) {} }
+}
+$('viewMap').onclick = () => setView('');
+$('viewPhone').onclick = () => setView('phone');
+$('viewDesk').onclick = () => setView('desk');
+$('pvRefresh').onclick = () => pvLoad(false);
+$('pvIntro').onclick = () => pvLoad(true);
+window.addEventListener('resize', pvFit);
+const _syncUI = syncUI;
+syncUI = function (except) { _syncUI(except); pvSoon(); };
 </script>
 <script src="publish.js"></script>
 <script>GHPublish.attach({ buttons: ["dlBtn"] });</script>

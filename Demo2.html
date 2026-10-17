@@ -644,7 +644,8 @@ html.sq #tools.open #toolsMore{border-radius:6px}
 
 </style>
 <style>
-#passportBtn.ring{display:inline-flex;align-items:center;gap:7px;padding:3px 13px 3px 4px;color:var(--ringtext,var(--bar,#E47303))}
+#passportBtn.ring{display:inline-flex;align-items:center;gap:7px;padding:3px 13px 3px 4px;white-space:nowrap;flex:0 0 auto;color:var(--ringtext,var(--bar,#E47303))}
+@media (max-width:720px){#passportBtn.ring{gap:5px;padding:2px 10px 2px 3px;font-size:12px}#passportBtn.ring .pring{width:24px;height:24px}}
 #passportBtn.ring .pring{width:30px;height:30px;transform:rotate(-90deg);flex:none}
 .pring circle{fill:none;stroke-width:4}
 .pring .pt{stroke:var(--ringtrack,#e6e0d8)}
@@ -1209,18 +1210,28 @@ function applyLayout(S){
   if (bottom.length || window.__legendZone === "bottom") {              // second bar along the bottom of the screen
     let B = $("botbar");
     if (!B) { B = document.createElement("div"); B.id = "botbar"; document.body.appendChild(B); }
-    root.classList.add("bot");
-    bottom.forEach((id, i) => {
-      const n = helper(id) ? mk(id === "spacer" ? "lay-sp" : "lay-nr") : el[id];
-      n.style.order = 10 + i; B.appendChild(n);
-    });
-    const setH = () => root.style.setProperty("--botH", Math.round(B.offsetHeight) + "px");
-    new ResizeObserver(setH).observe(B); setH();
+    const nodes = bottom.map(id => { const h = helper(id); const n = h ? mk(id === "spacer" ? "lay-sp" : "lay-nr") : el[id]; n.__home = n.parentNode; n.__helper = h; return n; });
+    const phoneOnly = (S.BOTTOM_ON || "").toLowerCase() !== "all";      // default: the bottom bar is a phone feature
+    const mq = matchMedia("(max-width:720px)");
+    const setH = () => root.style.setProperty("--botH", root.classList.contains("bot") ? Math.round(B.offsetHeight) + "px" : "0px");
+    const apply = () => {
+      const on = !phoneOnly || mq.matches;
+      root.classList.toggle("bot", on);
+      nodes.forEach((n, i) => {
+        if (on) { n.style.order = 10 + i; n.style.display = ""; B.appendChild(n); }
+        else if (n.__helper) n.style.display = "none";                   // spacers and line breaks mean nothing in the top bar
+        else { n.style.order = 100 + i; n.__home.appendChild(n); }       // on computers the buttons go back to the top bar
+      });
+      placeLegend(); setH();
+    };
+    new ResizeObserver(setH).observe(B);
+    mq.addEventListener("change", apply); apply();
   }
   if (typeof syncMoreBtn === "function") syncMoreBtn();
 }
 
-const SETTINGS_READY = dataFetch("site.csv", { cache: "no-store" })
+const PREVIEW_SETTINGS = (() => { const v = new URLSearchParams(location.search).get("settings") || ""; return v.startsWith("blob:") ? v : ""; })();   // the editor's live preview hands over unsaved settings this way
+const SETTINGS_READY = (PREVIEW_SETTINGS ? fetch(PREVIEW_SETTINGS) : dataFetch("site.csv", { cache: "no-store" }))
   .then(r => r.ok ? r.text() : "")
   .catch(() => "")
   .then(txt => {
@@ -1357,7 +1368,7 @@ function placeLegend(){
   const L = $("klegend"), z = window.__legendZone;
   if (!L || !z) return;
   if (z === "off") { L.classList.add("lay-off"); return; }
-  const dest = z === "top" ? $("tools") : z === "bottom" ? $("botbar") : z === "more" ? $("toolsMore") : null;
+  const dest = z === "top" ? $("tools") : z === "bottom" ? (document.documentElement.classList.contains("bot") ? $("botbar") : $("tools")) : z === "more" ? $("toolsMore") : null;
   if (dest) { L.classList.add("lay-in"); L.style.order = 90; dest.appendChild(L); }
 }
 
