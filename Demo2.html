@@ -682,6 +682,7 @@ html.bot #spotBox,html.bot #eventBox{bottom:var(--botH,0px)}
 @media (max-width:699px){html.bot #panel{bottom:var(--botH,0px)}}
 #klegend.lay-in{position:static!important;margin:0!important;transform:none!important}
 html:not(.band) .maplibregl-ctrl-top-right{top:var(--barB,0px)}
+@media (max-width:720px){ html.qwpf #q{flex:1 1 0!important;min-width:110px;max-width:var(--qw-p)} }   /* the phone search width is now a maximum: the box gives up space so buttons stay on the same row */
 .lay-sp{margin:0 -3px}   /* a Flexible space is empty, so cancel half of the gap on each side of it */
 .kmark.spot{z-index:3}
 .kmark.spot > *{transform:scale(1.7);transition:transform .3s}
@@ -1185,7 +1186,7 @@ function applyLayout(S){
   const css = v => v >= 100 ? "100%" : "calc(" + v + "% - 4px)";
   const wd = pct("SEARCH_WIDTH"), wp = pct("SEARCH_WIDTH_PHONE");
   if (wd) { root.style.setProperty("--qw-d", css(wd)); root.classList.add("qwd"); }
-  if (wp) { root.style.setProperty("--qw-p", css(wp)); root.classList.add("qwp"); }
+  if (wp) { root.style.setProperty("--qw-p", css(wp)); root.classList.add("qwp"); if (wp < 100) root.classList.add("qwpf"); }
   if ((S.BAR_STYLE || "").toLowerCase() === "bar") root.classList.add("sq");
 
   let top = g("LAYOUT_TOP"), more = g("LAYOUT_MORE"), off = g("LAYOUT_OFF");
