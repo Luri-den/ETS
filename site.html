@@ -84,12 +84,14 @@ input[type=range]{padding:0;border:0}
     <label>Top Bar Color</label>
     <div class="two"><input type="color" data-k="BAR_COLOR"><input data-k="BAR_COLOR" placeholder="#E47303"></div>
 
-    <h2>Top Bar Layout</h2>
-    <small>Press and drag a button into another box. Top bar order is left to right and wraps to new rows. Yellow buttons can't leave the top bar.</small>
+    <h2>Bar Layout (top bar, bottom bar, drawer)</h2>
+    <small>Press and drag a button into another box. Bars run left to right and wrap to new rows. The Bottom bar stays hidden until you put something in it. Yellow buttons can't leave the top bar. The Legend can float over the map (as now), sit in either bar, or go in the drawer.</small>
     <div id="board">
       <div class="zl">Top bar</div><div class="zone" id="zTop" data-z="top"></div>
+      <div class="zl">Bottom bar</div><div class="zone" id="zBot" data-z="bottom"></div>
       <div class="zl">Inside the More &#9662; drawer</div><div class="zone" id="zMore" data-z="more"></div>
       <div class="zl">Hidden</div><div class="zone" id="zOff" data-z="off"></div>
+      <div class="zl">Floating over the map (Legend only)</div><div class="zone" id="zFlt" data-z="flt"></div>
     </div>
     <small id="layNote"></small>
     <small>"&harr; Flexible space" pushes everything after it to the right edge. "&crarr; New row" starts a new line. A saved layout applies to phones too. The checkboxes further down (year slider, aerial, About text) still decide whether a control exists at all.</small>
@@ -100,6 +102,8 @@ input[type=range]{padding:0;border:0}
     <input type="range" min="50" max="100" step="5" data-k="SEARCH_WIDTH_PHONE">
     <label>Button style</label>
     <select data-k="BAR_STYLE"><option value="">Pill (rounded)</option><option value="bar">Bar (square corners)</option></select>
+    <label>Zoom buttons (+ and -)</label>
+    <select data-k="ZOOM_POS"><option value="">Bottom right (current)</option><option value="top">Top right, below the top bar</option></select>
     <label>Top bar background</label>
     <select data-k="LAYOUT_STYLE"><option value="">Buttons float over the map (current)</option><option value="band">Solid colored band with the title</option></select>
     <small>The band uses the Top Bar Color above, shows the page title, and the map starts just below it.</small>
@@ -230,7 +234,7 @@ const DEFAULTS = {
   WELCOME_TEXT: "Welcome to|{PLACE}",
   BAR_STYLE: "", SEARCH_WIDTH: "", SEARCH_WIDTH_PHONE: "",
   PASSPORT_STYLE: "", RING_COLOR: "", RING_TRACK: "", RING_TEXT: "", INTRO_STYLE: "", INTRO_FEATURES: "", INTRO_CARD: "", FONT_BODY: "", FONT_HEAD: "",
-  LAYOUT_TOP: "", LAYOUT_MORE: "", LAYOUT_OFF: ""
+  LAYOUT_TOP: "", LAYOUT_MORE: "", LAYOUT_OFF: "", LAYOUT_BOTTOM: "", LAYOUT_FLOAT: "", ZOOM_POS: ""
 };
 
 (function () {   // theme choices
@@ -440,26 +444,27 @@ $('fSite').addEventListener('change', async e => {
 // ---------- top bar layout board ----------
 const CTRL = { search: 'Search bar', near: 'Near Me', event: 'About button', more: 'More \u25BE', tour: 'Take the Tour', tours: 'Tours',
   stories: 'Stories & Spots', chips: 'Category pills', aerial: 'Aerial', year: 'Year slider', oldmaps: 'Old Maps', passport: 'Passport',
-  spacer: '\u2194 Flexible space', newrow: '\u21B5 New row' };
+  legend: 'Legend', spacer: '\u2194 Flexible space', newrow: '\u21B5 New row' };
 const DEF_TOP = ['search','near','event','more','aerial','tour','tours','stories','chips','spacer','passport','year','oldmaps'];
-const NO_MORE = ['search','more','spacer','newrow'], NO_OFF = ['search','more'];
+const NO_MORE = ['search','more','spacer','newrow'], NO_OFF = ['search','more'], NO_BOTTOM = ['search','more'];
 let drag = null;
 
 function getLayout() {
   const list = k => (S[k] || '').split(',').map(x => x.trim()).filter(x => CTRL[x]);
-  let top = list('LAYOUT_TOP'), more = list('LAYOUT_MORE'), off = list('LAYOUT_OFF');
-  if (!top.length && !more.length && !off.length) { top = DEF_TOP.slice(); off = ['newrow']; }
+  let top = list('LAYOUT_TOP'), more = list('LAYOUT_MORE'), off = list('LAYOUT_OFF'), bottom = list('LAYOUT_BOTTOM'), flt = list('LAYOUT_FLOAT');
+  if (!top.length && !more.length && !off.length && !bottom.length && !flt.length) { top = DEF_TOP.slice(); off = ['newrow']; flt = ['legend']; }
   const seen = new Set();
   const uniq = a => a.filter(id => !seen.has(id) && seen.add(id));
   top = uniq(top); more = uniq(more.filter(id => !NO_MORE.includes(id))); off = uniq(off.filter(id => !NO_OFF.includes(id)));
-  Object.keys(CTRL).forEach(id => { if (!seen.has(id)) (id === 'spacer' || id === 'newrow' ? off : top).push(id); });
-  return { top, more, off };
+  bottom = uniq(bottom.filter(id => !NO_BOTTOM.includes(id))); flt = uniq(flt.filter(id => id === 'legend'));
+  Object.keys(CTRL).forEach(id => { if (!seen.has(id)) (id === 'spacer' || id === 'newrow' ? off : id === 'legend' ? flt : top).push(id); });
+  return { top, bottom, more, off, flt };
 }
 
 function renderBoard() {
   if (!S || drag) return;
   const L = getLayout();
-  [['top', 'zTop'], ['more', 'zMore'], ['off', 'zOff']].forEach(([z, id]) => {
+  [['top', 'zTop'], ['bottom', 'zBot'], ['more', 'zMore'], ['off', 'zOff'], ['flt', 'zFlt']].forEach(([z, id]) => {
     $(id).innerHTML = '';
     L[z].forEach(c => {
       const d = el('chip' + (NO_MORE.includes(c) && NO_OFF.includes(c) ? ' lock' : ''));
@@ -475,7 +480,7 @@ function renderBoard() {
 
 function saveBoard() {
   const g = id => [...$(id).children].map(c => c.dataset.id).join(',');
-  S.LAYOUT_TOP = g('zTop'); S.LAYOUT_MORE = g('zMore'); S.LAYOUT_OFF = g('zOff');
+  S.LAYOUT_TOP = g('zTop'); S.LAYOUT_MORE = g('zMore'); S.LAYOUT_OFF = g('zOff'); S.LAYOUT_BOTTOM = g('zBot'); S.LAYOUT_FLOAT = g('zFlt');
 }
 
 $('board').addEventListener('pointerdown', e => {
@@ -498,7 +503,7 @@ window.addEventListener('pointermove', e => {
   const z = hit && hit.closest('#board .zone');
   if (!z) return;
   const id = drag.c.dataset.id;
-  if ((z.dataset.z === 'more' && NO_MORE.includes(id)) || (z.dataset.z === 'off' && NO_OFF.includes(id))) return;
+  if ((z.dataset.z === 'more' && NO_MORE.includes(id)) || (z.dataset.z === 'off' && NO_OFF.includes(id)) || (z.dataset.z === 'bottom' && NO_BOTTOM.includes(id)) || (z.dataset.z === 'flt' && id !== 'legend')) return;
   z.classList.add('hot');
   let before = null;
   for (const k of z.querySelectorAll('.chip:not(.dragging)')) {
@@ -519,7 +524,7 @@ window.addEventListener('pointerup', endDrag);
 window.addEventListener('pointercancel', endDrag);
 $('layReset').onclick = () => {
   if (!S) return;
-  ['LAYOUT_TOP', 'LAYOUT_MORE', 'LAYOUT_OFF', 'SEARCH_WIDTH', 'SEARCH_WIDTH_PHONE', 'BAR_STYLE'].forEach(k => S[k] = '');
+  ['LAYOUT_TOP', 'LAYOUT_MORE', 'LAYOUT_OFF', 'LAYOUT_BOTTOM', 'LAYOUT_FLOAT', 'SEARCH_WIDTH', 'SEARCH_WIDTH_PHONE', 'BAR_STYLE'].forEach(k => S[k] = '');
   syncUI();
 };
 

@@ -654,11 +654,28 @@ html.band #bar h1{display:block;order:-1;flex:1 1 100%;font-size:18px;font-weigh
 html.band #map{top:var(--bandh,0px)}
 html.settings-loading #map{visibility:hidden}
 #welcomeSite.photo #wsBox{top:calc(var(--barB,0px) + 10px)}
-#welcomeSite.bottom #wsBox,#welcomeSite.photo.bottom #wsBox{top:auto;bottom:calc(env(safe-area-inset-bottom) + 56px)}
+#welcomeSite.bottom #wsBox,#welcomeSite.photo.bottom #wsBox{top:auto;bottom:calc(max(env(safe-area-inset-bottom),var(--botH,0px)) + 56px)}
 #welcomeSite.photo #wsPhoto{float:none;display:block;width:100%;height:min(28vh,190px);margin:0 0 10px;border-radius:10px;border:0;shape-outside:none;box-shadow:none;object-position:center 30%}
 #panel{max-height:min(55vh,calc(100% - var(--barB,0px) - 10px))}
 #spotBox,#eventBox{top:var(--barB,0px)}
 #spotCard,#eventCard{max-height:calc(100vh - var(--barB,0px) - 28px)}
+#botbar{position:fixed;left:0;right:0;bottom:0;z-index:7;display:flex;flex-wrap:wrap;align-items:center;gap:6px;box-sizing:border-box;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:var(--bar,#800000);box-shadow:0 -2px 8px rgba(0,0,0,.35);font-size:13px}
+html:not(.bot) #botbar{display:none}
+#botbar > *{pointer-events:auto}
+#botbar button{padding:6px 10px;border:0;border-radius:4px;background:#fff;color:#000;cursor:pointer}
+#botbar label{display:flex;align-items:center;gap:6px;flex:1 1 210px}
+#botbar input[type=range]{flex:1}
+#botbar [hidden]{display:none}
+#botbar label#yearBox{flex:0 0 190px;flex-direction:column;align-items:stretch;gap:0}
+#botbar label#ovw{flex:1 1 260px}
+html.sq #botbar button{border-radius:4px!important}
+@media (max-width:720px){#botbar button{padding:8px 12px}}
+html.bot #map{bottom:var(--botH,0px)}
+html.bot #welcomeSkip{bottom:calc(var(--botH,0px) + 14px)}
+html.bot #spotBox,html.bot #eventBox{bottom:var(--botH,0px)}
+@media (max-width:699px){html.bot #panel{bottom:var(--botH,0px)}}
+#klegend.lay-in{position:static!important;margin:0!important;transform:none!important}
+html:not(.band) .maplibregl-ctrl-top-right{top:var(--barB,0px)}
 .kmark.spot{z-index:3}
 .kmark.spot > *{transform:scale(1.7);transition:transform .3s}
 .maps-link{display:inline-block;margin:6px 0;padding:8px 14px;border-radius:999px;background:var(--bar,#800000);color:#fff;font-weight:600;text-decoration:none}
@@ -1165,7 +1182,10 @@ function applyLayout(S){
   if ((S.BAR_STYLE || "").toLowerCase() === "bar") root.classList.add("sq");
 
   let top = g("LAYOUT_TOP"), more = g("LAYOUT_MORE"), off = g("LAYOUT_OFF");
-  if (!top.length && !more.length && !off.length) return;      // no saved layout: keep the built-in one
+  const bottom0 = g("LAYOUT_BOTTOM");
+  const zoneOf = { top, bottom: bottom0, more, off };
+  window.__legendZone = ["top", "bottom", "more", "off"].find(z => zoneOf[z].includes("legend")) || "";   // the legend is built later, see placeLegend()
+  if (!top.length && !more.length && !off.length && !bottom0.length && !g("LAYOUT_FLOAT").length) return;      // no saved layout: keep the built-in one
   const el = { search: $("q"), near: $("near"), event: $("eventBtn"), more: $("moreBtn"), tour: $("tour"), tours: $("tours"),
     stories: $("stories"), chips: $("catChipsWrap"), aerial: $("aerialBtn"), year: $("yearBox"), oldmaps: $("ovw"), passport: $("passportBtn") };
   const helper = id => id === "spacer" || id === "newrow";
@@ -1174,6 +1194,7 @@ function applyLayout(S){
   top = uniq(top);
   more = uniq(more.filter(id => id !== "search" && id !== "more" && !helper(id)));
   off = uniq(off.filter(id => id !== "search" && id !== "more"));
+  const bottom = uniq(bottom0.filter(id => id !== "search" && id !== "more"));
   Object.keys(el).forEach(id => { if (!seen.has(id)) { top.push(id); seen.add(id); } });   // anything not listed stays in the bar
 
   root.classList.add("lay");
@@ -1185,6 +1206,17 @@ function applyLayout(S){
   });
   more.forEach((id, i) => { el[id].style.order = i; M.appendChild(el[id]); });
   off.forEach(id => { if (el[id]) el[id].classList.add("lay-off"); });
+  if (bottom.length || window.__legendZone === "bottom") {              // second bar along the bottom of the screen
+    let B = $("botbar");
+    if (!B) { B = document.createElement("div"); B.id = "botbar"; document.body.appendChild(B); }
+    root.classList.add("bot");
+    bottom.forEach((id, i) => {
+      const n = helper(id) ? mk(id === "spacer" ? "lay-sp" : "lay-nr") : el[id];
+      n.style.order = 10 + i; B.appendChild(n);
+    });
+    const setH = () => root.style.setProperty("--botH", Math.round(B.offsetHeight) + "px");
+    new ResizeObserver(setH).observe(B); setH();
+  }
   if (typeof syncMoreBtn === "function") syncMoreBtn();
 }
 
@@ -1218,6 +1250,7 @@ const SETTINGS_READY = dataFetch("site.csv", { cache: "no-store" })
       if (fh) document.documentElement.style.setProperty("--font-head", fh);
       if (fb || fh) document.documentElement.classList.add("fontset");
       trackBar();
+      if ((S.ZOOM_POS || "").toLowerCase() === "top") { try { map.removeControl(navCtl); map.addControl(navCtl, "top-right"); } catch (e) {} }
       if ((S.LAYOUT_STYLE || "").toLowerCase() === "band") { document.documentElement.classList.add("band"); startBand(); }
     }
 
@@ -1317,6 +1350,15 @@ function spotAsStop(i){
            name: i.r.TITLE || i.id, year: (i.r.YEAR || "").trim(),
            color: (i.r.ICON_COLOR || "").trim() || (i.kind === "story" ? "#D55E00" : "#333333"),
            d: { BLURB: i.r.BLURB, DETAILS: i.r.DETAILS } };
+}
+
+/* ===== Legend placement (it is built after the map loads, so the layout step can only note where it should go) ===== */
+function placeLegend(){
+  const L = $("klegend"), z = window.__legendZone;
+  if (!L || !z) return;
+  if (z === "off") { L.classList.add("lay-off"); return; }
+  const dest = z === "top" ? $("tools") : z === "bottom" ? $("botbar") : z === "more" ? $("toolsMore") : null;
+  if (dest) { L.classList.add("lay-in"); L.style.order = 90; dest.appendChild(L); }
 }
 
 /* ===== Keep track of where the top bar ends (--barB) so cards and pop-ups can stay below it ===== */
@@ -1422,7 +1464,8 @@ if (skipWelcome) {
   });
 }
 
-map.addControl(new maplibregl.NavigationControl({ showCompass:false }), "bottom-right");
+const navCtl = new maplibregl.NavigationControl({ showCompass:false });
+map.addControl(navCtl, "bottom-right");
 map.addControl(new maplibregl.ScaleControl(), "bottom-left");
 
 const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -2354,6 +2397,7 @@ $("res").onclick = e => {
     $("tours").hidden = !tours.length;
     window.introSpots = () => items.filter(i => i.ll && i.el && (i.r.INTRO || "").trim().toLowerCase() !== "no");   // spots the intro may feature
     window.introShowSpot = id => { const it = items.find(x => x.id === id); if (it) showSpot(it); };
+    placeLegend();
     vis();
     map.on("zoomend", vis);
   });
