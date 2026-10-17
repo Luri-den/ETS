@@ -35,8 +35,8 @@ Save for offline use. Open your passport (🏆 in the top-right) and tap ""Save 
 WELCOME_THEME,fall
 WELCOME_TEXT,Welcome to|{PLACE}
 BAR_STYLE,
-SEARCH_WIDTH,
-SEARCH_WIDTH_PHONE,65
+SEARCH_WIDTH,50
+SEARCH_WIDTH_PHONE,50
 PASSPORT_STYLE,ring
 RING_COLOR,#ffff00
 RING_TRACK,#c0c0c0
@@ -48,7 +48,7 @@ FONT_BODY,
 FONT_HEAD,book
 LAYOUT_TOP,"search,event,more,passport"
 LAYOUT_MORE,"chips,aerial,year"
-LAYOUT_OFF,"tour,newrow,spacer"
-LAYOUT_BOTTOM,"near,tours,stories,oldmaps"
+LAYOUT_OFF,"tour,spacer"
+LAYOUT_BOTTOM,"oldmaps,newrow,near,tours,stories"
 LAYOUT_FLOAT,legend
 ZOOM_POS,top
