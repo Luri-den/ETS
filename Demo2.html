@@ -95,7 +95,7 @@ html.settings-loading #tools { visibility: hidden; }
 .kid:hover{background:#fff8f0}
 
 @media(min-width:700px){
-  #panel{left:auto;width:380px;top:125px;bottom:auto;max-height:calc(100% - 140px);right:10px;border-radius:8px}
+  #panel{left:auto;width:380px;top:calc(var(--barB,115px) + 10px);bottom:auto;max-height:calc(100% - var(--barB,115px) - 25px);right:10px;border-radius:8px}
 }
 
 /* WELCOME GIF INTRO */
@@ -139,7 +139,7 @@ html.settings-loading #tools { visibility: hidden; }
 #wsLine{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 #wsLine path{stroke:#fff;stroke-width:2}
 #wsPhoto{float:left;box-sizing:border-box;width:var(--P);height:var(--P);margin:calc(var(--P) * -0.45 - 18px) 12px 4px -4px;shape-outside:circle(50%);shape-margin:6px;border-radius:50%;object-fit:cover;border:5px solid var(--c);background:#fff;box-shadow:0 0 0 3px #fff,0 3px 10px #0007}
-#wsBox{--P:min(34vw,140px);display:flow-root;position:absolute;left:14px;top:calc(env(safe-area-inset-top) + 12px + var(--P) * 0.45);width:min(calc(100vw - 28px),360px);box-sizing:border-box;background:#fff;border:6px solid var(--c);border-radius:18px;padding:12px 14px;box-shadow:0 0 0 3px #fff,0 4px 14px #0006;pointer-events:auto;cursor:pointer}
+#wsBox{--P:min(34vw,140px);display:flow-root;position:absolute;left:14px;top:calc(var(--barB,0px) + 10px + var(--P) * 0.45);width:min(calc(100vw - 28px),360px);box-sizing:border-box;background:#fff;border:6px solid var(--c);border-radius:18px;padding:12px 14px;box-shadow:0 0 0 3px #fff,0 4px 14px #0006;pointer-events:auto;cursor:pointer}
 #welcomeSite.right #wsBox{left:auto;right:14px}
 #welcomeSite.right #wsPhoto{float:right;margin:calc(var(--P) * -0.45 - 18px) -4px 4px 12px}
 #wsBox h2{margin:0 0 6px;font-size:19px}
@@ -653,8 +653,12 @@ html.band #bar{background:var(--bar,#800000);pointer-events:auto;padding-bottom:
 html.band #bar h1{display:block;order:-1;flex:1 1 100%;font-size:18px;font-weight:700;color:#fff}
 html.band #map{top:var(--bandh,0px)}
 html.settings-loading #map{visibility:hidden}
-#welcomeSite.photo #wsBox{top:calc(env(safe-area-inset-top) + 12px)}
+#welcomeSite.photo #wsBox{top:calc(var(--barB,0px) + 10px)}
+#welcomeSite.bottom #wsBox,#welcomeSite.photo.bottom #wsBox{top:auto;bottom:calc(env(safe-area-inset-bottom) + 56px)}
 #welcomeSite.photo #wsPhoto{float:none;display:block;width:100%;height:min(28vh,190px);margin:0 0 10px;border-radius:10px;border:0;shape-outside:none;box-shadow:none;object-position:center 30%}
+#panel{max-height:min(55vh,calc(100% - var(--barB,0px) - 10px))}
+#spotBox,#eventBox{top:var(--barB,0px)}
+#spotCard,#eventCard{max-height:calc(100vh - var(--barB,0px) - 28px)}
 .kmark.spot{z-index:3}
 .kmark.spot > *{transform:scale(1.7);transition:transform .3s}
 .maps-link{display:inline-block;margin:6px 0;padding:8px 14px;border-radius:999px;background:var(--bar,#800000);color:#fff;font-weight:600;text-decoration:none}
@@ -992,6 +996,11 @@ function startWelcome(featuredId){
     tgt.el.classList.add("spot");
     if (introMotion) it.el.classList.add("spot");
 
+    const H = window.innerHeight, barB = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--barB")) || 0;
+    const cardH = it.isSpot ? 340 : 260, pinY = p.y + map.getContainer().getBoundingClientRect().top;
+    let pos = SITE.introCard === "top" ? "top" : "bottom";                    // bottom is the stable default
+    if (!SITE.introCard && !introMotion && pinY > (H - 56 - cardH) - 40 && pinY > barB + 10 + cardH + 40) pos = "top";   // only flip if the card would cover the pin
+    siteBox.classList.toggle("bottom", pos === "bottom");
     const aim = () => {
     const t = it.el.style.display !== "none" ? it : (it.parent || it);          // the marker that is really on screen right now
     const mr = map.getContainer().getBoundingClientRect(), sr = document.getElementById("wsLine").getBoundingClientRect();
@@ -1009,7 +1018,9 @@ function startWelcome(featuredId){
     aim();
     if (introMotion) {
       const gen = ++introGen, W = window.innerWidth;
-      const off = [(p.x < W * 0.5 ? 0.3 : 0.7) * W - W / 2, 0];   // keep the pin on the side away from the card
+      const mr0 = map.getContainer().getBoundingClientRect();
+      const pinTarget = pos === "bottom" ? Math.max(barB + 80, H * 0.33) : H * 0.70;   // keep the pin in the clear part of the screen
+      const off = [(p.x < W * 0.5 ? 0.3 : 0.7) * W - W / 2, pinTarget - (mr0.top + mr0.height / 2)];
       introAim = aim; map.on("move", aim);
       if (!startCam) startCam = { center: map.getCenter(), zoom: map.getZoom() };
       map.flyTo({ center: it.ll, zoom: Math.max(map.getZoom(), 16.3), pitch: 50, offset: off, duration: 2200, essential: true });
@@ -1206,6 +1217,7 @@ const SETTINGS_READY = dataFetch("site.csv", { cache: "no-store" })
       if (fb) document.documentElement.style.setProperty("--font-body", fb);
       if (fh) document.documentElement.style.setProperty("--font-head", fh);
       if (fb || fh) document.documentElement.classList.add("fontset");
+      trackBar();
       if ((S.LAYOUT_STYLE || "").toLowerCase() === "band") { document.documentElement.classList.add("band"); startBand(); }
     }
 
@@ -1223,6 +1235,7 @@ const SETTINGS_READY = dataFetch("site.csv", { cache: "no-store" })
     SITE.ringColors = { fill: S.RING_COLOR, track: S.RING_TRACK, text: S.RING_TEXT };
     SITE.introStyle = (S.INTRO_STYLE || "").toLowerCase();
     SITE.introFeatures = (S.INTRO_FEATURES || "").toLowerCase();
+    SITE.introCard = (S.INTRO_CARD || "").toLowerCase();
     SITE.mapsLink = (S.MAPS_LINK || "yes").toLowerCase() !== "no";
     SITE.prizes = (S.PRIZES || "yes").toLowerCase() !== "no";
     SITE.yearSlider = (S.YEAR_SLIDER || "yes").toLowerCase() !== "no";
@@ -1304,6 +1317,16 @@ function spotAsStop(i){
            name: i.r.TITLE || i.id, year: (i.r.YEAR || "").trim(),
            color: (i.r.ICON_COLOR || "").trim() || (i.kind === "story" ? "#D55E00" : "#333333"),
            d: { BLURB: i.r.BLURB, DETAILS: i.r.DETAILS } };
+}
+
+/* ===== Keep track of where the top bar ends (--barB) so cards and pop-ups can stay below it ===== */
+function trackBar(){
+  const bar = $("bar");
+  if (!bar) return;
+  const set = () => document.documentElement.style.setProperty("--barB", Math.round(bar.getBoundingClientRect().bottom) + "px");
+  new ResizeObserver(set).observe(bar);
+  addEventListener("resize", set);
+  set();
 }
 
 /* ===== Solid top band (LAYOUT_STYLE=band): the bar becomes a colored header and the map starts beneath it ===== */
