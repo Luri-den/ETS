@@ -46,9 +46,9 @@ INTRO_FEATURES,mixed
 INTRO_CARD,
 FONT_BODY,
 FONT_HEAD,book
-LAYOUT_TOP,"search,event,more,passport"
-LAYOUT_MORE,"chips,aerial,year"
-LAYOUT_OFF,"tour,spacer"
-LAYOUT_BOTTOM,"oldmaps,newrow,near,tours,stories"
+LAYOUT_TOP,"search,event,more,spacer,passport"
+LAYOUT_MORE,"chips,aerial,oldmaps,year"
+LAYOUT_OFF,"tour,newrow"
+LAYOUT_BOTTOM,"near,tours,stories"
 LAYOUT_FLOAT,legend
 ZOOM_POS,top
