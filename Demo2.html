@@ -646,10 +646,10 @@ html.sq #tools.open #toolsMore{border-radius:6px}
 <style>
 #passportBtn.ring{display:inline-flex;align-items:center;gap:7px;padding:3px 13px 3px 4px;white-space:nowrap;flex:0 0 auto;color:var(--ringtext,var(--bar,#E47303))}
 @media (max-width:720px){   /* phones: a ring on its own with the found count in the middle, so it fits in the row beside the other buttons */
-  #passportBtn.ring{position:relative;width:38px;height:38px;padding:2px;gap:0;justify-content:center;border-radius:50%}
-  #passportBtn.ring .pring{width:32px;height:32px}
+  #passportBtn.ring{position:relative;box-sizing:border-box;width:36px;height:36px;padding:2px;gap:0;justify-content:center;border-radius:50%}
+  #passportBtn.ring .pring{width:28px;height:28px}
   #passportBtn.ring #passportCount{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:0}
-  #passportBtn.ring #passportCount::after{content:attr(data-found);font-size:12px;font-weight:bold}
+  #passportBtn.ring #passportCount::after{content:attr(data-found);font-size:11px;font-weight:bold}
 }
 #passportBtn.ring .pring{width:30px;height:30px;transform:rotate(-90deg);flex:none}
 .pring circle{fill:none;stroke-width:4}
@@ -682,6 +682,7 @@ html.bot #spotBox,html.bot #eventBox{bottom:var(--botH,0px)}
 @media (max-width:699px){html.bot #panel{bottom:var(--botH,0px)}}
 #klegend.lay-in{position:static!important;margin:0!important;transform:none!important}
 html:not(.band) .maplibregl-ctrl-top-right{top:var(--barB,0px)}
+.lay-sp{margin:0 -3px}   /* a Flexible space is empty, so cancel half of the gap on each side of it */
 .kmark.spot{z-index:3}
 .kmark.spot > *{transform:scale(1.7);transition:transform .3s}
 .maps-link{display:inline-block;margin:6px 0;padding:8px 14px;border-radius:999px;background:var(--bar,#800000);color:#fff;font-weight:600;text-decoration:none}
