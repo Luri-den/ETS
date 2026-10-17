@@ -19,6 +19,8 @@ PRIZES,yes
 YEAR_SLIDER,yes
 OVERLAY_SLIDER,yes
 AERIAL_BUTTON,yes
+MAPS_LINK,yes
+LAYOUT_STYLE,band
 EVENT_BUTTON,About
 EVENT_TITLE,What's Going On?
 EVENT_TEXT,"Tap a place. A card slides up from the bottom. Drag the little bar at the top of the card up for a bigger view, or down to dismiss.
@@ -35,6 +37,13 @@ WELCOME_TEXT,Welcome to|{PLACE}
 BAR_STYLE,
 SEARCH_WIDTH,
 SEARCH_WIDTH_PHONE,
+PASSPORT_STYLE,ring
+RING_COLOR,#ffff00
+RING_TRACK,#c0c0c0
+RING_TEXT,#800000
+INTRO_STYLE,spin
+FONT_BODY,
+FONT_HEAD,book
 LAYOUT_TOP,
 LAYOUT_MORE,
 LAYOUT_OFF,
