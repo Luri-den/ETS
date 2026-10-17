@@ -131,6 +131,9 @@ input[type=range]{padding:0;border:0}
     <label>After the welcome screen</label>
     <select data-k="INTRO_STYLE"><option value="">Point at places one by one (current)</option><option value="zoom">Zoom in to each place</option><option value="spin">Zoom in and slowly circle each place</option></select>
     <small>The zoom options are skipped for visitors who have "reduce motion" turned on.</small>
+    <label>Stops featured in the intro</label>
+    <select data-k="INTRO_FEATURES"><option value="">Places only (current)</option><option value="mixed">Places, plus some stories and photo spots</option><option value="spots">Stories and photo spots only</option></select>
+    <small>Stories and spots only appear in the two zoom options, because they only show once the map is close in. The point-at-places intro always uses places. A spot with no photo is skipped.</small>
     <img id="wtPrev" alt="Welcome screen preview" style="width:100%;border-radius:10px;margin-top:8px;background:#ddd">
     <small id="wtNote"></small>
 
@@ -223,7 +226,7 @@ const DEFAULTS = {
   WELCOME_THEME: "",
   WELCOME_TEXT: "Welcome to|{PLACE}",
   BAR_STYLE: "", SEARCH_WIDTH: "", SEARCH_WIDTH_PHONE: "",
-  PASSPORT_STYLE: "", RING_COLOR: "", RING_TRACK: "", RING_TEXT: "", INTRO_STYLE: "", FONT_BODY: "", FONT_HEAD: "",
+  PASSPORT_STYLE: "", RING_COLOR: "", RING_TRACK: "", RING_TEXT: "", INTRO_STYLE: "", INTRO_FEATURES: "", FONT_BODY: "", FONT_HEAD: "",
   LAYOUT_TOP: "", LAYOUT_MORE: "", LAYOUT_OFF: ""
 };
 

@@ -197,7 +197,7 @@ const CATEGORIES = {
 const DEFAULT_CAT = "COMM";
 
 /* Exact header order */
-const SPOT_COLS = ["SPOT_ID","TITLE","LAT","LONG","YEAR","PHOTO","DETAILS","CREDIT","KIND","CATEGORY","SERIES","ORDER","SOURCE","STAFF_NOTE","ICON","ICON_COLOR","EFFECT"];
+const SPOT_COLS = ["SPOT_ID","TITLE","LAT","LONG","YEAR","PHOTO","DETAILS","BLURB","INTRO","CREDIT","KIND","CATEGORY","SERIES","ORDER","SOURCE","STAFF_NOTE","ICON","ICON_COLOR","EFFECT"];
 
 /* ---------- State ---------- */
 window.PhotoResize = window.PhotoResize || {   // stand-in so uploads still work if photo-resize.js was not uploaded
@@ -636,6 +636,19 @@ function renderForm(){
       </div>
 
       <div class="field">
+        <label>Blurb (short preview)</label>
+        <textarea id="f-BLURB" rows="2" maxlength="220" placeholder="One or two sentences for the opening preview. Leave blank to use the first sentence of Details.">${esc(r.BLURB||"")}</textarea>
+      </div>
+
+      <div class="field">
+        <label>Show in the opening intro</label>
+        <select id="f-INTRO">
+          <option value="" ${r.INTRO==="no"?"":"selected"}>Yes</option>
+          <option value="no" ${r.INTRO==="no"?"selected":""}>No, leave it out</option>
+        </select>
+      </div>
+
+      <div class="field">
         <label>Details</label>
         <textarea id="f-DETAILS">${esc(r.DETAILS||"")}</textarea>
       </div>
@@ -687,6 +700,8 @@ function renderForm(){
   bindText(box, "f-LONG",       v => { r.LONG = v; syncLL(s, r.LAT, v); });
   bindText(box, "f-PHOTO",      v => { r.PHOTO = v; refreshPhotoPreview(box, v); });
   bindText(box, "f-DETAILS",    v => { r.DETAILS = v; });
+  bindText(box, "f-BLURB",      v => { r.BLURB = v; });
+  bindText(box, "f-INTRO",      v => { r.INTRO = v; });
   bindText(box, "f-CREDIT",     v => { r.CREDIT = v; });
   bindText(box, "f-SOURCE",     v => { r.SOURCE = v; });
   bindText(box, "f-SERIES",     v => { r.SERIES = v; });

@@ -653,6 +653,10 @@ html.band #bar{background:var(--bar,#800000);pointer-events:auto;padding-bottom:
 html.band #bar h1{display:block;order:-1;flex:1 1 100%;font-size:18px;font-weight:700;color:#fff}
 html.band #map{top:var(--bandh,0px)}
 html.settings-loading #map{visibility:hidden}
+#welcomeSite.photo #wsBox{top:calc(env(safe-area-inset-top) + 12px)}
+#welcomeSite.photo #wsPhoto{float:none;display:block;width:100%;height:min(28vh,190px);margin:0 0 10px;border-radius:10px;border:0;shape-outside:none;box-shadow:none;object-position:center 30%}
+.kmark.spot{z-index:3}
+.kmark.spot > *{transform:scale(1.7);transition:transform .3s}
 .maps-link{display:inline-block;margin:6px 0;padding:8px 14px;border-radius:999px;background:var(--bar,#800000);color:#fff;font-weight:600;text-decoration:none}
 .maps-link[hidden]{display:none}
 html.fontset,html.fontset body{font-family:var(--font-body,Arial,sans-serif)}
@@ -945,8 +949,12 @@ function startWelcome(featuredId){
   function nextSite() {
     if (stopped) return;
     clearIntroMotion();
-    document.querySelectorAll(".pin.spot").forEach(e => e.classList.remove("spot"));
-    const pool = places.concat(kids).filter(i => PHOTO_SRC[i.id]);
+    document.querySelectorAll(".pin.spot,.kmark.spot").forEach(e => e.classList.remove("spot"));
+    const placePool = places.concat(kids).filter(i => PHOTO_SRC[i.id]);
+    const spotMode = introMotion ? SITE.introFeatures : "";                  // spots only show once the camera has zoomed in
+    const spotPool = (spotMode && window.introSpots) ? window.introSpots().map(spotAsStop).filter(Boolean) : [];
+    const useSpots = spotPool.length && (spotMode === "spots" || (spotMode === "mixed" && Math.random() < 0.4));
+    const pool = useSpots ? spotPool : placePool;
     if (!pool.length) { if (++tries > 20) finish(); else siteTimer = setTimeout(nextSite, 600); return; }
 
     let it = null;
@@ -972,11 +980,14 @@ function startWelcome(featuredId){
     if (!bl && blurb.length > 170) blurb = blurb.slice(0, 167) + "...";
     const e = yr4(it.d.EST);
 
-    document.getElementById("wsPhoto").src = PHOTO_SRC[it.id];
+    document.getElementById("wsPhoto").src = it.src || PHOTO_SRC[it.id];
+    siteBox.classList.toggle("photo", !!it.isSpot);                           // spots get a wide photo card instead of the round one
+    document.getElementById("wsGo").textContent = it.isSpot ? "See it" : "Go There";
     document.getElementById("wsName").textContent = it.name;
     document.getElementById("wsText").textContent = blurb;
-    document.getElementById("wsIn").textContent =
-      [it.parent ? "In " + it.parent.name : "", e ? "Established " + e : ""].filter(Boolean).join(" \u00b7 ");
+    document.getElementById("wsIn").textContent = it.isSpot
+      ? [it.kind === "story" ? "Story" : "Photo spot", it.year].filter(Boolean).join(" \u00b7 ")
+      : [it.parent ? "In " + it.parent.name : "", e ? "Established " + e : ""].filter(Boolean).join(" \u00b7 ");
 
     tgt.el.classList.add("spot");
     if (introMotion) it.el.classList.add("spot");
@@ -1015,11 +1026,11 @@ function startWelcome(featuredId){
   function goToFeatured() {
     if (!currentItem) return;
     const item = currentItem;
-    const z = Math.max(map.getZoom(), item.parent ? 17 : 15);
+    const z = Math.max(map.getZoom(), (item.parent || item.isSpot) ? 17 : 15);
     finish(true);
     if (introMotion) map.easeTo({ center: item.ll, zoom: z, pitch: 0, bearing: 0, duration: 900, essential: true });
     setTimeout(() => {
-      select(item);
+      if (item.isSpot) window.introShowSpot(item.id); else select(item);
       map.easeTo({ center: item.ll, zoom: z, pitch: 0, bearing: 0 });
     }, WELCOME_TRANSITION_TIME);
   }
@@ -1033,7 +1044,7 @@ function startWelcome(featuredId){
     clearTimeout(siteTimer);
     clearIntroMotion();
     if (introMotion && startCam && !toFeatured) map.easeTo({ center: startCam.center, zoom: startCam.zoom, bearing: 0, pitch: 0, duration: 900, essential: true });
-    document.querySelectorAll(".pin.spot").forEach(e => e.classList.remove("spot"));
+    document.querySelectorAll(".pin.spot,.kmark.spot").forEach(e => e.classList.remove("spot"));
     overlay.classList.remove("show");
     overlay.classList.add("exit");
     setTimeout(() => { overlay.remove(); }, WELCOME_TRANSITION_TIME);
@@ -1211,6 +1222,7 @@ const SETTINGS_READY = dataFetch("site.csv", { cache: "no-store" })
     SITE.passportStyle = (S.PASSPORT_STYLE || "").toLowerCase();
     SITE.ringColors = { fill: S.RING_COLOR, track: S.RING_TRACK, text: S.RING_TEXT };
     SITE.introStyle = (S.INTRO_STYLE || "").toLowerCase();
+    SITE.introFeatures = (S.INTRO_FEATURES || "").toLowerCase();
     SITE.mapsLink = (S.MAPS_LINK || "yes").toLowerCase() !== "no";
     SITE.prizes = (S.PRIZES || "yes").toLowerCase() !== "no";
     SITE.yearSlider = (S.YEAR_SLIDER || "yes").toLowerCase() !== "no";
@@ -1282,6 +1294,16 @@ function setMaps(a, ll, name){
   const ok = SITE.mapsLink !== false && isFinite(lng) && isFinite(lat) && ll;
   a.hidden = !ok;
   if (ok) a.href = mapsUrl(lng, lat, name);
+}
+
+/* ===== Stories and photo spots as intro stops (INTRO_FEATURES = mixed | spots) ===== */
+function spotAsStop(i){
+  const p = coverPath(i.id, (i.r.PHOTO || "").trim());
+  if (!p) return null;                                                       // the intro is photo-first, so no photo means no stop
+  return { id: i.id, ll: i.ll, el: i.el, isSpot: true, kind: i.kind, src: assetUrl(p),
+           name: i.r.TITLE || i.id, year: (i.r.YEAR || "").trim(),
+           color: (i.r.ICON_COLOR || "").trim() || (i.kind === "story" ? "#D55E00" : "#333333"),
+           d: { BLURB: i.r.BLURB, DETAILS: i.r.DETAILS } };
 }
 
 /* ===== Solid top band (LAYOUT_STYLE=band): the bar becomes a colored header and the map starts beneath it ===== */
@@ -2307,6 +2329,8 @@ $("res").onclick = e => {
       tours.push({ id, title: r.TITLE || id, intro: r.INTRO || "", category: r.CATEGORY || null, stops });
     });
     $("tours").hidden = !tours.length;
+    window.introSpots = () => items.filter(i => i.ll && i.el && (i.r.INTRO || "").trim().toLowerCase() !== "no");   // spots the intro may feature
+    window.introShowSpot = id => { const it = items.find(x => x.id === id); if (it) showSpot(it); };
     vis();
     map.on("zoomend", vis);
   });
