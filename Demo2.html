@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#800000">
 <title>Explore Franklin County</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 
@@ -639,6 +642,22 @@ html.sq #q,html.sq #tools button,html.sq #passportBtn,html.sq #catChips button,h
 html.sq #tools.open #toolsMore{border-radius:6px}
 
 </style>
+<style>
+#passportBtn.ring{display:inline-flex;align-items:center;gap:7px;padding:3px 13px 3px 4px;color:var(--ringtext,var(--bar,#E47303))}
+#passportBtn.ring .pring{width:30px;height:30px;transform:rotate(-90deg);flex:none}
+.pring circle{fill:none;stroke-width:4}
+.pring .pt{stroke:var(--ringtrack,#e6e0d8)}
+.pring .pf{stroke:var(--ring,var(--bar,#E47303));stroke-linecap:round;stroke-dasharray:0 100;transition:stroke-dasharray .6s}
+html.band #bar{background:var(--bar,#800000);pointer-events:auto;padding-bottom:10px;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+html.band #bar h1{display:block;order:-1;flex:1 1 100%;font-size:18px;font-weight:700;color:#fff}
+html.band #map{top:var(--bandh,0px)}
+.maps-link{display:inline-block;margin:6px 0;padding:8px 14px;border-radius:999px;background:var(--bar,#800000);color:#fff;font-weight:600;text-decoration:none}
+.maps-link[hidden]{display:none}
+html.fontset,html.fontset body{font-family:var(--font-body,Arial,sans-serif)}
+html.fontset button,html.fontset input,html.fontset select,html.fontset textarea{font-family:inherit}
+html.fontset h1,html.fontset h2,html.fontset h3,html.fontset #bar h1{font-family:var(--font-head,var(--font-body,Arial,sans-serif))}
+@media (prefers-reduced-motion:reduce){.pring .pf{transition:none}}
+</style>
 </head>
 
 <body>
@@ -666,6 +685,7 @@ html.sq #tools.open #toolsMore{border-radius:6px}
     <p id="sp-when"><b></b></p>
     <p id="sp-text"></p>
     <small id="sp-credit"></small>
+    <a id="sp-maps" class="maps-link" target="_blank" rel="noopener" hidden>Open in Maps</a>
     <button id="sp-go" type="button">Explore the Map</button>
   </div>
 </div>
@@ -905,6 +925,11 @@ function startWelcome(featuredId){
   WELCOME_STEPS.forEach(step => { const p = new Image(); if (step.gif) p.src = step.gif; });
 
   let siteTimer = null, lastId = null, tries = 0;
+  const introMotion = matchMedia("(prefers-reduced-motion: reduce)").matches ? "" : (SITE.introStyle === "spin" ? "spin" : SITE.introStyle === "zoom" ? "zoom" : "");
+  const siteTime = introMotion ? 6500 : WELCOME_SITE_TIME;
+  const startCam = { center: map.getCenter(), zoom: map.getZoom() };
+  let introAim = null, introGen = 0;
+  const clearIntroMotion = () => { if (introAim) { map.off("move", introAim); introAim = null; } introGen++; };
   let featuredShown = false;
   let currentItem = null;
   const siteBox = document.getElementById("welcomeSite");
@@ -917,6 +942,7 @@ function startWelcome(featuredId){
 
   function nextSite() {
     if (stopped) return;
+    clearIntroMotion();
     document.querySelectorAll(".pin.spot").forEach(e => e.classList.remove("spot"));
     const pool = places.concat(kids).filter(i => PHOTO_SRC[i.id]);
     if (!pool.length) { if (++tries > 20) finish(); else siteTimer = setTimeout(nextSite, 600); return; }
@@ -950,7 +976,12 @@ function startWelcome(featuredId){
       [it.parent ? "In " + it.parent.name : "", e ? "Established " + e : ""].filter(Boolean).join(" \u00b7 ");
 
     tgt.el.classList.add("spot");
+    if (introMotion) it.el.classList.add("spot");
 
+    const aim = () => {
+    const t = it.el.style.display !== "none" ? it : (it.parent || it);          // the marker that is really on screen right now
+    const mr = map.getContainer().getBoundingClientRect(), sr = document.getElementById("wsLine").getBoundingClientRect();
+    const q = map.project(t.ll), p = { x: q.x + mr.left - sr.left, y: q.y + mr.top - sr.top };   // map -> overlay coordinates
     const box = document.getElementById("wsBox");
     const bl = box.offsetLeft, bt = box.offsetTop, br = bl + box.offsetWidth, bb = bt + box.offsetHeight;
     const sx = Math.max(bl, Math.min(p.x, br)), sy = Math.max(bt, Math.min(p.y, bb));
@@ -960,9 +991,21 @@ function startWelcome(featuredId){
 
     document.getElementById("wsLine").innerHTML =
       `<path style="fill:${it.color}" d="M${sx - dy * w},${sy + dx * w}L${p.x},${p.y}L${sx + dy * w},${sy - dx * w}Z"/>`;
+    };
+    aim();
+    if (introMotion) {
+      const gen = ++introGen, W = window.innerWidth;
+      const off = [(p.x < W * 0.5 ? 0.3 : 0.7) * W - W / 2, 0];   // keep the pin on the side away from the card
+      introAim = aim; map.on("move", aim);
+      map.flyTo({ center: it.ll, zoom: Math.max(map.getZoom(), 16.3), pitch: 50, offset: off, duration: 2200, essential: true });
+      if (introMotion === "spin") map.once("moveend", () => {
+        if (stopped || gen !== introGen) return;
+        map.easeTo({ center: it.ll, offset: off, bearing: map.getBearing() + 50, duration: Math.max(1500, siteTime - 2600), easing: t => t, essential: true });
+      });
+    }
 
     siteBox.classList.remove("in"); void siteBox.offsetWidth; siteBox.classList.add("in");
-    siteTimer = setTimeout(nextSite, WELCOME_SITE_TIME);
+    siteTimer = setTimeout(nextSite, siteTime);
   }
 
   function goToFeatured() {
@@ -982,6 +1025,8 @@ function startWelcome(featuredId){
     stopped = true;
     clearTimeout(timer);
     clearTimeout(siteTimer);
+    clearIntroMotion();
+    if (introMotion) map.easeTo({ center: startCam.center, zoom: startCam.zoom, bearing: 0, pitch: 0, duration: 900 });
     document.querySelectorAll(".pin.spot").forEach(e => e.classList.remove("spot"));
     overlay.classList.remove("show");
     overlay.classList.add("exit");
@@ -1131,6 +1176,21 @@ const SETTINGS_READY = dataFetch("site.csv", { cache: "no-store" })
     if (S.HEADER)    document.querySelector("#bar h1").textContent = fill(S.HEADER);
     if (S.TAB_TITLE) document.title = fill(S.TAB_TITLE);
     if (/^#[0-9a-f]{3,8}$/i.test(S.BAR_COLOR || "")) document.documentElement.style.setProperty("--bar", S.BAR_COLOR);
+    { /* phone browser bar color + optional fonts (built-in phone fonts, nothing downloaded) */
+      const tc = document.querySelector('meta[name="theme-color"]');
+      if (tc && /^#[0-9a-f]{3,8}$/i.test(S.BAR_COLOR || "")) tc.content = S.BAR_COLOR;
+      const FONTS = {
+        classic:    'Georgia,"Times New Roman",serif',
+        book:       'Charter,"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif',
+        humanist:   '"Gill Sans","Gill Sans MT",Calibri,"Trebuchet MS",sans-serif',
+        typewriter: '"American Typewriter","Courier New",Courier,monospace'
+      };
+      const fb = FONTS[(S.FONT_BODY || "").toLowerCase()], fh = FONTS[(S.FONT_HEAD || "").toLowerCase()];
+      if (fb) document.documentElement.style.setProperty("--font-body", fb);
+      if (fh) document.documentElement.style.setProperty("--font-head", fh);
+      if (fb || fh) document.documentElement.classList.add("fontset");
+      if ((S.LAYOUT_STYLE || "").toLowerCase() === "band") { document.documentElement.classList.add("band"); startBand(); }
+    }
 
     const lng = num("CENTER_LNG"), lat = num("CENTER_LAT"), z = num("ZOOM");
     if (lng !== null && lat !== null) SITE.center = [lng, lat];
@@ -1142,6 +1202,10 @@ const SETTINGS_READY = dataFetch("site.csv", { cache: "no-store" })
     SITE.fitMarkers = (S.FIT_TO_MARKERS || "yes").toLowerCase() !== "no";
     SITE.passport = (S.PASSPORT || "yes").toLowerCase() !== "no";
     SITE.passportRanks = (S.PASSPORT_RANKS || "yes").toLowerCase() !== "no";
+    SITE.passportStyle = (S.PASSPORT_STYLE || "").toLowerCase();
+    SITE.ringColors = { fill: S.RING_COLOR, track: S.RING_TRACK, text: S.RING_TEXT };
+    SITE.introStyle = (S.INTRO_STYLE || "").toLowerCase();
+    SITE.mapsLink = (S.MAPS_LINK || "yes").toLowerCase() !== "no";
     SITE.prizes = (S.PRIZES || "yes").toLowerCase() !== "no";
     SITE.yearSlider = (S.YEAR_SLIDER || "yes").toLowerCase() !== "no";
     SITE.overlaySlider = (S.OVERLAY_SLIDER || "yes").toLowerCase() !== "no";
@@ -1200,10 +1264,63 @@ function buildGallery(id){
   return g;
 }
 
+/* ===== "Open in Maps": opens the place as a pin in the phone's own maps app (no route is planned here) ===== */
+function mapsUrl(lng, lat, name){
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  return ios ? "https://maps.apple.com/?ll=" + lat + "," + lng + "&q=" + encodeURIComponent(name || "Place")
+             : "https://www.google.com/maps/search/?api=1&query=" + lat + "," + lng;
+}
+function setMaps(a, ll, name){
+  if (!a) return;
+  const lng = ll && (ll.lng !== undefined ? ll.lng : ll[0]), lat = ll && (ll.lat !== undefined ? ll.lat : ll[1]);
+  const ok = SITE.mapsLink !== false && isFinite(lng) && isFinite(lat) && ll;
+  a.hidden = !ok;
+  if (ok) a.href = mapsUrl(lng, lat, name);
+}
+
+/* ===== Solid top band (LAYOUT_STYLE=band): the bar becomes a colored header and the map starts beneath it ===== */
+function startBand(){
+  const bar = $("bar"), tools = $("tools");
+  if (!bar) return;
+  let last = -1;
+  const fit = () => {
+    if (tools && tools.classList.contains("open")) return;      // let the More drawer overlap the map instead of squeezing it
+    const h = bar.offsetHeight;
+    if (h === last) return;
+    last = h;
+    document.documentElement.style.setProperty("--bandh", h + "px");
+    try { map.resize(); } catch (e) {}
+  };
+  new ResizeObserver(fit).observe(bar);
+  fit();
+}
+
+/* ===== Passport progress ring (PASSPORT_STYLE=ring; colors RING_COLOR / RING_TRACK / RING_TEXT) ===== */
+function buildRing(){
+  const b = $("passportBtn"), c = $("passportCount");
+  if (!b || !c) return;
+  const R = SITE.ringColors || {}, ok = v => /^#[0-9a-f]{3,8}$/i.test(v || "");
+  if (ok(R.fill))  b.style.setProperty("--ring", R.fill);
+  if (ok(R.track)) b.style.setProperty("--ringtrack", R.track);
+  if (ok(R.text))  b.style.setProperty("--ringtext", R.text);
+  b.classList.add("ring");
+  b.setAttribute("aria-label", "History passport");
+  b.innerHTML = '<svg class="pring" viewBox="0 0 36 36" aria-hidden="true"><circle class="pt" cx="18" cy="18" r="15.9"/><circle class="pf" cx="18" cy="18" r="15.9" pathLength="100"/></svg>';
+  b.appendChild(c);
+  const upd = () => {
+    const m = /(\d+)\s*\/\s*(\d+)/.exec(c.textContent);
+    const pct = m && +m[2] ? Math.round(100 * m[1] / m[2]) : 0;
+    b.querySelector(".pf").style.strokeDasharray = pct + " 100";
+  };
+  new MutationObserver(upd).observe(c, { childList: true, characterData: true, subtree: true });
+  upd();
+}
+
 async function applySettingsToMap(){
   await SETTINGS_READY;
   if (!SITE.fromCsv) return;
   if (!SITE.passport) $("passportBtn").style.display = "none";
+  else if (SITE.passportStyle === "ring") buildRing();
   if (!SITE.yearSlider) $("yr").closest("label").style.display = "none";
   if (!SITE.aerialButton) $("aerialBtn").hidden = true;
   if (SITE.event.title || SITE.event.text) {
@@ -1642,6 +1759,7 @@ function select(it){
     `<h2>${esc(it.name)}</h2>` +
     (d.HIST_NAMES ? `<p><b>Also known as:</b> ${esc(d.HIST_NAMES)}</p>` : "") +
     (d.ADDRESS ? `<p><b>Address:</b> ${esc(d.ADDRESS)}</p>` : "") +
+    (SITE.mapsLink !== false && it.ll ? `<p><a class="maps-link" target="_blank" rel="noopener" href="${mapsUrl(it.ll.lng !== undefined ? it.ll.lng : it.ll[0], it.ll.lat !== undefined ? it.ll.lat : it.ll[1], it.name)}">Open in Maps</a></p>` : "") +
     `<p>${esc(d.DETAILS || "")}</p>` +
     (it.kids && it.kids.length
       ? "<h3>Places here</h3>" +
@@ -1898,6 +2016,7 @@ $("res").onclick = e => {
     $("sp-text").textContent = r.DETAILS || "";
     $("sp-credit").textContent = coverNote(id, r.CREDIT) || (r.CREDIT ? "Photo: " + r.CREDIT : "");
     $("sp-img").dataset.caption = coverNote(id);
+    setMaps($("sp-maps"), ll, r.TITLE);
     const qGal = buildGallery(id);
     if (qGal) $("sp-credit").after(qGal);
     box.hidden = false;
@@ -1990,6 +2109,7 @@ $("res").onclick = e => {
     $("sp-text").textContent = r.DETAILS || "";
     $("sp-credit").textContent = [coverNote(it.id, r.CREDIT) || (r.CREDIT ? "Photo: " + r.CREDIT : ""), r.SOURCE ? "Source: " + r.SOURCE : ""].filter(Boolean).join(" · ");
     $("sp-img").dataset.caption = coverNote(it.id);
+    setMaps($("sp-maps"), it.ll, r.TITLE);
     const oldGal = $("spotCard").querySelector(".gal");
     if (oldGal) oldGal.remove();
     const gal = buildGallery(it.id);
@@ -3241,7 +3361,7 @@ setTimeout(buildChips, 3000);
         if (!id) return;
         const url = location.origin + location.pathname + "?place=" + encodeURIComponent(id);
         try {
-          if (navigator.share) await navigator.share({ title: "Connersville history", url });
+          if (navigator.share) await navigator.share({ title: document.title, url });
           else { await navigator.clipboard.writeText(url); toast("Link copied"); }
         } catch(e){ prompt("Copy this link:", url); }
       };

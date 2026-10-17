@@ -100,6 +100,27 @@ input[type=range]{padding:0;border:0}
     <input type="range" min="50" max="100" step="5" data-k="SEARCH_WIDTH_PHONE">
     <label>Button style</label>
     <select data-k="BAR_STYLE"><option value="">Pill (rounded)</option><option value="bar">Bar (square corners)</option></select>
+    <label>Top bar background</label>
+    <select data-k="LAYOUT_STYLE"><option value="">Buttons float over the map (current)</option><option value="band">Solid colored band with the title</option></select>
+    <small>The band uses the Top Bar Color above, shows the page title, and the map starts just below it.</small>
+
+    <h2>Fonts</h2>
+    <label>Headings and title</label>
+    <select data-k="FONT_HEAD"><option value="">Standard (Arial)</option><option value="classic">Classic serif (Georgia)</option><option value="book">Book serif (Palatino / Charter)</option><option value="humanist">Friendly sans (Gill Sans / Calibri)</option><option value="typewriter">Typewriter</option></select>
+    <label>Everything else</label>
+    <select data-k="FONT_BODY"><option value="">Standard (Arial)</option><option value="classic">Classic serif (Georgia)</option><option value="book">Book serif (Palatino / Charter)</option><option value="humanist">Friendly sans (Gill Sans / Calibri)</option><option value="typewriter">Typewriter</option></select>
+    <small>These use fonts already on the visitor's phone, so nothing extra downloads and they work offline. A phone without the named font shows a similar one, so the look can differ a little between iPhone and Android.</small>
+
+    <h2>Passport Look</h2>
+    <label>Passport display</label>
+    <select data-k="PASSPORT_STYLE"><option value="">Button (trophy and count)</option><option value="ring">Progress ring</option></select>
+    <label>Ring color (the filled part)</label>
+    <div class="two"><input type="color" data-k="RING_COLOR"><input data-k="RING_COLOR" placeholder="same as top bar"></div>
+    <label>Ring track color (the empty part)</label>
+    <div class="two"><input type="color" data-k="RING_TRACK"><input data-k="RING_TRACK" placeholder="#E6E0D8"></div>
+    <label>Ring text color</label>
+    <div class="two"><input type="color" data-k="RING_TEXT"><input data-k="RING_TEXT" placeholder="same as top bar"></div>
+    <small>Only used when Passport display is set to Progress ring. Leave a color blank to use the top bar color.</small>
 
     <h2>Welcome Screen</h2>
     <label>Theme</label>
@@ -107,6 +128,9 @@ input[type=range]{padding:0;border:0}
     <label>Welcome Text</label>
     <input data-k="WELCOME_TEXT" placeholder="Welcome to|{PLACE}">
     <small>{PLACE} is replaced with the place name. Use | to start a new line; the last line is the big one.</small>
+    <label>After the welcome screen</label>
+    <select data-k="INTRO_STYLE"><option value="">Point at places one by one (current)</option><option value="zoom">Zoom in to each place</option><option value="spin">Zoom in and slowly circle each place</option></select>
+    <small>The zoom options are skipped for visitors who have "reduce motion" turned on.</small>
     <img id="wtPrev" alt="Welcome screen preview" style="width:100%;border-radius:10px;margin-top:8px;background:#ddd">
     <small id="wtNote"></small>
 
@@ -153,6 +177,7 @@ input[type=range]{padding:0;border:0}
     <label class="chk"><input type="checkbox" data-k="YEAR_SLIDER"> Show the year slider</label>
     <label class="chk"><input type="checkbox" data-k="OVERLAY_SLIDER"> Show old map overlays and their slider</label>
     <label class="chk"><input type="checkbox" data-k="AERIAL_BUTTON"> Show the aerial view button</label>
+    <label class="chk"><input type="checkbox" data-k="MAPS_LINK"> Show an "Open in Maps" link on place and spot cards</label>
     <small>Turning the overlay slider off removes old map overlays from the page completely.</small>
 
     <h2>Event or focus panel</h2>
@@ -190,12 +215,15 @@ const DEFAULTS = {
   YEAR_SLIDER: "yes",
   OVERLAY_SLIDER: "yes",
   AERIAL_BUTTON: "yes",
+  MAPS_LINK: "yes",
+  LAYOUT_STYLE: "",
   EVENT_BUTTON: "About",
   EVENT_TITLE: "",
   EVENT_TEXT: "",
   WELCOME_THEME: "",
   WELCOME_TEXT: "Welcome to|{PLACE}",
   BAR_STYLE: "", SEARCH_WIDTH: "", SEARCH_WIDTH_PHONE: "",
+  PASSPORT_STYLE: "", RING_COLOR: "", RING_TRACK: "", RING_TEXT: "", INTRO_STYLE: "", FONT_BODY: "", FONT_HEAD: "",
   LAYOUT_TOP: "", LAYOUT_MORE: "", LAYOUT_OFF: ""
 };
 
