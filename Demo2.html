@@ -927,7 +927,7 @@ function startWelcome(featuredId){
   let siteTimer = null, lastId = null, tries = 0;
   const introMotion = matchMedia("(prefers-reduced-motion: reduce)").matches ? "" : (SITE.introStyle === "spin" ? "spin" : SITE.introStyle === "zoom" ? "zoom" : "");
   const siteTime = introMotion ? 6500 : WELCOME_SITE_TIME;
-  const startCam = { center: map.getCenter(), zoom: map.getZoom() };
+  let startCam = null;   // captured just before the first zoom, once the page has settled on its own starting view
   let introAim = null, introGen = 0;
   const clearIntroMotion = () => { if (introAim) { map.off("move", introAim); introAim = null; } introGen++; };
   let featuredShown = false;
@@ -997,6 +997,7 @@ function startWelcome(featuredId){
       const gen = ++introGen, W = window.innerWidth;
       const off = [(p.x < W * 0.5 ? 0.3 : 0.7) * W - W / 2, 0];   // keep the pin on the side away from the card
       introAim = aim; map.on("move", aim);
+      if (!startCam) startCam = { center: map.getCenter(), zoom: map.getZoom() };
       map.flyTo({ center: it.ll, zoom: Math.max(map.getZoom(), 16.3), pitch: 50, offset: off, duration: 2200, essential: true });
       if (introMotion === "spin") map.once("moveend", () => {
         if (stopped || gen !== introGen) return;
@@ -1011,22 +1012,24 @@ function startWelcome(featuredId){
   function goToFeatured() {
     if (!currentItem) return;
     const item = currentItem;
-    finish();
+    const z = Math.max(map.getZoom(), item.parent ? 17 : 15);
+    finish(true);
+    if (introMotion) map.easeTo({ center: item.ll, zoom: z, pitch: 0, bearing: 0, duration: 900, essential: true });
     setTimeout(() => {
       select(item);
-      map.easeTo({ center: item.ll, zoom: Math.max(map.getZoom(), item.parent ? 17 : 15) });
+      map.easeTo({ center: item.ll, zoom: z, pitch: 0, bearing: 0 });
     }, WELCOME_TRANSITION_TIME);
   }
 
   document.getElementById("wsGo").addEventListener("click", e => { e.stopPropagation(); goToFeatured(); });
 
-  function finish(){
+  function finish(toFeatured){
     if (stopped) return;
     stopped = true;
     clearTimeout(timer);
     clearTimeout(siteTimer);
     clearIntroMotion();
-    if (introMotion) map.easeTo({ center: startCam.center, zoom: startCam.zoom, bearing: 0, pitch: 0, duration: 900 });
+    if (introMotion && startCam && !toFeatured) map.easeTo({ center: startCam.center, zoom: startCam.zoom, bearing: 0, pitch: 0, duration: 900, essential: true });
     document.querySelectorAll(".pin.spot").forEach(e => e.classList.remove("spot"));
     overlay.classList.remove("show");
     overlay.classList.add("exit");
