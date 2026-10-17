@@ -138,14 +138,15 @@ html.settings-loading #tools { visibility: hidden; }
 #welcomeSite{position:absolute;inset:0;pointer-events:none}
 #wsLine{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 #wsLine path{stroke:#fff;stroke-width:2}
-#wsPhoto{position:absolute;left:14px;top:calc(104px + env(safe-area-inset-top));width:min(46vw,230px);height:min(46vw,230px);border-radius:50%;object-fit:cover;border:8px solid var(--c);background:#fff;box-shadow:0 0 0 3px #fff,0 4px 14px #0007}
-#wsBox{position:absolute;left:14px;top:calc(104px + min(46vw,230px) + 14px + env(safe-area-inset-top));width:min(calc(100vw - 28px),360px);box-sizing:border-box;background:#fff;border:6px solid var(--c);border-radius:18px;padding:12px 14px;box-shadow:0 0 0 3px #fff,0 4px 14px #0006;pointer-events:auto;cursor:pointer}
-#welcomeSite.right #wsPhoto,#welcomeSite.right #wsBox{left:auto;right:14px}
-#wsBox h2{margin:0 0 6px;font-size:21px}
-#wsBox p{margin:0;font-size:16px;line-height:1.35}
+#wsPhoto{float:left;box-sizing:border-box;width:var(--P);height:var(--P);margin:calc(var(--P) * -0.45 - 18px) 12px 4px -4px;shape-outside:circle(50%);shape-margin:6px;border-radius:50%;object-fit:cover;border:5px solid var(--c);background:#fff;box-shadow:0 0 0 3px #fff,0 3px 10px #0007}
+#wsBox{--P:min(34vw,140px);display:flow-root;position:absolute;left:14px;top:calc(env(safe-area-inset-top) + 12px + var(--P) * 0.45);width:min(calc(100vw - 28px),360px);box-sizing:border-box;background:#fff;border:6px solid var(--c);border-radius:18px;padding:12px 14px;box-shadow:0 0 0 3px #fff,0 4px 14px #0006;pointer-events:auto;cursor:pointer}
+#welcomeSite.right #wsBox{left:auto;right:14px}
+#welcomeSite.right #wsPhoto{float:right;margin:calc(var(--P) * -0.45 - 18px) -4px 4px 12px}
+#wsBox h2{margin:0 0 6px;font-size:19px}
+#wsBox p{margin:0;font-size:15px;line-height:1.35}
 #wsBox small{display:block;margin-top:6px;color:#555}
 #wsBox .go{margin-top:8px;display:inline-block;background:#E47303;color:#fff;border:0;border-radius:4px;padding:8px 12px;font-size:14px;cursor:pointer}
-#welcomeSite.in #wsPhoto,#welcomeSite.in #wsBox,#welcomeSite.in #wsLine{animation:wsIn 450ms cubic-bezier(.22,.61,.36,1) both}
+#welcomeSite.in #wsBox,#welcomeSite.in #wsLine{animation:wsIn 450ms cubic-bezier(.22,.61,.36,1) both}
 @keyframes wsIn{from{opacity:0;transform:translateY(18px) scale(.96)}to{opacity:1;transform:none}}
 .pin.spot{box-shadow:0 0 0 6px #fff,0 0 0 11px var(--c);animation:spotPulse 1.6s ease-out infinite}
 @keyframes spotPulse{
@@ -402,7 +403,7 @@ html.settings-loading #tools { visibility: hidden; }
 .photo-anim video[hidden]{display:none}
 
 @media(prefers-reduced-motion:reduce){
-  #welcomeSite.in #wsPhoto,#welcomeSite.in #wsBox,#welcomeSite.in #wsLine{animation:none}
+  #welcomeSite.in #wsBox,#welcomeSite.in #wsLine{animation:none}
   #welcomeImage{transition:none}
   .pin.spot{animation:none}
   .travel-clip .vehicle{animation:none}
@@ -651,6 +652,7 @@ html.sq #tools.open #toolsMore{border-radius:6px}
 html.band #bar{background:var(--bar,#800000);pointer-events:auto;padding-bottom:10px;box-shadow:0 2px 8px rgba(0,0,0,.35)}
 html.band #bar h1{display:block;order:-1;flex:1 1 100%;font-size:18px;font-weight:700;color:#fff}
 html.band #map{top:var(--bandh,0px)}
+html.settings-loading #map{visibility:hidden}
 .maps-link{display:inline-block;margin:6px 0;padding:8px 14px;border-radius:999px;background:var(--bar,#800000);color:#fff;font-weight:600;text-decoration:none}
 .maps-link[hidden]{display:none}
 html.fontset,html.fontset body{font-family:var(--font-body,Arial,sans-serif)}
@@ -666,8 +668,8 @@ html.fontset h1,html.fontset h2,html.fontset h3,html.fontset #bar h1{font-family
   <img id="welcomeImage" alt="Explore Franklin County">
   <div id="welcomeSite" hidden>
     <svg id="wsLine"></svg>
-    <img id="wsPhoto" alt="">
     <div id="wsBox">
+      <img id="wsPhoto" alt="">
       <h2 id="wsName"></h2>
       <p id="wsText"></p>
       <small id="wsIn"></small>
@@ -964,9 +966,10 @@ function startWelcome(featuredId){
     siteBox.classList.toggle("right", p.x < window.innerWidth * 0.5);
     siteBox.style.setProperty("--c", it.color);
 
-    const t = (it.d.DETAILS || "").trim(), m = /[.!?](\s|$)/.exec(t);
-    let blurb = m ? t.slice(0, m.index + 1) : t;
-    if (blurb.length > 170) blurb = blurb.slice(0, 167) + "...";
+    const bl = (it.d.BLURB || "").trim();                                   // short preview text, if the place has one
+    const t = bl || (it.d.DETAILS || "").trim(), m = /[.!?](\s|$)/.exec(t);
+    let blurb = bl ? bl : (m ? t.slice(0, m.index + 1) : t);               // otherwise the first sentence of DETAILS, as before
+    if (!bl && blurb.length > 170) blurb = blurb.slice(0, 167) + "...";
     const e = yr4(it.d.EST);
 
     document.getElementById("wsPhoto").src = PHOTO_SRC[it.id];
@@ -1081,9 +1084,9 @@ function startWelcome(featuredId){
    SITE SETTINGS
    ============================================================ */
 const SITE = {
-  center: [-85.13889209220456, 39.64753066097082],
+  center: [-85.012913, 39.422766],
   zoom: 14,
-  maxBounds: [[-85.40,39.45],[-84.95,39.80]],
+  maxBounds: [[-85.351893,39.243657],[-84.739429,39.644639]],
   childZoom: 16,
   colors: {
     IND:"#AF350A", CIV:"#E2E1E0",
@@ -1333,7 +1336,7 @@ async function applySettingsToMap(){
   map.setMaxBounds(SITE.maxBounds);
   if (SITE.minZoom !== null) map.setMinZoom(SITE.minZoom);
   if (SITE.maxZoom !== null) map.setMaxZoom(SITE.maxZoom);
-  if (!SITE.fitMarkers && !spotId && !siteId) map.jumpTo({ center: SITE.center, zoom: SITE.zoom });
+  if (!spotId && !siteId) map.jumpTo({ center: SITE.center, zoom: SITE.zoom });
 }
 
 const map = new maplibregl.Map({
