@@ -77,15 +77,15 @@ input[type=range]{padding:0;border:0}
   <label class="btn" style="margin:0;font-weight:normal;color:#222">Show Places (locations.csv)…<input type="file" id="fLocs" accept=".csv,text/csv" hidden></label>
   <button id="startBtn" type="button">Start from Defaults</button>
   <button id="reloadBtn" type="button" disabled>↻ Reload</button>
-  <span class="seg"><button id="viewMap" type="button" class="on">Map</button><button id="viewPhone" type="button">Phone preview</button><button id="viewDesk" type="button">Computer preview</button></span>
-  <button id="dlBtn" type="button" class="go" disabled>Download updated site.csv</button>
+  <span class="seg"><button id="viewMap" type="button" class="on">Map</button><button id="viewPhone" type="button">Phone Preview</button><button id="viewDesk" type="button">Desktop Preview</button></span>
+  <button id="dlBtn" type="button" class="go" disabled>Download Updated site.csv</button>
 </header>
 <div id="status">Load site.csv to begin, or click Start from defaults.</div>
 
 <main>
   <div id="map"></div>
   <div id="pv" hidden>
-    <div id="pvTools"><b id="pvTitle">Preview</b> <button id="pvRefresh" type="button">&#8635; Refresh</button> <button id="pvIntro" type="button">&#9654; Replay the opening intro</button> <small style="margin:0">Shows your changes before you save or publish, a moment after each change.</small></div>
+    <div id="pvTools"><b id="pvTitle">Preview</b> <button id="pvRefresh" type="button">&#8635; Refresh</button> <button id="pvIntro" type="button">&#9654; Replay Intro</button> <small style="margin:0">Shows your changes before you save or publish them.</small></div>
     <div id="pvWrap"><iframe id="pvFrame" title="Preview of your page"></iframe></div>
   </div>
 
@@ -104,73 +104,73 @@ input[type=range]{padding:0;border:0}
     <label>Top Bar Color</label>
     <div class="two"><input type="color" data-k="BAR_COLOR"><input data-k="BAR_COLOR" placeholder="#E47303"></div>
 
-    <h2>Bar Layout (top bar, bottom bar, drawer)</h2>
-    <small>Press and drag a button into another box. Bars run left to right and wrap to new rows. The Bottom bar stays hidden until you put something in it. Yellow buttons can't leave the top bar. The Legend can float over the map (as now), sit in either bar, or go in the drawer.</small>
+    <h2>Bar Layout (Top, Bottom, Drawer, Etc)</h2>
+    <small>Click / Press and drag a button into another box. Bars run left to right and will wrap large buttons to new rows. The Bottom Bar stays hidden until you put something in it. Yellow buttons can't leave the top bar. The Legend can float over the map (as now), sit in either Bar, or go in the Drawer.</small>
     <div id="board">
-      <div class="zl">Top bar</div><div class="zone" id="zTop" data-z="top"></div>
-      <div class="zl">Bottom bar</div><div class="zone" id="zBot" data-z="bottom"></div>
-      <div class="zl">Inside the More &#9662; drawer</div><div class="zone" id="zMore" data-z="more"></div>
+      <div class="zl">Top Bar</div><div class="zone" id="zTop" data-z="top"></div>
+      <div class="zl">Bottom Bar</div><div class="zone" id="zBot" data-z="bottom"></div>
+      <div class="zl">Inside the More &#9662; Drawer</div><div class="zone" id="zMore" data-z="more"></div>
       <div class="zl">Hidden</div><div class="zone" id="zOff" data-z="off"></div>
-      <div class="zl">Floating over the map (Legend only)</div><div class="zone" id="zFlt" data-z="flt"></div>
+      <div class="zl">Floating Over the Map (Legend Only)</div><div class="zone" id="zFlt" data-z="flt"></div>
     </div>
     <small id="layNote"></small>
-    <small>"&harr; Flexible space" pushes everything after it to the right edge. "&crarr; New row" starts a new line. A saved layout applies to phones too. The checkboxes further down (year slider, aerial, About text) still decide whether a control exists at all.</small>
-    <div class="row"><button type="button" id="layReset">Back to built-in layout</button></div>
-    <label>Search bar width, computer: <b id="qwdV"></b></label>
+    <small>"&harr; Flexible Space" Pushes everything after it to the right edge. "&crarr; New Row" Starts a new line. A saved layout applies to phones too. The checkboxes further down (Year, Aerial, About) decide whether that control exists at all.</small>
+    <div class="row"><button type="button" id="layReset">Back to Built-in Layout</button></div>
+    <label>Search Bar Width (Desktop): <b id="qwdV"></b></label>
     <input type="range" min="25" max="100" step="5" data-k="SEARCH_WIDTH">
-    <label>Search bar width, phone: <b id="qwpV"></b></label>
+    <label>Search Bar Width (Mobile): <b id="qwpV"></b></label>
     <input type="range" min="50" max="100" step="5" data-k="SEARCH_WIDTH_PHONE">
-    <label>Button style</label>
-    <select data-k="BAR_STYLE"><option value="">Pill (rounded)</option><option value="bar">Bar (square corners)</option></select>
-    <label>Zoom buttons (+ and -)</label>
-    <select data-k="ZOOM_POS"><option value="">Bottom right (current)</option><option value="top">Top right, below the top bar</option></select>
-    <label>Top bar background</label>
-    <select data-k="LAYOUT_STYLE"><option value="">Buttons float over the map (current)</option><option value="band">Solid colored band with the title</option></select>
-    <small>The band uses the Top Bar Color above, shows the page title, and the map starts just below it.</small>
+    <label>Button Style</label>
+    <select data-k="BAR_STYLE"><option value="">Pill (Rounded)</option><option value="bar">Bar (Square)</option></select>
+    <label>Zoom Buttons (+ and -)</label>
+    <select data-k="ZOOM_POS"><option value="">Bottom Right (Default)</option><option value="top">Top Right (Below Bar)</option></select>
+    <label>Top Bar Background</label>
+    <select data-k="LAYOUT_STYLE"><option value="">Floating Buttons</option><option value="band">Solid Colored Band</option></select>
+    <small>The solid color band uses the Top Bar Color above, shows the Page Title, and displays the map just below it.</small>
 
     <h2>Fonts</h2>
-    <label>Headings and title</label>
-    <select data-k="FONT_HEAD"><option value="">Standard (Arial)</option><option value="classic">Classic serif (Georgia)</option><option value="book">Book serif (Palatino / Charter)</option><option value="humanist">Friendly sans (Gill Sans / Calibri)</option><option value="typewriter">Typewriter</option></select>
-    <label>Everything else</label>
-    <select data-k="FONT_BODY"><option value="">Standard (Arial)</option><option value="classic">Classic serif (Georgia)</option><option value="book">Book serif (Palatino / Charter)</option><option value="humanist">Friendly sans (Gill Sans / Calibri)</option><option value="typewriter">Typewriter</option></select>
-    <small>These use fonts already on the visitor's phone, so nothing extra downloads and they work offline. A phone without the named font shows a similar one, so the look can differ a little between iPhone and Android.</small>
+    <label>Headings and Title</label>
+    <select data-k="FONT_HEAD"><option value="">Standard (Arial)</option><option value="classic">Classic Serif (Georgia)</option><option value="book">Book Serif (Palatino / Charter)</option><option value="humanist">Friendly Sans (Gill Sans / Calibri)</option><option value="typewriter">Typewriter</option></select>
+    <label>Everything Else</label>
+    <select data-k="FONT_BODY"><option value="">Standard (Arial)</option><option value="classic">Classic Eerif (Georgia)</option><option value="book">Book Serif (Palatino / Charter)</option><option value="humanist">Friendly Sans (Gill Sans / Calibri)</option><option value="typewriter">Typewriter</option></select>
+    <small>These use fonts already on the visitor's device, so nothing extra downloads and they work offline. A device without the named font shows a similar one, so the look can differ a little between iPhone and Android.</small>
 
     <h2>Map Style</h2>
-    <label>Street map colors</label>
-    <select data-k="MAP_TONE"><option value="">Standard</option><option value="warm">Warm paper (soft sepia, and the pop-up cards turn cream)</option><option value="muted">Muted (calmer, less color)</option></select>
-    <small>Only the street map changes. Aerial photos and old-map overlays keep their own colors.</small>
+    <label>Street Map Colors</label>
+    <select data-k="MAP_TONE"><option value="">Standard Map</option><option value="warm">Warm Paper (A soft sepia with cream-shaded pop-up cards)</option><option value="muted">Muted (A calm option with less color saturation)</option></select>
+    <small>Only the street map changes. Aerial photos and historical map overlays keep their own colors.</small>
 
     <h2>Passport Look</h2>
-    <label>Passport display</label>
-    <select data-k="PASSPORT_STYLE"><option value="">Button (trophy and count)</option><option value="ring">Progress ring</option></select>
-    <label>Ring color (the filled part)</label>
+    <label>Passport Display</label>
+    <select data-k="PASSPORT_STYLE"><option value="">Button (Trophy and Count)</option><option value="ring">Progress Ring</option></select>
+    <label>Ring Color (Filled)</label>
     <div class="two"><input type="color" data-k="RING_COLOR"><input data-k="RING_COLOR" placeholder="same as top bar"></div>
-    <label>Ring track color (the empty part)</label>
+    <label>Ring Track Color (Empty)</label>
     <div class="two"><input type="color" data-k="RING_TRACK"><input data-k="RING_TRACK" placeholder="#E6E0D8"></div>
-    <label>Ring text color</label>
+    <label>Ring Text Color</label>
     <div class="two"><input type="color" data-k="RING_TEXT"><input data-k="RING_TEXT" placeholder="same as top bar"></div>
-    <small>Only used when Passport display is set to Progress ring. Leave a color blank to use the top bar color.</small>
+    <small>This is only used when Passport Display is set to Progress Ring. Leave a color blank to use the Top Bar color.</small>
 
     <h2>Welcome Screen</h2>
     <label>Theme</label>
     <select data-k="WELCOME_THEME" id="wtSel"></select>
     <label>Welcome Text</label>
     <input data-k="WELCOME_TEXT" placeholder="Welcome to|{PLACE}">
-    <small>{PLACE} is replaced with the place name. Use | to start a new line; the last line is the big one.</small>
-    <label>After the welcome screen</label>
-    <select data-k="INTRO_STYLE"><option value="">Point at places one by one (current)</option><option value="zoom">Zoom in to each place</option><option value="spin">Zoom in and slowly circle each place</option></select>
+    <small>{PLACE} is replaced with the place name. Use | to start a new line. The last line is the big one.</small>
+    <label>After the Welcome Screen</label>
+    <select data-k="INTRO_STYLE"><option value="">Point to Places (Default)</option><option value="zoom">Zoom to Places</option><option value="spin">Zoom and Circle Places</option></select>
     <small>The zoom options are skipped for visitors who have "reduce motion" turned on.</small>
-    <label>Stops featured in the intro</label>
-    <select data-k="INTRO_FEATURES"><option value="">Places only (current)</option><option value="mixed">Places, plus some stories and photo spots</option><option value="spots">Stories and photo spots only</option></select>
+    <label>Stops Featured in the Intro</label>
+    <select data-k="INTRO_FEATURES"><option value="">Parent / Child Markers Only (Default)</option><option value="mixed">Parent / Child With Some Stry / Spot Locations</option><option value="spots">Stories and Spots Only</option></select>
     <label>Intro card position</label>
-    <select data-k="INTRO_CARD"><option value="">Bottom, moving to the top only if it would cover the pin</option><option value="bottom">Always bottom</option><option value="top">Always top (just below the bar)</option></select>
+    <select data-k="INTRO_CARD"><option value="">Bottom, moving to the top only if it would cover the pin</option><option value="bottom">Always on the bottom</option><option value="top">Always on the top (below the Bar)</option></select>
     <small>The card never covers the top bar.</small>
-    <small>Stories and spots only appear in the two zoom options, because they only show once the map is close in. The point-at-places intro always uses places. A spot with no photo is skipped.</small>
+    <small>Stories and Spots only appear in the two zoom options which include them, because they only show once the map is zoomed in. The point-at-places intro always uses places. A Spot with no photo is skipped.</small>
     <img id="wtPrev" alt="Welcome screen preview" style="width:100%;border-radius:10px;margin-top:8px;background:#ddd">
     <small id="wtNote"></small>
 
-    <h2>Start View (drag the red circle)</h2>
-    <label class="chk"><input type="checkbox" data-k="FIT_TO_MARKERS"> Fit to all markers on load (ignores the start view below)</label>
+    <h2>Start View (Move the Red Circle)</h2>
+    <label class="chk"><input type="checkbox" data-k="FIT_TO_MARKERS"> Fit to All Markers (Over-rides Start View)</label>
     <div class="grid">
       <div><label>Latitude</label><input data-k="CENTER_LAT" inputmode="decimal"></div>
       <div><label>Longitude</label><input data-k="CENTER_LNG" inputmode="decimal"></div>
@@ -182,7 +182,7 @@ input[type=range]{padding:0;border:0}
       <button type="button" id="goStart">Go to Start View</button>
     </div>
 
-    <h2>Allowed Area (drag the blue squares)</h2>
+    <h2>Allowed Area (Move the Blue Squares)</h2>
     <div class="grid">
       <div><label>West</label><input data-k="BOUNDS_WEST" inputmode="decimal"></div>
       <div><label>East</label><input data-k="BOUNDS_EAST" inputmode="decimal"></div>
@@ -190,44 +190,44 @@ input[type=range]{padding:0;border:0}
       <div><label>North</label><input data-k="BOUNDS_NORTH" inputmode="decimal"></div>
     </div>
     <div class="row">
-      <button type="button" id="useBounds">Use current map view as area</button>
-      <button type="button" id="zoomBounds">Zoom to area</button>
+      <button type="button" id="useBounds">Use Current Map View</button>
+      <button type="button" id="zoomBounds">Zoom to Area</button>
     </div>
     <div class="grid">
-      <div><label>Min zoom (optional)</label><input data-k="MIN_ZOOM" inputmode="decimal"></div>
-      <div><label>Max zoom (optional)</label><input data-k="MAX_ZOOM" inputmode="decimal"></div>
+      <div><label>Min Zoom (Optional)</label><input data-k="MIN_ZOOM" inputmode="decimal"></div>
+      <div><label>Max Zoom (Optional)</label><input data-k="MAX_ZOOM" inputmode="decimal"></div>
     </div>
-    <small>Visitors can't pan or zoom outside the blue area. Leave zoom limits blank for no limit.</small>
+    <small>Visitors can't pan or zoom outside the blue area, so remember to leave zoom limits blank for no limit and to be generous with your boundaries.</small>
 
     <h2>Passport</h2>
     <label class="chk"><input type="checkbox" data-k="PASSPORT"> Show the History Passport</label>
-    <label class="chk"><input type="checkbox" data-k="PASSPORT_RANKS"> Use stars and ranks</label>
-    <small>Turn ranks off to keep the discovery collection and tasks without any stars. Which categories can earn ranks is set per category in the Places editor.</small>
+    <label class="chk"><input type="checkbox" data-k="PASSPORT_RANKS"> Use Stars and Ranks</label>
+    <small>Turn Ranks off to keep the Discovery Collection and tasks without any Stars. Which Categories can earn ranks is set per Category in the Places Editor.</small>
 
     <h2>Prizes</h2>
-    <label class="chk"><input type="checkbox" data-k="PRIZES"> Show prize progress in the passport</label>
+    <label class="chk"><input type="checkbox" data-k="PRIZES"> Show Prize Progress in the Passport</label>
     <small>When off, the prize section is hidden from visitors and the Prizes tab in the Passport editor is disabled. Prizes are built in the Passport editor.</small>
 
     <h2>Sliders</h2>
-    <label class="chk"><input type="checkbox" data-k="YEAR_SLIDER"> Show the year slider</label>
-    <label class="chk"><input type="checkbox" data-k="OVERLAY_SLIDER"> Show old map overlays and their slider</label>
-    <label class="chk"><input type="checkbox" data-k="AERIAL_BUTTON"> Show the aerial view button</label>
-    <label class="chk"><input type="checkbox" data-k="MAPS_LINK"> Show an "Open in Maps" link on place and spot cards</label>
-    <small>Turning the overlay slider off removes old map overlays from the page completely.</small>
+    <label class="chk"><input type="checkbox" data-k="YEAR_SLIDER"> Show the Year Slider</label>
+    <label class="chk"><input type="checkbox" data-k="OVERLAY_SLIDER"> Show Old Map Olverlays / Opacity Slider</label>
+    <label class="chk"><input type="checkbox" data-k="AERIAL_BUTTON"> Show the Aerial View Button</label>
+    <label class="chk"><input type="checkbox" data-k="MAPS_LINK"> Show an "Open in Maps" Link on Place and Spot Cards</label>
+    <small>Turning the opacity overlay slider off removes old map overlays from the page completely.</small>
 
-    <h2>Event or focus panel</h2>
-    <label>Button text</label>
+    <h2>Event or Focus Panel</h2>
+    <label>Button Text</label>
     <input data-k="EVENT_BUTTON" placeholder="About">
-    <label>Panel title</label>
+    <label>Panel Title</label>
     <input data-k="EVENT_TITLE" placeholder="Fried Chicken Trail">
-    <label>Panel text</label>
+    <label>Panel Text</label>
     <textarea data-k="EVENT_TEXT" placeholder="What is happening, when, and what visitors should look for."></textarea>
     <small>The button only appears when there is a title or text. Press Enter for a new paragraph. {PLACE} is replaced with the place name.</small>
 
     <h2>Phone Settings</h2>
-    <label>Bottom bar shows on</label>
-    <select data-k="BOTTOM_ON"><option value="">Phones only (on computers those buttons move to the top bar)</option><option value="all">Phones and computers</option></select>
-    <small>Choose what goes in the Bottom bar in the layout box under Buttons and Bars. The bottom of a phone is the easiest place to reach with one thumb.</small>
+    <label>Bottom Bar On</label>
+    <select data-k="BOTTOM_ON"><option value="">Phones only (on computers those buttons move to the top bar)</option><option value="all">Phones and Computers</option></select>
+    <small>Choose what goes in the Bottom Bar in the layout box under Buttons and Bars. Remembeer that the bottom of a phone is the easiest place to reach with one thumb.</small>
 
     <div id="warn"></div>
   </aside>
