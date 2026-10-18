@@ -416,7 +416,7 @@ html.settings-loading #tools { visibility: hidden; }
 #panel.grabber { padding-top: 22px; }
 #panel .grab{
   position:absolute;left:50%;top:6px;transform:translateX(-50%);
-  width:44px;height:5px;border-radius:3px;background:#c9c9c9;
+  width:48px;height:5px;border-radius:3px;background:#b3b3b3;
   cursor:grab;touch-action:none;
 }
 #panel .grab:active{cursor:grabbing;background:#999}
@@ -683,6 +683,10 @@ html.bot #spotBox,html.bot #eventBox{bottom:var(--botH,0px)}
 #klegend.lay-in{position:static!important;margin:0!important;transform:none!important}
 html:not(.band) .maplibregl-ctrl-top-right{top:var(--barB,0px)}
 @media (max-width:720px){ html.qwpf #q{flex:1 1 0!important;min-width:110px;max-width:var(--qw-p)} }   /* the phone search width is now a maximum: the box gives up space so buttons stay on the same row */
+#sp-when{display:block;width:max-content;position:relative;z-index:1;margin:-38px 0 10px 10px;padding:3px 12px;border-radius:999px;background:var(--bar,#800000);color:#fff;font-weight:bold;font-size:14px;letter-spacing:.5px;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+#sp-when:empty{display:none}
+#sp-img[hidden] ~ #sp-when{margin:0 0 8px}
+html.paper #panel,html.paper #spotCard,html.paper #eventCard,html.paper #wsBox,html.paper #tourCard{background:#fbf5e6}
 .lay-sp{margin:0 -3px}   /* a Flexible space is empty, so cancel half of the gap on each side of it */
 .kmark.spot{z-index:3}
 .kmark.spot > *{transform:scale(1.7);transition:transform .3s}
@@ -716,8 +720,8 @@ html.fontset h1,html.fontset h2,html.fontset h3,html.fontset #bar h1{font-family
   <div id="spotCard">
     <button id="sp-x" type="button" aria-label="Close">&times;</button>
     <img id="sp-img" alt="" onerror="this.hidden=true">
-    <h2 id="sp-title"></h2>
     <p id="sp-when"><b></b></p>
+    <h2 id="sp-title"></h2>
     <p id="sp-text"></p>
     <small id="sp-credit"></small>
     <a id="sp-maps" class="maps-link" target="_blank" rel="noopener" hidden>Open in Maps</a>
@@ -1268,6 +1272,7 @@ const SETTINGS_READY = (PREVIEW_SETTINGS ? fetch(PREVIEW_SETTINGS) : dataFetch("
       if (fh) document.documentElement.style.setProperty("--font-head", fh);
       if (fb || fh) document.documentElement.classList.add("fontset");
       trackBar();
+      applyTone((S.MAP_TONE || "").toLowerCase());
       if ((S.ZOOM_POS || "").toLowerCase() === "top") { try { map.removeControl(navCtl); map.addControl(navCtl, "top-right"); } catch (e) {} }
       if ((S.LAYOUT_STYLE || "").toLowerCase() === "band") { document.documentElement.classList.add("band"); startBand(); }
     }
@@ -1370,6 +1375,23 @@ function spotAsStop(i){
            d: { BLURB: i.r.BLURB, DETAILS: i.r.DETAILS } };
 }
 
+/* ===== Map style: Standard | Warm | Muted (colors the street map only; aerial photos and old-map overlays stay as they are) ===== */
+function applyTone(tone){
+  const T = { warm: { sat: -0.3, con: -0.05, bmax: 0.97, tint: 0.14 }, muted: { sat: -0.65, con: -0.1, bmax: 1, tint: 0 } }[tone];
+  document.documentElement.classList.toggle("paper", tone === "warm");     // warm also gives the cards a paper color
+  if (!T) return;
+  const go = () => {
+    map.setPaintProperty("osm", "raster-saturation", T.sat);
+    map.setPaintProperty("osm", "raster-contrast", T.con);
+    map.setPaintProperty("osm", "raster-brightness-max", T.bmax);
+    if (T.tint && !map.getLayer("tone")) {
+      map.addSource("tone", { type: "geojson", data: { type: "Feature", geometry: { type: "Polygon", coordinates: [[[-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]]] } } });
+      map.addLayer({ id: "tone", type: "fill", source: "tone", paint: { "fill-color": "#8a5a1f", "fill-opacity": T.tint } });   // a thin sepia wash just above the street map
+    }
+  };
+  if (window.__mapLoaded) go(); else map.once("load", go);
+}
+
 /* ===== Legend placement (it is built after the map loads, so the layout step can only note where it should go) ===== */
 function placeLegend(){
   const L = $("klegend"), z = window.__legendZone;
@@ -1466,6 +1488,7 @@ const map = new maplibregl.Map({
   maxBounds: SITE.maxBounds
 });
 window.map = map;
+map.once("load", () => { window.__mapLoaded = true; });
 
 const spotId = new URLSearchParams(location.search).get("spot");
 const siteId = new URLSearchParams(location.search).get("site");

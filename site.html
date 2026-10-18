@@ -135,6 +135,11 @@ input[type=range]{padding:0;border:0}
     <select data-k="FONT_BODY"><option value="">Standard (Arial)</option><option value="classic">Classic serif (Georgia)</option><option value="book">Book serif (Palatino / Charter)</option><option value="humanist">Friendly sans (Gill Sans / Calibri)</option><option value="typewriter">Typewriter</option></select>
     <small>These use fonts already on the visitor's phone, so nothing extra downloads and they work offline. A phone without the named font shows a similar one, so the look can differ a little between iPhone and Android.</small>
 
+    <h2>Map Style</h2>
+    <label>Street map colors</label>
+    <select data-k="MAP_TONE"><option value="">Standard</option><option value="warm">Warm paper (soft sepia, and the pop-up cards turn cream)</option><option value="muted">Muted (calmer, less color)</option></select>
+    <small>Only the street map changes. Aerial photos and old-map overlays keep their own colors.</small>
+
     <h2>Passport Look</h2>
     <label>Passport display</label>
     <select data-k="PASSPORT_STYLE"><option value="">Button (trophy and count)</option><option value="ring">Progress ring</option></select>
@@ -257,7 +262,7 @@ const DEFAULTS = {
   EVENT_TEXT: "",
   WELCOME_THEME: "",
   WELCOME_TEXT: "Welcome to|{PLACE}",
-  BAR_STYLE: "", SEARCH_WIDTH: "", SEARCH_WIDTH_PHONE: "", BOTTOM_ON: "",
+  BAR_STYLE: "", SEARCH_WIDTH: "", SEARCH_WIDTH_PHONE: "", BOTTOM_ON: "", MAP_TONE: "",
   PASSPORT_STYLE: "", RING_COLOR: "", RING_TRACK: "", RING_TEXT: "", INTRO_STYLE: "", INTRO_FEATURES: "", INTRO_CARD: "", FONT_BODY: "", FONT_HEAD: "",
   LAYOUT_TOP: "", LAYOUT_MORE: "", LAYOUT_OFF: "", LAYOUT_BOTTOM: "", LAYOUT_FLOAT: "", ZOOM_POS: ""
 };
@@ -578,7 +583,7 @@ $('dlBtn').onclick = () => {
     if (n.tagName === 'H2') { cur = { title: n.textContent.trim(), nodes: [n] }; secs.push(cur); } else if (cur) cur.nodes.push(n);
   });
   const GROUPS = [
-    ['Look and Feel', 'The page title, colors and fonts.', ['Page Name and Color', 'Fonts']],
+    ['Look and Feel', 'The page title, colors, fonts and map style.', ['Page Name and Color', 'Fonts', 'Map Style']],
     ['Buttons and Bars', 'Which buttons show, where they sit, and how they look.', ['Bar Layout', 'Passport Look', 'Sliders']],
     ['Opening Intro', 'The welcome screen and what happens right after it.', ['Welcome Screen']],
     ['Map Area', 'Where the map starts and how far visitors can roam.', ['Start View', 'Allowed Area']],
