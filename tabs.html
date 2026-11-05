@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <title>Page Source Editing Hub</title>
-  <script src="workspace.js"></script>
+  <script src="ets-config.js"></script>
+<script src="workspace.js"></script>
   <style>
     body {
       font-family: sans-serif;
@@ -21,6 +22,8 @@
 
     /* Top Tabs Styling */
     .top-tabs {
+      overflow-x: auto;
+      align-items: flex-end;
       display: flex;
       gap: 5px;
       border-bottom: 2px solid #ccc;
@@ -35,6 +38,9 @@
       border-top-left-radius: 4px;
       border-top-right-radius: 4px;
     }
+    .top-tab { white-space: nowrap; flex: 0 0 auto; }
+    .tab-group { align-self: center; flex: 0 0 auto; font-size: 11px; color: #777; text-transform: uppercase; letter-spacing: .04em; padding: 0 4px 0 12px; }
+    .tab-dot { color: #d4351c; margin-left: 5px; }
     .top-tab.active {
       background: #fff;
       font-weight: bold;
@@ -54,7 +60,8 @@
     /* Content Area Styling */
     .content-area {
       position: relative;
-      height: 75vh; /* Adjust height based on your design */
+      height: 75vh;
+      min-height: 420px;
     }
 
     /* Iframe Containers */
@@ -81,19 +88,23 @@
 
   <!-- 1. Top Level Navigation -->
   <div class="top-tabs" role="tablist">
-    <button class="top-tab active" data-target="p1" data-blurb="Change the color and text of the header, the movable map bounds, and the default camera location.">Site Settings</button>
-    <button class="top-tab" data-target="p2" data-blurb="Location and Child Location Markers. Drag pins, edit fields, create new places, and upload photos. This edits locations.csv and childmarkers.csv.">Places</button>
+    <span class="tab-group">Content</span>
+    <button class="top-tab active" data-target="p2" data-blurb="Location and Child Location Markers. Drag pins, edit fields, create new places, and upload photos. This edits locations.csv and childmarkers.csv.">Places</button>
     <button class="top-tab" data-target="p3" data-blurb="Stories and Spots. Create photo spots for before / after shots and add story pins for historical events. This edits spots.csv.">Stories / Spots</button>
-    <button class="top-tab" data-target="p4" data-blurb="Tours and Tour Stops. Biuld tours by adding and editing stops and location order. Edits tours.csv and tourstops.csv">Tours</button>
-    <button class="top-tab" data-target="p5" data-blurb="Boundary Line. Edit the visible city, county, or area boundary line by clicking and draggings, adding, or subtracting points on a map. Edits connersville.geojson.">Boundary Line</button>
-    <button class="top-tab" data-target="p6" data-blurb="Overlay Maps. Align old maps to the current map by resizing, skewing, and rotating them. Edits overlays.json.">Historical Overlay</button>
+    <button class="top-tab" data-target="p4" data-blurb="Tours and Tour Stops. Build tours by adding and editing stops and location order. Edits tours.csv and tourstops.csv">Tours</button>
     <button class="top-tab" data-target="p7" data-blurb="Edit and preview stars, stamps, and tasks in the Passport system. Edits stamps.csv and tasks.csv.">Passport</button>
-    <button class="top-tab" data-target="p8" data-blurb="Edit photos using masks to create short psuedo-3D videos to place in the /anims folder.">2.5D Generator</button>
+    <span class="tab-group">Look</span>
+    <button class="top-tab" data-target="p1" data-blurb="Change the color and text of the header, the movable map bounds, and the default camera location.">Site Settings</button>
+    <button class="top-tab" data-target="p5" data-blurb="Boundary Line. Edit the visible city, county, or area boundary line by clicking and dragging, adding, or subtracting points on a map. Edits border.geojson.">Boundary Line</button>
+    <button class="top-tab" data-target="p6" data-blurb="Overlay Maps. Align old maps to the current map by resizing, skewing, and rotating them. Edits overlays.json.">Historical Overlay</button>
+    <span class="tab-group">Share</span>
     <button class="top-tab" data-target="p9" data-blurb="Events. Save data as an event (a named folder of markers, spots, passport, settings and photos), or apply a saved event to switch what the live page shows.">Events</button>
     <button class="top-tab" data-target="p10" data-blurb="QR codes. Make a printable label for a spot, story, place, event or the whole map: a QR code with a caption, a source line (like County Library), your colors, and an optional picture in the middle. Print one label or a whole sheet.">QR codes</button>
     <button class="top-tab" data-target="p11" data-blurb="Check my data. Scans your files for mistakes that would quietly break the map: missing photos, children with no parent, tours that stop at places that are gone, typos in IDs. It only reads; nothing is changed.">Check</button>
-    <button class="top-tab" data-target="p12" data-blurb="Design and upload images of a building interior.">Building Interior</button>
     <button class="top-tab" data-target="p13" data-blurb="Open the live map to view changes once they are completed and uploaded.">Live View</button>
+    <span class="tab-group">Extras</span>
+    <button class="top-tab" data-target="p8" data-blurb="Edit photos using masks to create short pseudo-3D videos to place in the /anims folder.">2.5D Generator</button>
+    <button class="top-tab" data-target="p12" data-blurb="Design and upload images of a building interior.">Building Interior</button>
     
     <!-- Add tabs identically here -->
   </div>
@@ -108,11 +119,11 @@
   <!-- 3. Embedded Pages (The Progress-Saving Engine) -->
   <div class="content-area">
     
-    <div id="p1" class="page-container active">
+    <div id="p1" class="page-container">
       <iframe src="site.html"></iframe>
     </div>
 
-    <div id="p2" class="page-container">
+    <div id="p2" class="page-container active">
       <iframe src="editor.html"></iframe>
     </div>
 
@@ -157,7 +168,7 @@
     </div>
 
           <div id="p13" class="page-container">
-      <iframe src="Demo2.html"></iframe>
+      <iframe src="Demo2a.html"></iframe>
     </div>
     <!-- Add containers for p4 through p7 identically here -->
 
@@ -170,7 +181,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const blurbText = document.getElementById("dynamic-blurb");
 
   // Keep track of which pages have already been opened/loaded correctly
-  const loadedPages = { p1: true }; 
+  const loadedPages = { p2: true }; 
 
   tabs.forEach(tab => {
     tab.addEventListener("click", () => {
@@ -203,6 +214,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   <script>
 (function () {
+  const LIVE = (window.ETS_CONFIG && window.ETS_CONFIG.LIVE_PAGE) || "Demo2a.html";
   const bar = document.getElementById("wsBar"), text = document.getElementById("wsText"), acts = document.getElementById("wsActions");
   const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   async function eventName(slug) {
@@ -215,7 +227,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const name = await eventName(slug);
       bar.className = "ws-bar event";
       text.innerHTML = "<b>Designing event: " + esc(name) + "</b>. Everything you publish from these tabs goes into <code>events/" + esc(slug) + "/</code>. The live map is not changed.";
-      acts.innerHTML = '<a href="Demo2.html?event=' + encodeURIComponent(slug) + '" target="_blank" rel="noopener">Preview</a><button id="wsLeave" type="button">Back to the live site</button>';
+      acts.innerHTML = '<a href="' + LIVE + '?event=' + encodeURIComponent(slug) + '" target="_blank" rel="noopener">Preview</a><button id="wsLeave" type="button">Back to the live site</button>';
       document.getElementById("wsLeave").onclick = () => { Workspace.set("", true); applyWorkspace(true); };
     } else {
       bar.className = "ws-bar";
@@ -223,7 +235,7 @@ document.addEventListener("DOMContentLoaded", () => {
       acts.innerHTML = "";
     }
     const live = document.querySelector("#p13 iframe");
-    if (live) live.src = slug ? "Demo2.html?event=" + encodeURIComponent(slug) + "&t=" + Date.now() : "Demo2.html";
+    if (live) live.src = slug ? LIVE + "?event=" + encodeURIComponent(slug) + "&t=" + Date.now() : LIVE;
     if (reload) document.querySelectorAll(".page-container iframe").forEach(f => {
       if (f.closest("#p13") || (from && f.contentWindow === from)) return;
       try { f.contentWindow.location.reload(); } catch (e) { f.src = f.getAttribute("src"); }
@@ -231,6 +243,25 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   window.addEventListener("message", e => { if (e.origin === location.origin && e.data && e.data.type === "ets-workspace") applyWorkspace(true, e.source); });
   applyWorkspace(false);
+})();
+  </script>
+
+  <script>
+(function () {
+  const dirtyTabs = new Set();
+  window.ETSHub = { anyDirty: () => dirtyTabs.size > 0 };
+  window.addEventListener("message", e => {
+    if (e.origin !== location.origin || !e.data || e.data.type !== "ets-dirty") return;
+    const fr = [...document.querySelectorAll(".page-container iframe")].find(f => f.contentWindow === e.source);
+    if (!fr) return;
+    const id = fr.closest(".page-container").id;
+    const tab = document.querySelector('.top-tab[data-target="' + id + '"]');
+    if (!tab) return;
+    dirtyTabs[e.data.dirty ? "add" : "delete"](id);
+    let dot = tab.querySelector(".tab-dot");
+    if (e.data.dirty && !dot) { dot = document.createElement("span"); dot.className = "tab-dot"; dot.textContent = "\u25CF"; dot.title = "Unsaved changes"; tab.appendChild(dot); }
+    if (!e.data.dirty && dot) dot.remove();
+  });
 })();
   </script>
 

@@ -879,7 +879,7 @@ async function dataFetch(file, opts) {
   return fetch(file, opts);
 }
 
-const UNLOCKED_KEY = "connersville_unlocked_stamps" + KEY_SUFFIX;
+const UNLOCKED_KEY = "ets_unlocked_stamps" + KEY_SUFFIX;
 
 function getUnlockedStamps() {
   try { return JSON.parse(localStorage.getItem(UNLOCKED_KEY)) || []; } catch { return []; }
@@ -1147,19 +1147,8 @@ const SITE = {
   },
   yearMin: 1850,
   yearMax: 2030,
-  overlays: [
-    {
-      name: "1901 Sanborn Map",
-      url: "1901-connersville-map.jpg",
-      coords: [
-        [-85.145019,39.658842],
-        [-85.120412,39.658842],
-        [-85.120412,39.630195],
-        [-85.145019,39.630195]
-      ]
-    }
-  ],
-  memoryUrl: "mailto:connersville@example.org",
+  overlays: [],
+  memoryUrl: "",
   files: {
     locations: "locations.csv",
     children: "childmarkers.csv",
@@ -2660,9 +2649,9 @@ if (!_q.has("spot") && !_q.has("site")) {
    PASSPORT — stamps & tasks
    ============================================================ */
 (function () {
-  const STAMP_KEY = "connersville_stamps_v2" + KEY_SUFFIX;
+  const STAMP_KEY = "ets_stamps_v2" + KEY_SUFFIX;
   const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const LAST_STARS_KEY = "connersville_last_stars" + KEY_SUFFIX;
+  const LAST_STARS_KEY = "ets_last_stars" + KEY_SUFFIX;
 
   const loadProgress = () => { try { return JSON.parse(localStorage.getItem(STAMP_KEY)) || {}; } catch { return {}; } };
   const saveProgress = p => { try { localStorage.setItem(STAMP_KEY, JSON.stringify(p)); } catch {} };
@@ -2751,7 +2740,7 @@ if (!_q.has("spot") && !_q.has("site")) {
       localStorage.removeItem(STAMP_KEY);
       localStorage.removeItem(UNLOCKED_KEY);
       localStorage.removeItem(LAST_STARS_KEY);
-      localStorage.removeItem("connersville_demo_passport");
+      localStorage.removeItem("ets_demo_passport");
     } catch {}
     qs.delete("resetpassport");
     const rest = qs.toString();
@@ -3385,7 +3374,7 @@ window.toast = toast;
 /* ------------------------------------------------------------
    CHUNK 4 — CATEGORY FILTER CHIPS
    ------------------------------------------------------------ */
-const HIDDEN_CATS_KEY = "connersville_hidden_cats" + (window.KEY_SUFFIX || "");
+const HIDDEN_CATS_KEY = "ets_hidden_cats" + (window.KEY_SUFFIX || "");
 let hiddenCats = new Set();
 try { hiddenCats = new Set(JSON.parse(localStorage.getItem(HIDDEN_CATS_KEY)) || []); } catch {}
 
@@ -3625,7 +3614,7 @@ setTimeout(buildChips, 3000);
       const list = window.__stampsData || [];
       const stamp = list.find(s => String(s.row.STAMP_ID).trim().toLowerCase() === stampId.toLowerCase());
       if (!stamp) return 0;
-      const KEY = "connersville_stamps_v2" + (window.KEY_SUFFIX || "");
+      const KEY = "ets_stamps_v2" + (window.KEY_SUFFIX || "");
       const progress = JSON.parse(localStorage.getItem(KEY)) || {};
       const done = progress._done || {};
       const bucket = progress[String(stamp.row.STAMP_ID).trim()] || {};

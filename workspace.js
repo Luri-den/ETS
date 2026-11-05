@@ -6,7 +6,7 @@
 (function () {
   "use strict";
   const KEY = "ets_workspace";
-  const DATA = ["site.csv","locations.csv","childmarkers.csv","categories.csv","spots.csv","tours.csv","tourstops.csv","stamps.csv","tasks.csv","photos.csv","shapes.csv","overlays.json","connersville.geojson"];
+  const DATA = ["site.csv","locations.csv","childmarkers.csv","categories.csv","spots.csv","tours.csv","tourstops.csv","stamps.csv","tasks.csv","photos.csv","shapes.csv","overlays.json","border.geojson"];
   const ASSET = /^(photos|spots|stories|anims)\//;
   const valid = s => /^[a-z0-9][a-z0-9_-]*$/i.test(s || "") && !["main", "index"].includes(String(s).toLowerCase());
   const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -27,9 +27,11 @@
     const r = rel(p), bare = r.split("?")[0];
     return DATA.includes(bare) || ASSET.test(r) ? dir + r : p;
   };
-  const previewUrl = () => { try { return new URL("Demo2.html?event=" + slug, location.href).href; } catch (e) { return "Demo2.html?event=" + slug; } };
+  const LIVE = () => (window.ETS_CONFIG && window.ETS_CONFIG.LIVE_PAGE) || "Demo2a.html";
+  const previewUrl = () => { try { return new URL(LIVE() + "?event=" + slug, location.href).href; } catch (e) { return LIVE() + "?event=" + slug; } };
 
-  function set(next, quiet) {                                   // switch the whole tab (and every editor in the hub) to an event, or "" for the live site
+  function set(next, quiet) {
+    try { if (!quiet && window.parent !== window && window.parent.ETSHub && window.parent.ETSHub.anyDirty() && !confirm("Some tabs have unsaved changes (marked with a red dot). Switching will discard them. Switch anyway?")) return; } catch (e) {}                                   // switch the whole tab (and every editor in the hub) to an event, or "" for the live site
     try { if (next && valid(next)) sessionStorage.setItem(KEY, next.toLowerCase()); else sessionStorage.removeItem(KEY); } catch (e) {}
     if (quiet) return;
     if (window.parent !== window) { try { window.parent.postMessage({ type: "ets-workspace" }, location.origin); } catch (e) {} }

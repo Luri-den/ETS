@@ -47,6 +47,7 @@ code{background:#eee;padding:1px 4px;border-radius:3px;word-break:break-all}
   @page{margin:12mm}
 }
 </style>
+<script src="ets-config.js"></script>
 </head>
 <body>
 <header><h1>QR Code Labels</h1></header>
@@ -184,7 +185,7 @@ async function loadData(slug){
 }
 
 /* ---------- what the code opens ---------- */
-const defaultBase = () => { try { return new URL("Demo2.html", location.href).href; } catch (e) { return ""; } };
+const defaultBase = () => { try { return new URL(((window.ETS_CONFIG&&window.ETS_CONFIG.LIVE_PAGE)||"Demo2a.html"), location.href).href; } catch (e) { return ""; } };
 function items(){
   const kind = $("kind").value;
   if (kind === "spot") return DATA.spots.map(s => ({ id: s.id, title: s.title || s.id, label: (s.kind === "story" ? "Story: " : "Spot: ") + (s.title || s.id) + " (" + s.id + ")" }));

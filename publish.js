@@ -144,7 +144,7 @@
   /* ---------- Design Event mode: everything goes into events/<name>/ ---------- */
   const WS = () => (window.Workspace && Workspace.current && Workspace.current()) ? { slug: Workspace.current(), dir: "events/" + Workspace.current() + "/" } : null;
   const prefixPath = pth => { const w = WS(); if (!w) return pth; pth = String(pth || "").replace(/^\/+/, ""); return pth.startsWith(w.dir) ? pth : w.dir + pth; };
-  const DATA_FILES = ["site.csv","locations.csv","childmarkers.csv","categories.csv","spots.csv","tours.csv","tourstops.csv","stamps.csv","tasks.csv","photos.csv","shapes.csv","overlays.json","connersville.geojson"];
+  const DATA_FILES = ["site.csv","locations.csv","childmarkers.csv","categories.csv","spots.csv","tours.csv","tourstops.csv","stamps.csv","tasks.csv","photos.csv","shapes.csv","overlays.json","border.geojson"];
   // keep the event's event.json in step: which data files and photo folders it really holds (the map reads only what is listed)
   async function eventInfoUpdate(baseTree, chosen) {
     const w = WS(), path = w.dir + "event.json";
@@ -302,7 +302,7 @@
         $("ghp-m").className = "ghp-msg ok";
         $("ghp-m").innerHTML = "\u2714 Published " + chosen.length + " file" + (chosen.length === 1 ? "" : "s") +
           '. <a href="https://github.com/' + esc(s2.owner) + "/" + esc(s2.repo) + "/commit/" + c.sha + '" target="_blank" rel="noopener">View commit</a>' +
-          (WS() ? '<br>Saved into the event. The live map is unchanged. <a href="' + esc(new URL("Demo2.html?event=" + WS().slug, location.href).href) + '" target="_blank" rel="noopener">Preview the event</a> (it can take a minute to appear).' : "<br>The live site updates in about a minute.");
+          (WS() ? '<br>Saved into the event. The live map is unchanged. <a href="' + esc(new URL(((window.ETS_CONFIG&&window.ETS_CONFIG.LIVE_PAGE)||"Demo2a.html") + "?event=" + WS().slug, location.href).href) + '" target="_blank" rel="noopener">Preview the event</a> (it can take a minute to appear).' : "<br>The live site updates in about a minute.");
         $("ghp-cancel").textContent = "Close"; $("ghp-cancel").disabled = false;
         if (opts.onPublished) { try { opts.onPublished(chosen); } catch (e) {} }
       } catch (e) {

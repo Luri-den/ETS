@@ -1,7 +1,7 @@
 {
   "name": "Explore Franklin County",
   "short_name": "Franklin County",
-  "start_url": "Demo2.html",
+  "start_url": "Demo2a.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f4f1e8",

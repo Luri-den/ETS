@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Map Overlay Editor</title>
+<script src="ets-config.js"></script>
 <script src="workspace.js"></script>
+<script src="editor-common.js"></script>
 <script>Workspace.block('The old-map overlays are shared by every event. Go back to the live site to edit them.');</script>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <style>
@@ -186,9 +188,10 @@ const map = new maplibregl.Map({
     },
     layers: [{ id:"osm", type:"raster", source:"osm" }]
   },
-  center: [-85.13889, 39.64753],
-  zoom: 14
+  center: [-98.5795, 39.8283],
+  zoom: 4
 });
+if (window.ETSCommon) ETSCommon.applySiteView(map);
 map.addControl(new maplibregl.NavigationControl({ showCompass:false }), "bottom-right");
 map.addControl(new maplibregl.ScaleControl(), "bottom-left");
 
@@ -584,7 +587,7 @@ function renderForm(){
       <div class="field">
         <label>Image URL (relative to site root)</label>
         <input type="text" id="f-url" value="${esc(o.url)}">
-        <div class="sub">e.g. <code>1901-connersville-map.jpg</code></div>
+        <div class="sub">e.g. <code>1901-map.jpg</code></div>
       </div>
 
       <div class="preview">

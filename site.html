@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Site Settings Editor</title>
+<script src="ets-config.js"></script>
 <script src="workspace.js"></script>
+<script src="editor-common.js"></script>
 <script>Workspace.install();</script>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <style>
@@ -95,7 +97,7 @@ input[type=range]{padding:0;border:0}
     <div id="pvTab"></div>
 
     <label>Place Name</label>
-    <input data-k="PLACE" placeholder="Connersville">
+    <input data-k="PLACE" placeholder="Your town or county">
     <label>Top Bar Text</label>
     <input data-k="HEADER">
     <small>{PLACE} is replaced with the place name above.</small>
@@ -241,12 +243,12 @@ const $ = id => document.getElementById(id);
 const status = t => $('status').textContent = t;
 
 const DEFAULTS = {
-  PLACE: "Connersville",
+  PLACE: "Your Area",
   HEADER: "Discover {PLACE}'s Past",
   TAB_TITLE: "Explore {PLACE}'s Past",
   BAR_COLOR: "#E47303",
-  CENTER_LAT: "39.647531", CENTER_LNG: "-85.138892", ZOOM: "14",
-  BOUNDS_WEST: "-85.4", BOUNDS_SOUTH: "39.45", BOUNDS_EAST: "-84.95", BOUNDS_NORTH: "39.8",
+  CENTER_LAT: "39.8283", CENTER_LNG: "-98.5795", ZOOM: "4",
+  BOUNDS_WEST: "-125", BOUNDS_SOUTH: "24", BOUNDS_EAST: "-66", BOUNDS_NORTH: "50",
   MIN_ZOOM: "", MAX_ZOOM: "",
   FIT_TO_MARKERS: "yes",
   PASSPORT: "yes",
@@ -294,7 +296,7 @@ const map = new maplibregl.Map({
     sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19, attribution: '&copy; OpenStreetMap contributors' } },
     layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
   },
-  center: [-85.139, 39.6475], zoom: 11
+  center: [-98.5795, 39.8283], zoom: 4
 });
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
@@ -606,7 +608,7 @@ $('dlBtn').onclick = () => {
 })();
 
 /* ---------- live preview of the real page, using the settings as they are right now ---------- */
-const PREVIEW_PAGE = 'Demo2.html';
+const PREVIEW_PAGE = ((window.ETS_CONFIG&&window.ETS_CONFIG.LIVE_PAGE)||"Demo2a.html");
 const PV_SIZE = { phone: [390, 780], desk: [1280, 800] };
 let pvMode = '', pvTimer = null, pvBlob = '';
 function settingsCsv() {

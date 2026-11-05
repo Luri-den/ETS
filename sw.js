@@ -1,12 +1,12 @@
-/* Connersville history map — offline cache worker */
+/* History map — offline cache worker */
 
-const VERSION = "v1-2026-10";
+const VERSION = "v2-2026-11";
 const SHELL_CACHE = "shell-" + VERSION;
 const TILE_CACHE  = "tiles-" + VERSION;
 
 const SHELL = [
   "./",
-  "Demo2.html",
+  "Demo2a.html", "Demo2.html",
   "welcome-themes.js", "marker-shapes.js", "marker-fill.js",
   "schedule.js", "icons.js"
 ];

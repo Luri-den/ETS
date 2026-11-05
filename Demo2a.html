@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="en" class="settings-loading">
 <head>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#800000">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Explore Franklin County</title>
@@ -820,7 +823,7 @@ async function dataFetch(file, opts) {
   return fetch(file, opts);
 }
 
-const UNLOCKED_KEY = "connersville_unlocked_stamps" + KEY_SUFFIX;
+const UNLOCKED_KEY = "ets_unlocked_stamps" + KEY_SUFFIX;
 
 function getUnlockedStamps() {
   try { return JSON.parse(localStorage.getItem(UNLOCKED_KEY)) || []; } catch { return []; }
@@ -1028,9 +1031,9 @@ function startWelcome(featuredId){
    SITE SETTINGS
    ============================================================ */
 const SITE = {
-  center: [-85.13889209220456, 39.64753066097082],
-  zoom: 14,
-  maxBounds: [[-85.40,39.45],[-84.95,39.80]],
+  center: [-98.5795, 39.8283],
+  zoom: 4,
+  maxBounds: [[-180,-85],[180,85]],
   childZoom: 16,
   colors: {
     IND:"#AF350A", CIV:"#E2E1E0",
@@ -1040,23 +1043,12 @@ const SITE = {
   },
   yearMin: 1850,
   yearMax: 2030,
-  overlays: [
-    {
-      name: "1901 Sanborn Map",
-      url: "1901-connersville-map.jpg",
-      coords: [
-        [-85.145019,39.658842],
-        [-85.120412,39.658842],
-        [-85.120412,39.630195],
-        [-85.145019,39.630195]
-      ]
-    }
-  ],
-  memoryUrl: "mailto:connersville@example.org",
+  overlays: [],
+  memoryUrl: "",
   files: {
     locations: "locations.csv",
     children: "childmarkers.csv",
-    boundary: "connersville.geojson"
+    boundary: "border.geojson"
   }
 };
 window.SITE = SITE;
@@ -2365,9 +2357,9 @@ if (!_q.has("spot") && !_q.has("site")) {
    PASSPORT — stamps & tasks
    ============================================================ */
 (function () {
-  const STAMP_KEY = "connersville_stamps_v2" + KEY_SUFFIX;
+  const STAMP_KEY = "ets_stamps_v2" + KEY_SUFFIX;
   const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const LAST_STARS_KEY = "connersville_last_stars" + KEY_SUFFIX;
+  const LAST_STARS_KEY = "ets_last_stars" + KEY_SUFFIX;
 
   const loadProgress = () => { try { return JSON.parse(localStorage.getItem(STAMP_KEY)) || {}; } catch { return {}; } };
   const saveProgress = p => { try { localStorage.setItem(STAMP_KEY, JSON.stringify(p)); } catch {} };
@@ -2456,7 +2448,7 @@ if (!_q.has("spot") && !_q.has("site")) {
       localStorage.removeItem(STAMP_KEY);
       localStorage.removeItem(UNLOCKED_KEY);
       localStorage.removeItem(LAST_STARS_KEY);
-      localStorage.removeItem("connersville_demo_passport");
+      localStorage.removeItem("ets_demo_passport");
     } catch {}
     qs.delete("resetpassport");
     const rest = qs.toString();
@@ -3090,7 +3082,7 @@ window.toast = toast;
 /* ------------------------------------------------------------
    CHUNK 4 — CATEGORY FILTER CHIPS
    ------------------------------------------------------------ */
-const HIDDEN_CATS_KEY = "connersville_hidden_cats" + (window.KEY_SUFFIX || "");
+const HIDDEN_CATS_KEY = "ets_hidden_cats" + (window.KEY_SUFFIX || "");
 let hiddenCats = new Set();
 try { hiddenCats = new Set(JSON.parse(localStorage.getItem(HIDDEN_CATS_KEY)) || []); } catch {}
 
@@ -3206,7 +3198,7 @@ setTimeout(buildChips, 3000);
         if (!id) return;
         const url = location.origin + location.pathname + "?place=" + encodeURIComponent(id);
         try {
-          if (navigator.share) await navigator.share({ title: "Connersville history", url });
+          if (navigator.share) await navigator.share({ title: document.title, url });
           else { await navigator.clipboard.writeText(url); toast("Link copied"); }
         } catch(e){ prompt("Copy this link:", url); }
       };
@@ -3330,7 +3322,7 @@ setTimeout(buildChips, 3000);
       const list = window.__stampsData || [];
       const stamp = list.find(s => String(s.row.STAMP_ID).trim().toLowerCase() === stampId.toLowerCase());
       if (!stamp) return 0;
-      const KEY = "connersville_stamps_v2" + (window.KEY_SUFFIX || "");
+      const KEY = "ets_stamps_v2" + (window.KEY_SUFFIX || "");
       const progress = JSON.parse(localStorage.getItem(KEY)) || {};
       const done = progress._done || {};
       const bucket = progress[String(stamp.row.STAMP_ID).trim()] || {};

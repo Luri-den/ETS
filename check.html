@@ -53,6 +53,7 @@ code{background:#eee;padding:1px 4px;border-radius:3px}
 <script src="welcome-themes.js"></script>
 <script src="schedule.js"></script>
 <script src="marker-fill.js"></script>
+<script src="ets-config.js"></script>
 <script src="workspace.js"></script>
 <script>
 const $ = id => document.getElementById(id);
@@ -399,8 +400,8 @@ async function runOnce(){
     });
   }
   if (!S.WELCOME_THEME) fileJobs.push({ section: "Setup", ref: "welcome1.gif", path: "welcome1.gif", what: "welcome picture", sev: "warn", fix: "Upload welcome1.gif, or pick an animated theme in the Settings editor." });
-  fileJobs.push({ section: "Setup", ref: "connersville.geojson", path: "connersville.geojson", what: "town outline", sev: "warn", fix: "Upload it, or the outline is not drawn." });
-  ["Demo2.html","icons.js","marker-shapes.js","welcome-themes.js"].forEach(f => fileJobs.push({ section: "Setup", ref: f, path: f, what: "page file", sev: "problem", fix: "Upload " + f + " to the top folder of the site." }));
+  fileJobs.push({ section: "Setup", ref: "border.geojson", path: "border.geojson", what: "boundary outline", sev: "warn", fix: "Upload it, or the outline is not drawn." });
+  [((window.ETS_CONFIG&&window.ETS_CONFIG.LIVE_PAGE)||"Demo2a.html"),"icons.js","marker-shapes.js","welcome-themes.js"].forEach(f => fileJobs.push({ section: "Setup", ref: f, path: f, what: "page file", sev: "problem", fix: "Upload " + f + " to the top folder of the site." }));
   if (!evSlug) {
     const ix = await tryFetch("events/index.json");
     if (ix && ix.ok) { try {

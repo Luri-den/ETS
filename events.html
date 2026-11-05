@@ -46,7 +46,7 @@ code{background:#eee;padding:1px 4px;border-radius:3px}
 <main>
   <p class="intro">An event is a saved copy of the site's data (and, if you want, its photos) kept in <code>events / event-name /</code> in your repository.
   <b>Applying</b> an event copies it over the live site, so visitors see that event's markers, spots, passport, and settings.
-  Each event also gets its own link (<code>Demo2.html?event=name</code>), and events you mark for the switcher appear in the About panel on the map so guests can move between them.
+  Each event also gets its own link (<code>?event=name</code> added to the live page address), and events you mark for the switcher appear in the About panel on the map so guests can move between them.
   GitHub copies files it already has, so nothing is uploaded and nothing is stored twice.</p>
   <div id="status" class="msg">Reading the repository&hellip;</div>
 
@@ -54,7 +54,7 @@ code{background:#eee;padding:1px 4px;border-radius:3px}
   <p class="intro">Build an event in the other tabs <b>without changing the live map</b>. The editors switch to the event's own folder, a red frame and a banner remind you where you are, and nothing is visible to visitors until you add the event to the switcher or give it dates.</p>
   <div class="cols">
     <div><label for="dnName">Event name</label><input type="text" id="dnName" placeholder="Fried Chicken Trail"><div class="sz" id="dnSlug"></div></div>
-    <div><label for="dnFrom">Start from</label><select id="dnFrom"></select></div>
+    <div><label for="dnFrom">Start from</label><select id="dnFrom"></select><div class="sz" id="dnHint"></div></div>
   </div>
   <div style="margin-top:10px"><button class="go" id="dnBtn" type="button" disabled>Create the event and start designing</button></div>
 
@@ -81,10 +81,11 @@ code{background:#eee;padding:1px 4px;border-radius:3px}
 </main>
 <script src="publish.js"></script>
 <script src="schedule.js"></script>
+<script src="ets-config.js"></script>
 <script src="workspace.js"></script>
 <script>
 const $ = id => document.getElementById(id);
-const DATA = ["site.csv","locations.csv","childmarkers.csv","categories.csv","spots.csv","tours.csv","tourstops.csv","stamps.csv","tasks.csv","prizes.csv","photos.csv","shapes.csv","overlays.json","connersville.geojson"];
+const DATA = ["site.csv","locations.csv","childmarkers.csv","categories.csv","spots.csv","tours.csv","tourstops.csv","stamps.csv","tasks.csv","prizes.csv","photos.csv","shapes.csv","overlays.json","border.geojson"];
 const FOLDERS = ["photos","spots","stories","anims"];
 const SKEY = "ghpublish.settings.v1", TKEY = "ghpublish.token.v1";   // same storage as the editors' Publish button
 
@@ -266,7 +267,7 @@ function renderList() {
     const slug = card.dataset.slug;
     card.querySelector(".ap").onclick = () => openApply(card, slug);
     card.querySelector(".sch").onclick = () => openSchedule(card, slug);
-    card.querySelector(".pv").onclick = () => window.open(new URL("Demo2.html?event=" + encodeURIComponent(slug), location.href).href, "_blank");
+    card.querySelector(".pv").onclick = () => window.open(new URL(((window.ETS_CONFIG&&window.ETS_CONFIG.LIVE_PAGE)||"Demo2a.html") + "?event=" + encodeURIComponent(slug), location.href).href, "_blank");
     const dsg = card.querySelector(".dsg"), dsgOff = card.querySelector(".dsg-off");
     if (dsg) dsg.onclick = () => {
       if (!confirm('Design "' + ((meta[slug] && meta[slug].name) || slug) + '"? The editor tabs will reload and switch to this event. Save or publish anything unsaved in them first.')) return;
@@ -275,7 +276,7 @@ function renderList() {
     };
     if (dsgOff) dsgOff.onclick = () => { Workspace.set(""); renderList(); say("Back on the live site. The editor tabs now publish to the live map again.", "ok"); };
     card.querySelector(".cp").onclick = async () => {
-      const url = new URL("Demo2.html?event=" + encodeURIComponent(slug), location.href).href;
+      const url = new URL(((window.ETS_CONFIG&&window.ETS_CONFIG.LIVE_PAGE)||"Demo2a.html") + "?event=" + encodeURIComponent(slug), location.href).href;
       try { await navigator.clipboard.writeText(url); say("Copied this link: <code>" + esc(url) + "</code> (good for a QR code)", "ok"); }
       catch (e) { say("Link for this event: <code>" + esc(url) + "</code>", "ok"); }
     };
@@ -368,7 +369,7 @@ function openApply(card, slug) {
 /* ---------- design an event: make its folder, then switch the editors to it ---------- */
 function fillDesignFrom() {
   const sel = $("dnFrom"), keep = sel.value;
-  sel.innerHTML = '<option value="live">A copy of the live site (markers, spots, photos, everything)</option><option value="settings">Just the settings and categories (a fresh start)</option>' +
+  sel.innerHTML = '<option value="live">A copy of the live site (markers, spots, photos, everything)</option><option value="blank">A blank page for a new town or county (starts empty, nothing from the live site)</option><option value="settings">Just the settings and categories (a fresh start)</option>' +
     eventSlugs().map(s => '<option value="event:' + esc(s) + '">A copy of the event: ' + esc((meta[s] && meta[s].name) || s) + "</option>").join("");
   if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
 }
@@ -379,6 +380,30 @@ function updateDesign() {
   $("dnBtn").disabled = !slug || !!bad || !tree.size;
 }
 $("dnName").addEventListener("input", updateDesign);
+$("dnFrom").addEventListener("change", () => { $("dnHint").textContent = $("dnFrom").value === "blank" ? "Type the town or county name above (for example, Wayne County). It becomes the page title. Its page address will be the live page followed by ?event=that-name." : ""; });
+const BLANK_HEADERS = {
+  "locations.csv": "ID,NAME,EST.,LAT,LONG,DETAILS,CATEGORY,USER NOTE,MAJOR,RADIUS,PHOTO",
+  "childmarkers.csv": "CHILD_ID,PARENT_ID,NAME,HIST_NAMES,ADDRESS,DETAILS,LAT,LONG,CONNECTION,CATEGORY,MAJOR,RADIUS,PHOTO",
+  "spots.csv": "SPOT_ID,TITLE,LAT,LONG,YEAR,PHOTO,DETAILS,BLURB,INTRO,CREDIT,KIND,CATEGORY,SERIES,ORDER,SOURCE,STAFF_NOTE,ICON,ICON_COLOR,EFFECT",
+  "tours.csv": "TOUR_ID,TITLE,INTRO,CATEGORY",
+  "tourstops.csv": "TOUR_ID,STEP,ITEM_ID,NOTE,VEHICLE",
+  "stamps.csv": "STAMP_ID,TITLE,VEHICLE,CATEGORY,STAR1,STAR2,STAR3,RANK1,RANK2,RANK3,GRAND_RANK,TASKS",
+  "tasks.csv": "TASK_ID,LABEL,HINT,BTN,SCOPE,TARGET,COUNT",
+  "prizes.csv": "PRIZE_ID,LABEL,REQUIRED_STAMPS,REWARD,VENDOR_CODE,REQUIREMENTS,CODE,ORDER",
+  "photos.csv": "ITEM_ID,ORDER,PATH,CAPTION,CREDIT"
+};
+const csvq = t => /[",\r\n]/.test(t) ? '"' + String(t).replace(/"/g, '""') + '"' : String(t);
+// use the live file's own header row when there is one, so a blank page always matches what the editors write
+async function headerOf(file) {
+  const e = tree.get(file);
+  if (e) { try { const b = await api("/git/blobs/" + e.sha); const txt = new TextDecoder().decode(Uint8Array.from(atob(b.content.replace(/\s/g, "")), c => c.charCodeAt(0))); const line = txt.replace(/^\uFEFF/, "").split(/\r?\n/)[0]; if (line.trim()) return line; } catch (x) {} }
+  return BLANK_HEADERS[file];
+}
+const blobOf = async text => (await api("/git/blobs", "POST", { content: text, encoding: "utf-8" })).sha;
+const starterSite = place => ["KEY,VALUE", "PLACE," + csvq(place), "HEADER,Explore {PLACE}", "TAB_TITLE,Explore {PLACE}", "BAR_COLOR,#1f6f8b",
+  "CENTER_LAT,39.8283", "CENTER_LNG,-98.5795", "ZOOM,4", "BOUNDS_WEST,-125", "BOUNDS_SOUTH,24", "BOUNDS_EAST,-66", "BOUNDS_NORTH,50",
+  "FIT_TO_MARKERS,yes", "PASSPORT,no", "PASSPORT_RANKS,no", "PRIZES,no", "YEAR_SLIDER,no", "OVERLAY_SLIDER,no", "AERIAL_BUTTON,yes", "MAPS_LINK,yes",
+  "WELCOME_TEXT,Welcome to|{PLACE}"].join("\r\n") + "\r\n";
 // GitHub Pages needs about a minute to publish a new folder. Switching the editors before then would show them empty files.
 async function waitForSite(slug) {
   for (let i = 0; i < 45; i++) {
@@ -390,13 +415,20 @@ async function waitForSite(slug) {
 }
 $("dnBtn").onclick = async () => {
   const name = $("dnName").value.trim(), slug = slugify(name), from = $("dnFrom").value, prefix = "events/" + slug + "/";
-  if (!confirm('Create "' + name + '" and switch the editor tabs to it? They will reload, so save or publish anything unsaved in them first.')) return;
+  if (!confirm((from === "blank" ? 'Create a blank page for "' + name + '" and switch the editor tabs to it?' : 'Create "' + name + '" and switch the editor tabs to it?') + ' They will reload, so save or publish anything unsaved in them first.')) return;
   $("dnBtn").disabled = true;
   try {
     say("Creating the event&hellip;");
     const writes = [];
     let data = [], folders = [];
-    if (from.startsWith("event:")) {
+    if (from === "blank") {
+      const files = { "site.csv": starterSite(name), "categories.csv": "CODE,LABEL,COLOR,ICON,RANKED,SHAPE,FILL,FILL_COLOR,FILL_COLOR2\r\nGEN,Places,#1f6f8b,house,no,circle,,,\r\n",
+        "overlays.json": "[]", "border.geojson": '{"type":"FeatureCollection","features":[]}' };
+      for (const f of Object.keys(BLANK_HEADERS)) files[f] = (await headerOf(f)) + "\r\n";
+      for (const [f, text] of Object.entries(files)) writes.push({ path: prefix + f, mode: "100644", type: "blob", sha: await blobOf(text) });
+      data = Object.keys(files);
+      if (tree.has("shapes.csv")) { const e = tree.get("shapes.csv"); writes.push({ path: prefix + "shapes.csv", mode: e.mode, type: "blob", sha: e.sha }); data.push("shapes.csv"); }
+    } else if (from.startsWith("event:")) {
       const src = from.slice(6), sp = "events/" + src + "/";
       for (const [p, e] of eventFiles(src)) writes.push({ path: prefix + p.slice(sp.length), mode: e.mode, type: "blob", sha: e.sha });
       const m = meta[src] || {};

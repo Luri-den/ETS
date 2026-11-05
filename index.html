@@ -493,7 +493,7 @@ const key = s => String(s || "").trim().toLowerCase();
    PASSPORT & ACHIEVEMENTS SYSTEM (visit tracker)
    ============================================================ */
 
-const UNLOCKED_KEY = "connersville_unlocked_stamps";
+const UNLOCKED_KEY = "ets_unlocked_stamps";
 
 function getUnlockedStamps() {
   try {
@@ -732,9 +732,9 @@ function startWelcome(featuredId){
    ============================================================ */
 
 const SITE = {
-  center: [-85.13889209220456, 39.64753066097082],
-  zoom: 14,
-  maxBounds: [[-85.40,39.45],[-84.95,39.80]],
+  center: [-98.5795, 39.8283],
+  zoom: 4,
+  maxBounds: [[-180,-85],[180,85]],
   childZoom: 16,
   colors: {
     IND:"#AF350A", CIV:"#E2E1E0",
@@ -744,19 +744,8 @@ const SITE = {
   },
   yearMin: 1850,
   yearMax: 2030,
-  overlays: [
-    {
-      name: "1901 Sanborn Map",
-      url: "1901-connersville-map.jpg",
-      coords: [
-        [-85.145019,39.658842],
-        [-85.120412,39.658842],
-        [-85.120412,39.630195],
-        [-85.145019,39.630195]
-      ]
-    }
-  ],
-  memoryUrl: "mailto:connersville@example.org",
+  overlays: [],
+  memoryUrl: "",
   files: {
     locations: "locations.csv",
     children: "childmarkers.csv",
@@ -2176,9 +2165,9 @@ $("res").onclick = e => {
    ============================================================ */
 (function () {
 
-  const STAMP_KEY = "connersville_stamps_v2";
+  const STAMP_KEY = "ets_stamps_v2";
   const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const LAST_STARS_KEY = "connersville_last_stars";
+  const LAST_STARS_KEY = "ets_last_stars";
 
   const loadProgress = () => { try { return JSON.parse(localStorage.getItem(STAMP_KEY)) || {}; } catch { return {}; } };
   const saveProgress = p => { try { localStorage.setItem(STAMP_KEY, JSON.stringify(p)); } catch {} };
@@ -2279,7 +2268,7 @@ $("res").onclick = e => {
       localStorage.removeItem(STAMP_KEY);
       localStorage.removeItem(UNLOCKED_KEY);
       localStorage.removeItem(LAST_STARS_KEY);
-      localStorage.removeItem("connersville_demo_passport");
+      localStorage.removeItem("ets_demo_passport");
     } catch {}
     qs.delete("resetpassport");
     const rest = qs.toString();
@@ -2745,7 +2734,7 @@ function dismiss(replay){
 })();
 
 /* ============================================================
-   SITE QR LINKS  (?site=CV-005 opens that place and lights its stamp)
+   SITE QR LINKS  (?site=ID opens that place and lights its stamp)
    ============================================================ */
 (function () {
   const sid = new URLSearchParams(location.search).get("site");

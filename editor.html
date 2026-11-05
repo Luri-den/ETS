@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Places Editor</title>
+<script src="ets-config.js"></script>
 <script src="workspace.js"></script>
+<script src="editor-common.js"></script>
 <script>Workspace.install();</script>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <style>
@@ -320,9 +322,10 @@ const map = new maplibregl.Map({
     },
     layers: [{ id:"osm", type:"raster", source:"osm" }]
   },
-  center: [-85.13889, 39.64753],
-  zoom: 14
+  center: [-98.5795, 39.8283],
+  zoom: 4
 });
+if (window.ETSCommon) ETSCommon.applySiteView(map);
 map.addControl(new maplibregl.NavigationControl({ showCompass:false }), "bottom-right");
 map.addControl(new maplibregl.ScaleControl(), "bottom-left");
 
@@ -454,12 +457,16 @@ function linkChildren(){
 }
 
 function nextParentId(){
+  const counts = {};
+  parents.forEach(p => { const m = /^([A-Za-z]+)-\d+$/.exec(String(p.row.ID||"").trim()); if (m) counts[m[1].toUpperCase()] = (counts[m[1].toUpperCase()]||0) + 1; });
+  const top = Object.entries(counts).sort((a,b) => b[1]-a[1])[0];
+  const prefix = top ? top[0] : "LOC";
   const nums = parents
-    .map(p => /^CV-(\d+)$/i.exec(String(p.row.ID||"").trim()))
+    .map(p => new RegExp("^" + prefix + "-(\\d+)$", "i").exec(String(p.row.ID||"").trim()))
     .filter(Boolean)
     .map(m => +m[1]);
   const n = (nums.length ? Math.max(...nums) : 0) + 1;
-  return "CV-" + String(n).padStart(3, "0");
+  return prefix + "-" + String(n).padStart(3, "0");
 }
 
 function nextChildId(parentId){
@@ -718,7 +725,7 @@ function renderParentForm(box, p){
         <label>Passport</label>
         <label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:normal;color:var(--ink)"><input type="checkbox" id="f-MAJOR" ${isYes(r.MAJOR) ? "checked" : ""}> Major site (listed in the passport collection)</label>
         <div class="pair" style="margin-top:6px"><div><label>Check-in radius (m)</label><input type="text" id="f-RADIUS" value="${esc(r.RADIUS||"")}" placeholder="50"></div><div></div></div>
-        <div class="sub">QR link for this place: <code>Demo2.html?site=${esc(r.ID||"")}</code></div>
+        <div class="sub">QR link for this place: <code>${((window.ETS_CONFIG&&window.ETS_CONFIG.LIVE_PAGE)||"Demo2a.html")}?site=${esc(r.ID||"")}</code></div>
       </div>
 
       <div class="field">
@@ -893,7 +900,7 @@ function renderChildForm(box, c){
         <label>Passport</label>
         <label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:normal;color:var(--ink)"><input type="checkbox" id="f-MAJOR" ${isYes(r.MAJOR) ? "checked" : ""}> Major site (listed in the passport collection)</label>
         <div class="pair" style="margin-top:6px"><div><label>Check-in radius (m)</label><input type="text" id="f-RADIUS" value="${esc(r.RADIUS||"")}" placeholder="50"></div><div></div></div>
-        <div class="sub">QR link for this place: <code>Demo2.html?site=${esc(r.CHILD_ID||"")}</code></div>
+        <div class="sub">QR link for this place: <code>${((window.ETS_CONFIG&&window.ETS_CONFIG.LIVE_PAGE)||"Demo2a.html")}?site=${esc(r.CHILD_ID||"")}</code></div>
       </div>
 
       <div class="field">
