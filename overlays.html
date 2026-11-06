@@ -729,12 +729,7 @@ $("addOverlay").onclick = () => {
   const o = {
     name: "New Overlay",
     url: "",
-    coords: [
-      [-85.145019, 39.658842],
-      [-85.120412, 39.658842],
-      [-85.120412, 39.630195],
-      [-85.145019, 39.630195]
-    ]
+    coords: (() => { const b = map.getBounds(), dx = (b.getEast() - b.getWest()) * 0.25, dy = (b.getNorth() - b.getSouth()) * 0.25; return [[b.getWest() + dx, b.getNorth() - dy], [b.getEast() - dx, b.getNorth() - dy], [b.getEast() - dx, b.getSouth() + dy], [b.getWest() + dx, b.getSouth() + dy]]; })()
   };
   overlays.push(o);
   $("publishBtn").disabled = false;

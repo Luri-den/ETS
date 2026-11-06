@@ -113,7 +113,7 @@ async function api(path, method, body) {
 }
 
 async function load() {
-  if (!token()) { say("No GitHub token saved yet. Click <b>&#9881; GitHub settings</b> and add one (the same one the editors' Publish button uses)."); return; }
+  if (!token() || !settings().owner || !settings().repo) { say("GitHub is not set up yet. Click <b>&#9881; GitHub settings</b> and enter your GitHub username, the repository name, and a token (the same ones the editors' Publish button uses)."); return; }
   say("Reading the repository&hellip;");
   try {
     const s = settings();
@@ -382,14 +382,14 @@ function updateDesign() {
 $("dnName").addEventListener("input", updateDesign);
 $("dnFrom").addEventListener("change", () => { $("dnHint").textContent = $("dnFrom").value === "blank" ? "Type the town or county name above (for example, Wayne County). It becomes the page title. Its page address will be the live page followed by ?event=that-name." : ""; });
 const BLANK_HEADERS = {
-  "locations.csv": "ID,NAME,EST.,LAT,LONG,DETAILS,CATEGORY,USER NOTE,MAJOR,RADIUS,PHOTO",
-  "childmarkers.csv": "CHILD_ID,PARENT_ID,NAME,HIST_NAMES,ADDRESS,DETAILS,LAT,LONG,CONNECTION,CATEGORY,MAJOR,RADIUS,PHOTO",
+  "locations.csv": "ID,NAME,EST.,LAT,LONG,DETAILS,BLURB,CATEGORY,MAJOR,RADIUS,PHOTO",
+  "childmarkers.csv": "CHILD_ID,PARENT_ID,NAME,HIST_NAMES,ADDRESS,DETAILS,BLURB,LAT,LONG,CONNECTION,CATEGORY,MAJOR,RADIUS,PHOTO",
   "spots.csv": "SPOT_ID,TITLE,LAT,LONG,YEAR,PHOTO,DETAILS,BLURB,INTRO,CREDIT,KIND,CATEGORY,SERIES,ORDER,SOURCE,STAFF_NOTE,ICON,ICON_COLOR,EFFECT",
   "tours.csv": "TOUR_ID,TITLE,INTRO,CATEGORY",
   "tourstops.csv": "TOUR_ID,STEP,ITEM_ID,NOTE,VEHICLE",
   "stamps.csv": "STAMP_ID,TITLE,VEHICLE,CATEGORY,STAR1,STAR2,STAR3,RANK1,RANK2,RANK3,GRAND_RANK,TASKS",
   "tasks.csv": "TASK_ID,LABEL,HINT,BTN,SCOPE,TARGET,COUNT",
-  "prizes.csv": "PRIZE_ID,LABEL,REQUIRED_STAMPS,REWARD,VENDOR_CODE,REQUIREMENTS,CODE,ORDER",
+  "prizes.csv": "PRIZE_ID,LABEL,REQUIREMENTS,REWARD,CODE,ORDER",
   "photos.csv": "ITEM_ID,ORDER,PATH,CAPTION,CREDIT"
 };
 const csvq = t => /[",\r\n]/.test(t) ? '"' + String(t).replace(/"/g, '""') + '"' : String(t);

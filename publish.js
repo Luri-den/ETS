@@ -331,7 +331,7 @@
 
     gear.onclick = () => settingsDialog();
     btn.onclick = async () => {
-      if (!getToken()) { settingsDialog(() => btn.click()); return; }
+      if (!getToken() || !settings().owner || !settings().repo) { settingsDialog(() => btn.click()); return; }
       btn.disabled = true;
       try { reviewDialog(ids.length ? await capture(ids) : [], opts); }
       finally { btn.disabled = false; }
@@ -344,5 +344,5 @@
     return (await api("/git/trees/" + base + "?recursive=1")).tree.filter(x => x.type === "blob").map(x => x.path);
   }
 
-  window.GHPublish = { attach, publish, settingsDialog, listFiles };
+  window.GHPublish = { attach, publish, settingsDialog, listFiles, settings };
 })();

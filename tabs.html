@@ -5,6 +5,7 @@
   <title>Page Source Editing Hub</title>
   <script src="ets-config.js"></script>
 <script src="workspace.js"></script>
+<script src="publish.js"></script>
   <style>
     body {
       font-family: sans-serif;
@@ -84,7 +85,7 @@
 </head>
 <body>
 
-  <div id="wsBar" class="ws-bar"><span id="wsText"></span><span id="wsActions"></span></div>
+  <div id="wsBar" class="ws-bar"><span id="wsText"></span><span id="wsActions"></span><span id="wsRepo" style="margin-left:auto;font-size:12px"></span></div>
 
   <!-- 1. Top Level Navigation -->
   <div class="top-tabs" role="tablist">
@@ -243,6 +244,17 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   window.addEventListener("message", e => { if (e.origin === location.origin && e.data && e.data.type === "ets-workspace") applyWorkspace(true, e.source); });
   applyWorkspace(false);
+})();
+  </script>
+
+  <script>
+(function () {
+  const el = document.getElementById("wsRepo");
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  function show() {
+    try { const s = GHPublish.settings(); el.innerHTML = (s.owner && s.repo) ? "Publishing to: <b>" + esc(s.owner) + "/" + esc(s.repo) + "</b>" : "<b>Publishing is not set up.</b> Use GitHub settings on the Events tab."; } catch (e) {}
+  }
+  show(); window.addEventListener("focus", show); setInterval(show, 3000);
 })();
   </script>
 
