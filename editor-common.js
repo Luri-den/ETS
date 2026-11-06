@@ -3,9 +3,12 @@
    2) applySiteView(map): opens an editor map on the site's own start view (CENTER_LAT / CENTER_LNG / ZOOM in site.csv) unless the editor has already moved the map itself. */
 (function () {
   "use strict";
-  let clean = false, last = null;
+  // "Unsaved" means: you edited something after the page loaded and have not clicked Download since.
+  // Some editors switch their Download button on just because data finished loading, so the button alone is not proof of an edit.
+  let edited = false, touched = false, last = null;
+  const t0 = Date.now();
   const btn = () => document.getElementById("publishBtn") || document.getElementById("dlBtn");
-  const dirty = () => { const b = btn(); return !!b && !b.disabled && !clean; };
+  const dirty = () => { const b = btn(); return !!b && !b.disabled && edited; };
   function report() {
     const d = dirty();
     if (d === last) return;
@@ -13,18 +16,22 @@
     try { if (window.parent !== window) window.parent.postMessage({ type: "ets-dirty", dirty: d }, location.origin); } catch (e) {}
   }
   const later = () => setTimeout(report, 60);
-  document.addEventListener("click", e => { const b = btn(); if (b && b.contains(e.target)) { clean = true; later(); } }, true);
-  ["input", "change", "pointerup", "keyup"].forEach(t => document.addEventListener(t, e => {
+  const ignoreField = el => !el || (el.type && /^(search|file)$/.test(el.type)) ||
+    /search|filter|find|zoom/i.test((el.id || "") + " " + (el.name || "") + " " + (el.placeholder || ""));
+  document.addEventListener("click", e => { const b = btn(); if (b && b.contains(e.target)) { edited = false; later(); } }, true);
+  ["pointerdown", "keydown"].forEach(t => document.addEventListener(t, () => { touched = true; }, true));
+  ["input", "change"].forEach(t => document.addEventListener(t, e => {
     const b = btn();
-    if (b && b.contains(e.target)) return;
-    clean = false; later();
+    if (Date.now() - t0 < 1500 || (b && b.contains(e.target)) || ignoreField(e.target)) return;
+    edited = true; later();
   }, true));
   document.addEventListener("DOMContentLoaded", () => {
     const b = btn();
-    if (b) new MutationObserver(() => { if (!b.disabled) clean = false; later(); }).observe(b, { attributes: true, attributeFilter: ["disabled"] });
+    if (b) new MutationObserver(() => { if (!b.disabled && touched) edited = true; later(); }).observe(b, { attributes: true, attributeFilter: ["disabled"] });
     setInterval(report, 1500);
   });
-  window.addEventListener("beforeunload", e => { if (dirty()) { e.preventDefault(); e.returnValue = ""; } });
+  // Only a page opened on its own warns before closing. Inside the hub, the hub does the warning (see tabs.html).
+  window.addEventListener("beforeunload", e => { if (window.parent === window && dirty()) { e.preventDefault(); e.returnValue = ""; } });
 
   function applySiteView(map) {
     const c0 = map.getCenter();

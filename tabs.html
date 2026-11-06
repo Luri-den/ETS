@@ -262,6 +262,7 @@ document.addEventListener("DOMContentLoaded", () => {
 (function () {
   const dirtyTabs = new Set();
   window.ETSHub = { anyDirty: () => dirtyTabs.size > 0 };
+  window.addEventListener("beforeunload", e => { if (dirtyTabs.size) { e.preventDefault(); e.returnValue = ""; } });
   window.addEventListener("message", e => {
     if (e.origin !== location.origin || !e.data || e.data.type !== "ets-dirty") return;
     const fr = [...document.querySelectorAll(".page-container iframe")].find(f => f.contentWindow === e.source);
