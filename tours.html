@@ -207,7 +207,13 @@ const CATEGORIES = {
 const DEFAULT_CAT = "CIV";
 
 /* Column orders observed in your files */
-const TOUR_COLS  = ["TOUR_ID","TITLE","INTRO","CATEGORY","ROUTE"];
+const MODES = [   // how people travel a tour or trail
+  ["walk", "Walk", "a short, easy outing on level, paved or well-kept ground. About a mile or two, under an hour."],
+  ["hike", "Hike", "a longer or rougher outing on natural ground such as dirt, gravel, roots or hills. Sturdy shoes are a good idea."],
+  ["bike", "Bike", "by bicycle on roads, trails or both. Usually several miles or more."],
+  ["drive", "Drive", "by car, with stops along public roads. Any vehicle will do."]
+];
+const TOUR_COLS  = ["TOUR_ID","TITLE","INTRO","CATEGORY","ROUTE","TYPE","MODES"];
 const STOP_COLS  = ["TOUR_ID","STEP","ITEM_ID","NOTE","VEHICLE"];
 
 /* Vehicles available on the live site */
@@ -625,6 +631,17 @@ function renderForm(){
       </div>
 
       <div class="field">
+        <label>Type</label>
+        <select id="f-TYPE"><option value="tour" ${String(r.TYPE||"tour").toLowerCase()==="tour"?"selected":""}>Tour: ordered stops on your places and spots</option><option value="trail" ${String(r.TYPE||"").toLowerCase()==="trail"?"selected":""}>Trail: join anywhere, stops are optional</option></select>
+        <div class="sub">A tour follows numbered stops that sit on your places and spots, and starts on a marker. A trail is a route people can join anywhere, and its stops are optional.</div>
+      </div>
+      <div class="field">
+        <label>How People Travel It</label>
+        <div id="modeBox">${MODES.map(([k,t,d]) => `<label style="display:block;font-weight:normal;text-transform:none;letter-spacing:0;font-size:13px;margin:3px 0;color:var(--ink)"><input type="checkbox" data-mode="${k}" ${String(r.MODES||"").toLowerCase().split(/[|;,]/).map(s=>s.trim()).includes(k)?"checked":""}> <b>${t}</b>: ${d}</label>`).join("")}</div>
+        <div class="sub">Tick every way it can be done.</div>
+      </div>
+
+      <div class="field">
         <label>Route (Lines the Tour Follows)</label>
         <div id="routeBox"><div class="sub">Loading lines…</div></div>
         <div class="sub">Tick the lines from Lines and Trails that this tour travels along. The vehicle follows them between stops. To change a line, open <a href="lines.html" target="_blank">Lines and Trails</a>, edit it there and publish. This tour picks up the new shape on its own.</div>
@@ -656,6 +673,10 @@ function renderForm(){
   bindText(box, "f-TITLE",    v => { r.TITLE = v; renderTourList(); });
   bindText(box, "f-INTRO",    v => { r.INTRO = v; });
   routePicker(box, r);
+  box.querySelector("#f-TYPE").onchange = e => { r.TYPE = e.target.value; };
+  box.querySelectorAll("#modeBox input[data-mode]").forEach(cb => cb.onchange = () => {
+    r.MODES = [...box.querySelectorAll("#modeBox input[data-mode]")].filter(x => x.checked).map(x => x.dataset.mode).join("|");
+  });
   box.querySelector("#f-CATEGORY").onchange = e => {
     r.CATEGORY = e.target.value;
     box.querySelector("#catSw").style.background = CATEGORIES[r.CATEGORY]?.color || "#E47303";
