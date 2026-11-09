@@ -207,7 +207,7 @@ const CATEGORIES = {
 const DEFAULT_CAT = "CIV";
 
 /* Column orders observed in your files */
-const TOUR_COLS  = ["TOUR_ID","TITLE","INTRO","CATEGORY"];
+const TOUR_COLS  = ["TOUR_ID","TITLE","INTRO","CATEGORY","ROUTE"];
 const STOP_COLS  = ["TOUR_ID","STEP","ITEM_ID","NOTE","VEHICLE"];
 
 /* Vehicles available on the live site */
@@ -620,9 +620,13 @@ function renderForm(){
             ${Object.entries(CATEGORIES).map(([k,v]) =>
               `<option value="${k}" ${k===cat?"selected":""}>${k} — ${esc(v.label)}</option>`).join("")}
           </select>
-          <span class="sw" id="catSw" style="background:${CATEGORIES[cat]?.color||'#E47303'}"></span>
-        </div>
+          
+      <div class="field">
+        <label>Route (Lines the Tour Follows)</label>
+        <div id="routeBox"><div class="sub">Loading lines…</div></div>
+        <div class="sub">Tick the lines from Lines and Trails that this tour travels along. The vehicle follows them between stops. To change a line, open <a href="lines.html" target="_blank">Lines and Trails</a>, edit it there and publish. This tour picks up the new shape on its own.</div>
       </div>
+
 
       <div class="divider"></div>
 
@@ -648,6 +652,7 @@ function renderForm(){
   bindText(box, "f-TOUR_ID",  v => { r.TOUR_ID = v; renderTourList(); });
   bindText(box, "f-TITLE",    v => { r.TITLE = v; renderTourList(); });
   bindText(box, "f-INTRO",    v => { r.INTRO = v; });
+  routePicker(box, r);
   box.querySelector("#f-CATEGORY").onchange = e => {
     r.CATEGORY = e.target.value;
     box.querySelector("#catSw").style.background = CATEGORIES[r.CATEGORY]?.color || "#E47303";
@@ -826,6 +831,25 @@ function renumber(t){
   t.stops.forEach((s, i) => { s.STEP = String(i + 1); });
 }
 
+let LINES_P = null;   // lines.geojson, read once
+function routePicker(box, r) {
+  const holder = box.querySelector("#routeBox"); if (!holder) return;
+  LINES_P = LINES_P || fetch("lines.geojson", { cache:"no-store" }).then(x => x.ok ? x.json() : null).catch(() => null);
+  LINES_P.then(g => {
+    const lines = (g && g.features) || [];
+    if (!lines.length) { holder.innerHTML = '<div class="sub">No lines drawn yet. Draw one in Lines and Trails first.</div>'; return; }
+    const want = () => String(r.ROUTE || "").split(/[|;,]/).map(s => s.trim()).filter(Boolean);
+    holder.innerHTML = "";
+    lines.forEach(f => {
+      const p = f.properties || {}, id = String(p.ID || ""), lab = document.createElement("label");
+      lab.style.cssText = "display:block;font-weight:normal;margin:3px 0";
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = want().includes(id);
+      cb.onchange = () => { const ids = want().filter(x => x !== id); if (cb.checked) ids.push(id); r.ROUTE = ids.join("|"); };
+      lab.append(cb, " " + (p.NAME || id) + " (" + (p.STYLE || "solid") + ")");
+      holder.append(lab);
+    });
+  });
+}
 function bindText(scope, id, onInput){
   const el = scope.querySelector("#" + CSS.escape(id));
   if (!el) return;
