@@ -753,6 +753,7 @@ html.sq #tools.open #toolsMore{border-radius:6px}
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="welcome-themes.js"></script>
 <script src="marker-shapes.js"></script>
+<script src="lines-style.js"></script>
 <script src="schedule.js"></script>
 <script src="marker-fill.js"></script>
 <script src="spot-markers.js"></script>
@@ -1353,6 +1354,12 @@ map.on("load", async () => {
     source: "boundary",
     paint: { "line-color":"#E47303", "line-width":2, "line-dasharray":[3,2] }
   });
+
+  try {   // hand-drawn lines and trails (lines.geojson, made in the Lines editor)
+    const lr = await fetch("lines.geojson", { cache:"no-cache" });
+    map.addSource("lines", { type:"geojson", data: lr.ok ? await lr.json() : { type:"FeatureCollection", features:[] } });
+    ETSLines.add(map, "lines");
+  } catch (e) { /* no lines file yet */ }
 
   await applySettingsToMap();
   await PHOTOS_READY;

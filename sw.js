@@ -1,6 +1,6 @@
 /* History map — offline cache worker */
 
-const VERSION = "v2-2026-11";
+const VERSION = "v3-2026-11";
 const SHELL_CACHE = "shell-" + VERSION;
 const TILE_CACHE  = "tiles-" + VERSION;
 
@@ -8,7 +8,7 @@ const SHELL = [
   "./",
   "Demo2a.html", "Demo2.html",
   "welcome-themes.js", "marker-shapes.js", "marker-fill.js",
-  "schedule.js", "icons.js"
+  "schedule.js", "icons.js", "lines-style.js"
 ];
 
 self.addEventListener("install", e => {
