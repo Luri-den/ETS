@@ -842,6 +842,25 @@ function unlockStamp(id) {
   }
 }
 
+
+// How a place or spot earns its stamp, set per item in the editors (CHECKIN column):
+//   blank = just opening it counts (the way it has always worked)   gps = be within its radius
+//   qr = scan its QR link   either = scan or be near   both = scan while standing within its radius   none = no stamp
+const stampMode = row => { const m = String((row && row.CHECKIN) || "").trim().toLowerCase(); return ["gps", "qr", "either", "both", "none"].includes(m) ? m : "view"; };
+function stampNote(t) { const o = document.getElementById("checkinMsg"); if (o) o.textContent = t; }
+function earnStamp(id, row, how, ll) {   // how: "view" (opened it), "qr" (arrived by its QR link) or "gps" (the check-in button)
+  const m = stampMode(row);
+  if (m === "view" || (m === "qr" && how === "qr") || (m === "gps" && how === "gps") || (m === "either" && (how === "qr" || how === "gps"))) { unlockStamp(id); return; }
+  if (m === "both" && how === "qr") {   // the scan only counts if the phone is also at the place
+    if (!navigator.geolocation || !ll) { return; }
+    navigator.geolocation.getCurrentPosition(pos => {
+      const here = [pos.coords.longitude, pos.coords.latitude];
+      if (distM(here, ll) <= (parseFloat(row.RADIUS) || 75) + Math.min(pos.coords.accuracy || 0, 50)) { unlockStamp(id); }
+      else { stampNote("Scan this sign while you're standing at the place to collect its stamp."); }
+    }, () => stampNote("Allow location access to collect this stamp."), { enableHighAccuracy: true, timeout: 10000 });
+  }
+}
+
 const isYes = v => ["yes", "true", "1", "y"].includes(key(v));
 
 function majorSites() {
@@ -1633,7 +1652,7 @@ function select(it){
   if (!sel && !prev) prev = { center: map.getCenter(), zoom: map.getZoom() };
   sel = it;
   places.concat(kids).forEach(i => i.el.classList.toggle("sel", i === it));
-  unlockStamp(it.id);
+  earnStamp(it.id, it.d, window.__qrEntry ? "qr" : "view", it.ll);
   if (window.passportEvent) passportEvent("view", {
     id: it.id,
     category: (it.d && it.d.CATEGORY) || null,
@@ -1908,7 +1927,7 @@ $("res").onclick = e => {
     const qGal = buildGallery(id);
     if (qGal) $("sp-credit").after(qGal);
     box.hidden = false;
-    unlockStamp(id);
+    earnStamp(id, r, "qr", [parseFloat(r.LONG), parseFloat(r.LAT)]);
     if (window.passportEvent) passportEvent(key(r.KIND) === "story" ? "story" : "spot", {
       id, category: r.CATEGORY || null, source: "qr"
     });
@@ -2003,7 +2022,7 @@ $("res").onclick = e => {
     if (gal) $("sp-credit").after(gal);
     box.hidden = false;
     setSpotUrl(it.id);
-    unlockStamp(it.id);
+    earnStamp(it.id, it.r, "view", [parseFloat(it.r.LONG), parseFloat(it.r.LAT)]);
     if (window.passportEvent) passportEvent(it.kind, { id: it.id, category: it.r.CATEGORY || null, source: "spots" });
   }
 
@@ -2055,14 +2074,14 @@ $("res").onclick = e => {
         img = wrap;
       }
       credit = [coverNote(it.id, r.CREDIT) || (r.CREDIT ? "Photo: " + r.CREDIT : ""), r.SOURCE ? "Source: " + r.SOURCE : ""].filter(Boolean).join(" · ");
-      unlockStamp(it.id);
+      earnStamp(it.id, r, "view");
     } else if (it) {
       name = it.name;
       text = it.d.DETAILS || "";
       ll = it.ll;
       img = thumb(it.id, it.d.CATEGORY, coverPath(it.id, it.d.PHOTO));
       credit = coverNote(it.id);
-      unlockStamp(it.id);
+      earnStamp(it.id, it.d, "view", it.ll);
     }
     if (ll) {
       focus = (it && it.parent) || null;
@@ -2840,12 +2859,14 @@ if (!_q.has("spot") && !_q.has("site")) {
       const slack = Math.min(pos.coords.accuracy || 0, 50);
       const near = majorSites().filter(s => distM(here, s.ll) <= (parseFloat(s.d.RADIUS) || 75) + slack);
       if (!near.length){ out.textContent = "No passport places are close by. Get a little nearer and try again."; return; }
-      near.forEach(s => {
-        unlockStamp(s.id);
+      const stampable = near.filter(s => ["view", "gps", "either"].includes(stampMode(s.d)));
+      if (!stampable.length) { out.textContent = "You're at " + near.map(s => s.name).join(", ") + ". Scan its QR sign to collect the stamp."; return; }
+      stampable.forEach(s => {
+        earnStamp(s.id, s.d, "gps", s.ll);
         if (window.passportEvent) passportEvent("view", { id: s.id, category: (s.d && s.d.CATEGORY) || null, source: "gps" });
       });
       updatePassportUI();
-      out.textContent = "You're at " + near.map(s => s.name).join(", ") + "!";
+      out.textContent = "You're at " + stampable.map(s => s.name).join(", ") + "!";
     }, () => { out.textContent = "Couldn't get your location. Check your browser's location permission."; },
     { enableHighAccuracy: true, timeout: 10000 });
   };
@@ -2920,7 +2941,7 @@ if (!_q.has("spot") && !_q.has("site")) {
     if (!it && ++tries < 60) return;
     clearInterval(t);
     if (!it) { console.warn("No place called " + sid); return; }
-    select(it);
+    window.__qrEntry = true; select(it); window.__qrEntry = false;   // arrived by scanning its QR sign
   }, 250);
 })();
 

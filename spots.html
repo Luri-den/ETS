@@ -199,7 +199,9 @@ const CATEGORIES = {
 const DEFAULT_CAT = "COMM";
 
 /* Exact header order */
-const SPOT_COLS = ["SPOT_ID","TITLE","LAT","LONG","YEAR","PHOTO","DETAILS","BLURB","INTRO","CREDIT","KIND","CATEGORY","SERIES","ORDER","SOURCE","STAFF_NOTE","ICON","ICON_COLOR","EFFECT"];
+const CHECKIN_OPTS = v => [["", "Just open it (default)"], ["gps", "Be near it (GPS)"], ["qr", "Scan its QR sign"], ["either", "Scan or be near"], ["both", "Scan while standing there"], ["none", "No stamp"]]
+  .map(([k, t]) => `<option value="${k}" ${String(v || "") === k ? "selected" : ""}>${t}</option>`).join("");
+const SPOT_COLS = ["SPOT_ID","TITLE","LAT","LONG","YEAR","PHOTO","DETAILS","BLURB","INTRO","CREDIT","KIND","CATEGORY","SERIES","ORDER","SOURCE","STAFF_NOTE","ICON","ICON_COLOR","EFFECT","CHECKIN","RADIUS"];
 
 /* ---------- State ---------- */
 window.PhotoResize = window.PhotoResize || {   // stand-in so uploads still work if photo-resize.js was not uploaded
@@ -666,6 +668,11 @@ function renderForm(){
         <input type="text" id="f-SOURCE" value="${esc(r.SOURCE||"")}">
       </div>
 
+      <div class="field">
+        <label>Passport Stamp</label>
+        <div class="pair"><div><label>How to earn the stamp</label><select id="f-CHECKIN">${CHECKIN_OPTS(r.CHECKIN)}</select></div><div><label>Check-in radius (m)</label><input type="text" id="f-RADIUS" value="${esc(r.RADIUS||"")}" placeholder="50"></div></div>
+      </div>
+
       <div id="galEditor"></div>
 
       <details class="future">
@@ -707,6 +714,8 @@ function renderForm(){
   bindText(box, "f-INTRO",      v => { r.INTRO = v; });
   bindText(box, "f-CREDIT",     v => { r.CREDIT = v; });
   bindText(box, "f-SOURCE",     v => { r.SOURCE = v; });
+  box.querySelector("#f-CHECKIN").onchange = e => { r.CHECKIN = e.target.value; };
+  bindText(box, "f-RADIUS", v => { r.RADIUS = v; });
   bindText(box, "f-SERIES",     v => { r.SERIES = v; });
   bindText(box, "f-ORDER",      v => { r.ORDER = v; });
   renderGalEditor(box, r.SPOT_ID);
