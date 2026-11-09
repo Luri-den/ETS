@@ -620,7 +620,10 @@ function renderForm(){
             ${Object.entries(CATEGORIES).map(([k,v]) =>
               `<option value="${k}" ${k===cat?"selected":""}>${k} — ${esc(v.label)}</option>`).join("")}
           </select>
-          
+          <span class="sw" id="catSw" style="background:${CATEGORIES[cat]?.color||'#E47303'}"></span>
+        </div>
+      </div>
+
       <div class="field">
         <label>Route (Lines the Tour Follows)</label>
         <div id="routeBox"><div class="sub">Loading lines…</div></div>
@@ -835,9 +838,9 @@ let LINES_P = null;   // lines.geojson, read once
 function routePicker(box, r) {
   const holder = box.querySelector("#routeBox"); if (!holder) return;
   LINES_P = LINES_P || fetch("lines.geojson", { cache:"no-store" }).then(x => x.ok ? x.json() : null).catch(() => null);
-  LINES_P.then(g => {
+  LINES_P.then(g => { if (!g || !(g.features || []).length) LINES_P = null; return g; }).then(g => {
     const lines = (g && g.features) || [];
-    if (!lines.length) { holder.innerHTML = '<div class="sub">No lines drawn yet. Draw one in Lines and Trails first.</div>'; return; }
+    if (!lines.length) { holder.innerHTML = '<div class="sub">I couldn\'t find any lines in lines.geojson on this site. If you just published, wait a minute and reselect this tour.</div>'; return; }
     const want = () => String(r.ROUTE || "").split(/[|;,]/).map(s => s.trim()).filter(Boolean);
     holder.innerHTML = "";
     lines.forEach(f => {
