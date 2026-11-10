@@ -148,7 +148,7 @@
 <div id="layout">
   <aside id="left">
     <div class="sec">
-      <h2>Tours <button id="addTour" type="button">＋ New</button></h2>
+      <h2>Tours and Trails <button id="addTour" type="button">＋ Tour</button> <button id="addTrail" type="button">＋ Trail</button></h2>
     </div>
     <div id="tourList"></div>
 
@@ -534,6 +534,9 @@ function renderMapMarkers(){
     } else {
       el.title = item.name;
     }
+    // outline in the color of the route it belongs to (the open tour wins; other routes show a thinner ring)
+    const owner = inTour ? selectedTour : tours.find(t => t.stops.some(s => key(s.ITEM_ID) === key(item.id)));
+    el.style.boxShadow = owner ? (inTour ? "0 0 0 3px #fff, 0 0 0 7px " : "0 0 0 2px #fff, 0 0 0 5px ") + routeColor(owner) : "";
     // no thumbnails for tours; use a colored dot with kind styling
     if (!el.querySelector("span")){
       const s = document.createElement("span");
@@ -653,6 +656,7 @@ function renderForm(){
       <div class="field">
         <label>Route (Lines the Tour Follows)</label>
         <div class="sub" id="routeInfo"></div>
+        <div id="routeStyle"></div>
         <div id="routeBox"><div class="sub">Loading lines…</div></div>
         <div class="sub">Tick the lines from Lines and Trails that this tour travels along. The vehicle follows them between stops. To change a line, open <a href="lines.html" target="_blank">Lines and Trails</a>, edit it there and publish. This tour picks up the new shape on its own.</div>
       </div>
@@ -684,6 +688,7 @@ function renderForm(){
   bindText(box, "f-INTRO",    v => { r.INTRO = v; });
   routePicker(box, r);
   updateRouteInfo();
+  routeStyle(box, selectedTour);
   box.querySelector("#f-TYPE").onchange = e => { r.TYPE = e.target.value; };
   box.querySelectorAll("#modeBox input[data-mode]").forEach(cb => cb.onchange = () => {
     r.MODES = [...box.querySelectorAll("#modeBox input[data-mode]")].filter(x => x.checked).map(x => x.dataset.mode).join("|");
@@ -894,13 +899,14 @@ function bindText(scope, id, onInput){
    Add tour
    ============================================================ */
 
-$("addTour").onclick = () => {
+function newRoute(type){   // "tour" starts on a marker; "trail" can start anywhere. Either way you go straight into drawing.
   if (!loaded.tours) return toast("Load tours.csv first.");
+  const prefix = type === "trail" ? "TRAIL-" : "TOUR-";
   const existing = tours.map(t => String(t.row.TOUR_ID||"").trim()).filter(Boolean);
   let n = 1, id;
-  do { id = "TOUR-" + String(n).padStart(3,"0"); n++; } while (existing.some(x => key(x) === key(id)));
+  do { id = prefix + String(n).padStart(3,"0"); n++; } while (existing.some(x => key(x) === key(id)));
 
-  const row = { TOUR_ID:id, TITLE:"New Tour", INTRO:"", CATEGORY: DEFAULT_CAT };
+  const row = { TOUR_ID:id, TITLE:type === "trail" ? "New Trail" : "New Tour", INTRO:"", CATEGORY: DEFAULT_CAT, TYPE:type };
   headers.tour.forEach(h => { if (!(h in row)) row[h] = ""; });
 
   const t = { row, stops: [] };
@@ -908,8 +914,10 @@ $("addTour").onclick = () => {
   selectedTour = t;
   selectedStop = null;
   render();
-  toast("Added " + id);
-};
+  setDrawMode(true);
+}
+$("addTour").onclick = () => newRoute("tour");
+$("addTrail").onclick = () => newRoute("trail");
 
 /* ============================================================
    Preview playback
@@ -923,6 +931,7 @@ const linesReady = fetch("lines.geojson", { cache:"no-store" }).then(r => r.ok ?
   .then(g => { if (g && g.features) linesDoc = g; linesDoc.features.forEach(f => { f.properties = f.properties || {}; }); }).catch(() => {});
 const SPEEDS = { walk:3, hike:2, bike:10, drive:30 };   // miles per hour, for the time estimates
 const ownId = t => "R-" + t.row.TOUR_ID;
+const routeColor = t => (ownLine(t) && ownLine(t).properties.COLOR) || (CATEGORIES[String(t.row.CATEGORY || "").trim().toUpperCase()] || {}).color || "#D55E00";
 const ownLine = t => linesDoc.features.find(f => f.properties.ID === ownId(t));
 const routeIds = t => String(t.row.ROUTE || "").split(/[|;,]/).map(s => s.trim()).filter(Boolean);
 const cleanLines = () => ({ type:"FeatureCollection", features:linesDoc.features.filter(f => f.geometry && f.geometry.coordinates.length >= 2) });
@@ -939,6 +948,7 @@ function touchLines(){   // the tour's own line changed: keep its ROUTE link in 
   if (f && f.geometry.coordinates.length >= 2) ids.push(ownId(t));
   t.row.ROUTE = ids.join("|");
   renderLines(); renderTourLine(); drawRouteMarks(); updateRouteInfo(); $("publishBtn").disabled = false;
+  if (!document.querySelector("#routeStyle input")) routeStyle(document.getElementById("form"), t);
 }
 function lineMiles(c){ let m = 0; for (let i = 0; i < c.length - 1; i++){ const k = Math.cos(c[i][1] * Math.PI / 180); m += Math.hypot((c[i+1][0] - c[i][0]) * k, c[i+1][1] - c[i][1]) * 69.17; } return m; }
 function fmtMin(m){ m = Math.max(1, Math.round(m)); return m < 60 ? m + " min" : Math.floor(m / 60) + " h " + (m % 60 ? (m % 60) + " min" : ""); }
@@ -949,6 +959,21 @@ function updateRouteInfo(){
   t.row.LENGTH_MI = (Math.round(miles * 10) / 10).toString();
   const modes = String(t.row.MODES || "").toLowerCase().split(/[|;,]/).map(s => s.trim()).filter(m => SPEEDS[m]);
   box.textContent = "About " + t.row.LENGTH_MI + " miles" + (modes.length ? ": " + modes.map(m => m + " " + fmtMin(miles / SPEEDS[m] * 60)).join(", ") : "") + ".";
+}
+const ROUTE_DEFAULTS = { solid:{ OPACITY:1, WIDTH:4 }, dashed:{ OPACITY:1, WIDTH:4 }, rail:{ OPACITY:0.25, WIDTH:16 } };
+function routeStyle(box, t){   // line style, color and thickness for this tour's own route, right in the tour panel
+  const holder = box.querySelector("#routeStyle"); if (!holder) return;
+  const f = ownLine(t); holder.textContent = "";
+  if (!f || f.geometry.coordinates.length < 2) return;
+  const p = f.properties, put = (k, v) => { p[k] = v; linesDirty = true; $("publishBtn").disabled = false; renderLines(); renderMapMarkers(); };
+  const add = (label, input) => { const l = document.createElement("label"); l.textContent = label; holder.append(l, input); };
+  const sel = document.createElement("select");
+  [["solid", "Solid Line"], ["dashed", "Dashed Line"], ["rail", "Rail (Two Lines With a Band)"]].forEach(([v, n]) => { const o = document.createElement("option"); o.value = v; o.textContent = n; o.selected = (p.STYLE || "solid") === v; sel.append(o); });
+  sel.onchange = () => { Object.assign(p, ROUTE_DEFAULTS[sel.value]); put("STYLE", sel.value); routeStyle(box, t); };
+  add("Route Line Style", sel);
+  const col = document.createElement("input"); col.type = "color"; col.value = p.COLOR || "#D55E00"; col.oninput = () => put("COLOR", col.value); add("Route Color (Also Outlines Its Stops)", col);
+  const w = document.createElement("input"); w.type = "range"; w.min = 1; w.max = 40; w.value = p.WIDTH || 4; w.oninput = () => put("WIDTH", +w.value); add(p.STYLE === "rail" ? "Width of the Whole Trail" : "Thickness", w);
+  const o = document.createElement("input"); o.type = "range"; o.min = 0.05; o.max = 1; o.step = 0.05; o.value = p.OPACITY == null ? 1 : p.OPACITY; o.oninput = () => put("OPACITY", +o.value); add(p.STYLE === "rail" ? "Opacity of the Band" : "Opacity", o);
 }
 function drawRouteMarks(){   // dragging handles for the tour's own line while Draw Route is on
   routeMarks.forEach(m => m.remove()); routeMarks = [];
