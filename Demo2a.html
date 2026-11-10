@@ -1605,10 +1605,10 @@ function alongPath(P, t) {   // the point t (0 to 1) of the way along a path
   return P.path[P.path.length - 1];
 }
 
-const MODE_NAMES = { walk: "Walk", hike: "Hike", bike: "Bike", drive: "Drive" };
+const MODE_NAMES = { walk: "Walk", hike: "Hike", bike: "Bike", drive: "Drive", virtual: "Virtual" };
 function tourBadge(t) {   // "Tour: Hike, Bike" or "Trail: Walk"
   const m = String(t.modes || "").split(/[|;,]/).map(x => MODE_NAMES[x.trim().toLowerCase()]).filter(Boolean);
-  return (t.type === "trail" ? "Trail" : "Tour") + (m.length ? " (" + m.join(", ") + ")" : "");
+  return (t.type === "trail" ? "Trail" : "Tour") + (m.length ? " (" + m.join(", ") + ")" : "") + (t.length ? ", " + t.length + " mi" : "");
 }
 
 function travelTo(fromLl, toLl, vehicleKey, path){
@@ -2210,7 +2210,7 @@ $("res").onclick = e => {
       const id = (r.TOUR_ID || "").trim();
       if (!id) return;
       const stops = TS.filter(x => key(x.TOUR_ID) === key(id)).sort((a,b) => parseFloat(a.STEP) - parseFloat(b.STEP));
-      tours.push({ id, title: r.TITLE || id, intro: r.INTRO || "", category: r.CATEGORY || null, route: r.ROUTE || "", type: String(r.TYPE || "tour").toLowerCase(), modes: r.MODES || "", stops });
+      tours.push({ id, title: r.TITLE || id, intro: r.INTRO || "", category: r.CATEGORY || null, route: r.ROUTE || "", type: String(r.TYPE || "tour").toLowerCase(), modes: r.MODES || "", length: parseFloat(r.LENGTH_MI) || 0, stops });
     });
     $("tours").hidden = !tours.length;
     vis();
