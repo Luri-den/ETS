@@ -695,7 +695,7 @@ html.sq #tools.open #toolsMore{border-radius:6px}
     <button id="moreBtn" type="button" aria-expanded="false" aria-controls="toolsMore" hidden>More &#9662;</button>
     <div id="toolsMore">
       <button id="tour" type="button" hidden>Take the Tour</button>
-      <button id="tours" type="button" hidden>Tours</button>
+      <button id="tours" type="button" hidden>Tours &amp; Trails</button>
       <button id="stories" type="button" aria-pressed="false">Show All Stories and Spots</button>
       <div id="catChipsWrap" hidden>
         <ul id="catChips" aria-label="Filter by category"></ul>
@@ -1581,10 +1581,11 @@ function nearOnLine(line, p) {   // closest spot on a line to a point: segment n
 }
 function legPath(lines, from, to) {   // the part of a drawn line between two stops, in travel order; null if no line passes near both
   let best = null;
+  const tol = lines.length === 1 ? Infinity : 600;   // a tour with one route always follows it, even if a stop sits a little off the line
   lines.forEach(l => {
     if (l.length < 2) return;
     const a = nearOnLine(l, from), b = nearOnLine(l, to);
-    if (a.d < 150 && b.d < 150 && (!best || a.d + b.d < best.s)) best = { l: l, a: a, b: b, s: a.d + b.d };
+    if (a.d < tol && b.d < tol && (!best || a.d + b.d < best.s)) best = { l: l, a: a, b: b, s: a.d + b.d };
   });
   if (!best) return null;
   const fwd = best.a.i < best.b.i || (best.a.i === best.b.i && best.a.t <= best.b.t), s = fwd ? best.a : best.b, e = fwd ? best.b : best.a;
@@ -2154,19 +2155,37 @@ $("res").onclick = e => {
     vis();
   };
 
+  function lineVisibility(active, tries) {   // a tour's or trail's line shows only while it is open; map lines always show
+    if (!map.getLayer("lines-solid")) { if ((tries || 0) < 40) setTimeout(() => lineVisibility(active, (tries || 0) + 1), 300); return; }   // the lines may still be loading
+    const hide = new Set();
+    tours.forEach(t => String(t.route || "").split(/[|;,]/).map(s => s.trim()).filter(Boolean).forEach(id => hide.add(id)));
+    (active || []).forEach(id => hide.delete(id));
+    ETSLines.setHidden(map, "lines", Array.from(hide));
+  }
+  function showRoute(T) {   // a trail with no stops: show its route and a short description
+    const pts = [].concat.apply([], routeLines(T.route));
+    if (pts.length) { const b = new maplibregl.LngLatBounds(); pts.forEach(p => b.extend(p)); map.fitBounds(b, { padding: 80, maxZoom: 16 }); }
+    const card = $("tourCard");
+    card.innerHTML = "<b>" + esc(T.title) + "</b><br><small>" + esc(tourBadge(T)) + "</small><p>" + esc(T.intro) + "</p><button type=\"button\" data-g=\"x\">Close</button>";
+    card.hidden = false;
+  }
+
   $("tourCard").onclick = async e => {
     const t = e.target.closest("[data-t]");
     const g = e.target.closest("[data-g]");
     if (t) {
       T = tours[+t.dataset.t];
+      lineVisibility(String(T.route || "").split(/[|;,]/).map(s => s.trim()).filter(Boolean));
       const coords = T.stops.map(st => { const it = byId(st.ITEM_ID); return it && it.ll ? it.ll : null; }).filter(Boolean);
       if (routeLines(T.route).length) clearTourLine(); else setTourLine(coords);   // a drawn route replaces the straight dashed line
+      if (!T.stops.length) { showRoute(T); return; }
       go(0);
     } else if (g && !g.disabled) {
       if (g.dataset.g === "x") {
         $("tourCard").hidden = true;
         clearHi();
         clearTourLine();
+        lineVisibility([]);
         T = null;
         focus = null;
         update();
@@ -2208,11 +2227,12 @@ $("res").onclick = e => {
     });
     TR.forEach(r => {
       const id = (r.TOUR_ID || "").trim();
-      if (!id) return;
+      if (!id || String(r.TYPE || "").toLowerCase() === "line") return;   // map lines are drawn, not listed as tours
       const stops = TS.filter(x => key(x.TOUR_ID) === key(id)).sort((a,b) => parseFloat(a.STEP) - parseFloat(b.STEP));
       tours.push({ id, title: r.TITLE || id, intro: r.INTRO || "", category: r.CATEGORY || null, route: r.ROUTE || "", type: String(r.TYPE || "tour").toLowerCase(), modes: r.MODES || "", length: parseFloat(r.LENGTH_MI) || 0, stops });
     });
     $("tours").hidden = !tours.length;
+    lineVisibility([]);
     vis();
     map.on("zoomend", vis);
   });

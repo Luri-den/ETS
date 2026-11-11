@@ -148,7 +148,7 @@
 <div id="layout">
   <aside id="left">
     <div class="sec">
-      <h2>Tours and Trails <button id="addTour" type="button">＋ Tour</button> <button id="addTrail" type="button">＋ Trail</button></h2>
+      <h2>Tours and Trails <button id="addTour" type="button">＋ Tour</button> <button id="addTrail" type="button">＋ Trail</button> <button id="addLine" type="button">＋ Line</button></h2>
     </div>
     <div id="tourList"></div>
 
@@ -168,8 +168,12 @@
     <div id="tools">
       <span class="lbl">Tour</span>
       <button id="drawBtn" disabled>✎ Draw Route</button>
+      <button id="adoptBtn" hidden></button>
       <button id="previewBtn" disabled>▶ Preview</button>
-      <button id="clearBtn" disabled>Clear line</button>
+      <button id="undoBtn" disabled>↶ Undo Point</button>
+      <button id="clearRouteBtn" disabled>Clear Route</button>
+      <button id="aerialBtn">Aerial View</button>
+      <button id="clearBtn" disabled>Deselect</button>
     </div>
     <div id="playbar">
       <button id="playStop">⏸</button>
@@ -223,7 +227,7 @@ const TOUR_COLS  = ["TOUR_ID","TITLE","INTRO","CATEGORY","ROUTE","TYPE","MODES",
 const STOP_COLS  = ["TOUR_ID","STEP","ITEM_ID","NOTE","VEHICLE"];
 
 /* Vehicles available on the live site */
-const VEHICLES = ["TRAIN","CAR","BOAT"];
+const VEHICLES = ["TRAIN","CAR","BOAT","WALK","BIKE"];
 
 /* ---------- State ---------- */
 let tours = [];         // {row, stops:[stopRow...]}
@@ -247,9 +251,15 @@ const map = new maplibregl.Map({
         tileSize: 256,
         maxzoom: 19,
         attribution: "&copy; OpenStreetMap contributors"
-      }
+      },
+      aerial: { type:"raster", tiles:["https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}"], tileSize:256, maxzoom:16, attribution:"Imagery: USGS The National Map / USDA NAIP" },
+      indiana: { type:"raster", tiles:["https://di-ingov.img.arcgis.com/arcgis/rest/services/DynamicWebMercator/Indiana_Current_Imagery/ImageServer/exportImage?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=256,256&format=jpgpng&f=image"], tileSize:256, maxzoom:20, attribution:"Imagery: Indiana Geographic Information Office (IGIO)" }
     },
-    layers: [{ id:"osm", type:"raster", source:"osm" }]
+    layers: [
+      { id:"osm", type:"raster", source:"osm" },
+      { id:"aerial", type:"raster", source:"aerial", layout:{ visibility:"none" } },
+      { id:"indiana", type:"raster", source:"indiana", layout:{ visibility:"none" } }
+    ]
   },
   center: [-98.5795, 39.8283],
   zoom: 4
@@ -266,6 +276,18 @@ let markerIndex = new Map(); // id → {marker, el}
    ============================================================ */
 
 const VEHICLE_SVG = {
+  WALK: `<svg viewBox="12 0 36 30" width="60" height="30" aria-hidden="true">
+    <circle cx="30" cy="6" r="3.6" fill="#3a3a3a"/>
+    <rect x="24.5" y="10" width="5" height="8" rx="1.5" fill="#E47303"/>
+    <g stroke="#3a3a3a" stroke-width="3" stroke-linecap="round" fill="none"><path d="M30 10 L29 19"/><path d="M30 12 L36 17"/><path d="M29 19 L35 27"/><path d="M29 19 L23 27"/></g>
+  </svg>`,
+  BIKE: `<svg viewBox="6 0 48 30" width="60" height="30" aria-hidden="true">
+    <g fill="none" stroke="#1c1c1c" stroke-width="2"><circle cx="14" cy="22" r="6"/><circle cx="46" cy="22" r="6"/></g>
+    <g fill="none" stroke="#8b1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 22 L22 13 L38 13 L28 22 Z"/><path d="M38 13 L46 22"/><path d="M38 13 L40 10 L43 10"/><path d="M22 13 L21 10"/></g>
+    <rect x="18.5" y="8.5" width="5.5" height="2" rx="1" fill="#3a3a3a"/>
+    <g stroke="#3a3a3a" stroke-width="2.6" stroke-linecap="round" fill="none"><path d="M23 9 L30 5"/><path d="M30 5 L40 10"/><path d="M24 10 L29 20"/></g>
+    <circle cx="32" cy="1.9" r="2.3" fill="#3a3a3a"/>
+  </svg>`,
   TRAIN: `<svg viewBox="0 0 60 30" width="60" height="30" aria-hidden="true">
       <rect x="6" y="8" width="34" height="12" fill="#3a3a3a" rx="2"/>
       <rect x="34" y="4" width="16" height="16" fill="#3a3a3a" rx="2"/>
@@ -480,7 +502,7 @@ function render(){
   renderTourList();
   renderTourLine();
   renderForm();
-  renderLines(); drawRouteMarks();
+  renderLines(); drawRouteMarks(); updateAdopt();
   updateLoadSummary();
 }
 
@@ -562,9 +584,9 @@ function renderTourList(){
     const cat = String(t.row.CATEGORY||"").trim().toUpperCase();
     const color = CATEGORIES[cat]?.color || "#E47303";
     row.innerHTML =
-      `<span class="sw" style="background:${color}"></span>` +
+      `<span class="sw" style="background:${ownLine(t) ? routeColor(t) : color}"></span>` +
       `<span class="name">${esc(t.row.TITLE || t.row.TOUR_ID || "(unnamed)")}</span>` +
-      `<span class="cnt">${t.stops.length}</span>`;
+      `<span class="cnt">${String(t.row.TYPE||"").toLowerCase() === "line" ? "line" : String(t.row.TYPE||"").toLowerCase() === "trail" ? "trail " + t.stops.length : t.stops.length}</span>`;
     row.onclick = () => { selectedTour = t; selectedStop = null; render(); };
     list.appendChild(row);
   }
@@ -644,8 +666,8 @@ function renderForm(){
 
       <div class="field">
         <label>Type</label>
-        <select id="f-TYPE"><option value="tour" ${String(r.TYPE||"tour").toLowerCase()==="tour"?"selected":""}>Tour: ordered stops on your places and spots</option><option value="trail" ${String(r.TYPE||"").toLowerCase()==="trail"?"selected":""}>Trail: join anywhere, stops are optional</option></select>
-        <div class="sub">A tour follows numbered stops that sit on your places and spots, and starts on a marker. A trail is a route people can join anywhere, and its stops are optional.</div>
+        <select id="f-TYPE"><option value="tour" ${String(r.TYPE||"tour").toLowerCase()==="tour"?"selected":""}>Tour: ordered stops on your places and spots</option><option value="trail" ${String(r.TYPE||"").toLowerCase()==="trail"?"selected":""}>Trail: join anywhere, stops are optional</option><option value="line" ${String(r.TYPE||"").toLowerCase()==="line"?"selected":""}>Map Line: drawn on the map only, not listed for visitors</option></select>
+        <div class="sub">A tour follows numbered stops that sit on your places and spots, and starts on a marker. A trail is a route people can join anywhere, and its stops are optional. A map line (a canal, an old railroad) is just drawn on the map.</div>
       </div>
       <div class="field">
         <label>How People Travel It</label>
@@ -901,12 +923,12 @@ function bindText(scope, id, onInput){
 
 function newRoute(type){   // "tour" starts on a marker; "trail" can start anywhere. Either way you go straight into drawing.
   if (!loaded.tours) return toast("Load tours.csv first.");
-  const prefix = type === "trail" ? "TRAIL-" : "TOUR-";
+  const prefix = type === "trail" ? "TRAIL-" : type === "line" ? "LINE-" : "TOUR-";
   const existing = tours.map(t => String(t.row.TOUR_ID||"").trim()).filter(Boolean);
   let n = 1, id;
   do { id = prefix + String(n).padStart(3,"0"); n++; } while (existing.some(x => key(x) === key(id)));
 
-  const row = { TOUR_ID:id, TITLE:type === "trail" ? "New Trail" : "New Tour", INTRO:"", CATEGORY: DEFAULT_CAT, TYPE:type };
+  const row = { TOUR_ID:id, TITLE:type === "trail" ? "New Trail" : type === "line" ? "New Map Line" : "New Tour", INTRO:"", CATEGORY: DEFAULT_CAT, TYPE:type };
   headers.tour.forEach(h => { if (!(h in row)) row[h] = ""; });
 
   const t = { row, stops: [] };
@@ -918,6 +940,7 @@ function newRoute(type){   // "tour" starts on a marker; "trail" can start anywh
 }
 $("addTour").onclick = () => newRoute("tour");
 $("addTrail").onclick = () => newRoute("trail");
+$("addLine").onclick = () => newRoute("line");
 
 /* ============================================================
    Preview playback
@@ -941,13 +964,33 @@ function ensureOwn(t){
   if (!f){ f = { type:"Feature", properties:{ ID:ownId(t), NAME:t.row.TITLE || t.row.TOUR_ID, STYLE:"solid", COLOR:"#D55E00", WIDTH:4, OPACITY:1, TOUR_ID:t.row.TOUR_ID }, geometry:{ type:"LineString", coordinates:[] } }; linesDoc.features.push(f); }
   return f;
 }
+function looseLines(){   // lines from the old Lines and Trails editor that no tour or trail owns
+  const used = new Set(); tours.forEach(t => routeIds(t).forEach(id => used.add(id)));
+  return linesDoc.features.filter(f => f.geometry && f.geometry.coordinates.length >= 2 && !String(f.properties.ID || "").startsWith("R-") && !used.has(f.properties.ID));
+}
+function updateAdopt(){
+  const b = document.getElementById("adoptBtn"); if (!b) return;
+  const n = looseLines().length; b.hidden = !n; b.textContent = "Bring In " + n + " Old Line" + (n === 1 ? "" : "s");
+}
+document.getElementById("adoptBtn").onclick = () => {
+  const loose = looseLines(); if (!loose.length) return;
+  loose.forEach(f => {
+    const taken = tours.map(t => String(t.row.TOUR_ID || "")); let n = 1, id;
+    do { id = "LINE-" + String(n++).padStart(3, "0"); } while (taken.some(x => key(x) === key(id)));
+    const row = { TOUR_ID:id, TITLE:f.properties.NAME || "Map Line", INTRO:"", CATEGORY:DEFAULT_CAT, TYPE:"line", ROUTE:"R-" + id };
+    headers.tour.forEach(h => { if (!(h in row)) row[h] = ""; });
+    f.properties.ID = "R-" + id; f.properties.TOUR_ID = id;
+    tours.push({ row, stops:[] });
+  });
+  linesDirty = true; $("publishBtn").disabled = false; renderLines(); render(); toast(loose.length + " old line(s) are now Map Lines in this list.");
+};
 function renderLines(){ const s = map.getSource("lines"); if (s) s.setData(cleanLines()); }
 function touchLines(){   // the tour's own line changed: keep its ROUTE link in step and redraw everything that shows it
   linesDirty = true;
   const t = selectedTour, f = ownLine(t), ids = routeIds(t).filter(x => x !== ownId(t));
   if (f && f.geometry.coordinates.length >= 2) ids.push(ownId(t));
   t.row.ROUTE = ids.join("|");
-  renderLines(); renderTourLine(); drawRouteMarks(); updateRouteInfo(); $("publishBtn").disabled = false;
+  renderLines(); renderTourLine(); drawRouteMarks(); updateRouteInfo(); updateToolButtons(); $("publishBtn").disabled = false;
   if (!document.querySelector("#routeStyle input")) routeStyle(document.getElementById("form"), t);
 }
 function lineMiles(c){ let m = 0; for (let i = 0; i < c.length - 1; i++){ const k = Math.cos(c[i][1] * Math.PI / 180); m += Math.hypot((c[i+1][0] - c[i][0]) * k, c[i+1][1] - c[i][1]) * 69.17; } return m; }
@@ -991,10 +1034,15 @@ function drawRouteMarks(){   // dragging handles for the tour's own line while D
   c.forEach((p, i) => { if (!atItem(p)) mk(p, "vtx", q => { c[i] = q; touchLines(); }, () => { c.splice(i, 1); touchLines(); }); });
   for (let i = 0; i < c.length - 1; i++){ const mid = [(c[i][0] + c[i+1][0]) / 2, (c[i][1] + c[i+1][1]) / 2]; mk(mid, "mid", null, null, () => { c.splice(i + 1, 0, mid); touchLines(); }); }
 }
+function defaultVehicle(t){   // the first mode ticked decides: walk or hike = walker, bike = bicycle, drive = car
+  const m = String(t.row.MODES || "").toLowerCase().split(/[|;,]/).map(s => s.trim());
+  for (const k of ["walk", "hike", "bike", "drive"]) if (m.includes(k)) return { walk:"WALK", hike:"WALK", bike:"BIKE", drive:"CAR" }[k];
+  return "CAR";
+}
 function addStopFromMarker(item){   // Draw Route is on and a marker was clicked: it becomes a stop and the line passes through it
   const t = selectedTour;
   if (!t.stops.some(s => key(s.ITEM_ID) === key(item.id))){
-    const prev = t.stops[t.stops.length - 1], row = { TOUR_ID:t.row.TOUR_ID, STEP:String(t.stops.length + 1), ITEM_ID:item.id, NOTE:"", VEHICLE:(prev && prev.VEHICLE) || "CAR" };
+    const prev = t.stops[t.stops.length - 1], row = { TOUR_ID:t.row.TOUR_ID, STEP:String(t.stops.length + 1), ITEM_ID:item.id, NOTE:"", VEHICLE:(prev && prev.VEHICLE) || defaultVehicle(t) };
     headers.stop.forEach(h => { if (!(h in row)) row[h] = ""; });
     t.stops.push(row); selectedStop = row;
   }
@@ -1007,8 +1055,18 @@ map.on("load", async () => {
   ETSLines.add(map, "lines");
   renderTourLine();
 });
-map.on("click", e => {   // Draw Route: clicking empty ground adds a point to the tour's line
-  if (!drawMode || !selectedTour || e.originalEvent.target.closest(".maplibregl-marker")) return;
+map.on("click", e => {
+  if (e.originalEvent.target.closest(".maplibregl-marker")) return;
+  if (!drawMode) {   // not drawing: clicking a route on the map opens its tour, trail or line
+    const b = [[e.point.x - 6, e.point.y - 6], [e.point.x + 6, e.point.y + 6]];
+    const hit = map.queryRenderedFeatures(b, { layers:ETSLines.layers("lines").filter(l => map.getLayer(l)) })[0];
+    if (hit){
+      const id = hit.properties.ID, t = tours.find(x => ownId(x) === id) || tours.find(x => routeIds(x).includes(id));
+      if (t){ selectedTour = t; selectedStop = null; render(); toast("Opened: " + (t.row.TITLE || t.row.TOUR_ID)); }
+    }
+    return;
+  }
+  if (!selectedTour) return;   // Draw Route: clicking empty ground adds a point to the tour's line
   if (String(selectedTour.row.TYPE || "tour").toLowerCase() === "tour" && !selectedTour.stops.length){ toast("A tour starts on a marker. Click a marker first."); return; }
   ensureOwn(selectedTour).geometry.coordinates.push([+e.lngLat.lng.toFixed(6), +e.lngLat.lat.toFixed(6)]);
   touchLines();
@@ -1017,10 +1075,20 @@ function setDrawMode(on){
   drawMode = !!on && !!selectedTour;
   const b = $("drawBtn"); b.textContent = drawMode ? "✔ Done Drawing" : "✎ Draw Route"; b.classList.toggle("on", drawMode);
   map.getCanvas().style.cursor = drawMode ? "crosshair" : "";
-  if (drawMode) toast(String(selectedTour.row.TYPE || "tour").toLowerCase() === "tour" ? "Click the starting marker, then click the map to draw. Click a marker to add it as a stop." : "Click the map to draw. Click a marker to add it as a stop.");
+  if (drawMode) toast(String(selectedTour.row.TYPE || "tour").toLowerCase() === "tour" ? "Click the starting marker, then click the map to draw. Click a marker to add it as a stop." : "Click the map to draw. Double-click the last point or press Done Drawing when you finish.");
   drawRouteMarks();
 }
 $("drawBtn").onclick = () => setDrawMode(!drawMode);
+$("undoBtn").onclick = () => { const f = selectedTour && ownLine(selectedTour); if (f && f.geometry.coordinates.length){ f.geometry.coordinates.pop(); touchLines(); } };
+$("clearRouteBtn").onclick = () => {
+  const f = selectedTour && ownLine(selectedTour);
+  if (f && f.geometry.coordinates.length && confirm("Clear this route's line? The stops stay.")){ f.geometry.coordinates = []; touchLines(); }
+};
+$("aerialBtn").onclick = () => {
+  const on = map.getLayoutProperty("aerial", "visibility") === "none";
+  ["aerial", "indiana"].forEach(l => map.setLayoutProperty(l, "visibility", on ? "visible" : "none"));
+  $("aerialBtn").textContent = on ? "Street Map" : "Aerial View";
+};
 
 /* Preview / path helpers (the same ones the live page uses) */
 function nearOnLine(line, p){
@@ -1035,7 +1103,8 @@ function nearOnLine(line, p){
 }
 function legPath(lines, from, to){
   let best = null;
-  lines.forEach(l => { const a = nearOnLine(l, from), b = nearOnLine(l, to); if (a.d < 150 && b.d < 150 && (!best || a.d + b.d < best.s)) best = { l, a, b, s:a.d + b.d }; });
+  const tol = lines.length === 1 ? Infinity : 600;   // a tour with one route always follows it, even if a stop sits a little off the line
+  lines.forEach(l => { const a = nearOnLine(l, from), b = nearOnLine(l, to); if (a.d < tol && b.d < tol && (!best || a.d + b.d < best.s)) best = { l, a, b, s:a.d + b.d }; });
   if (!best) return null;
   const fwd = best.a.i < best.b.i || (best.a.i === best.b.i && best.a.t <= best.b.t), s = fwd ? best.a : best.b, e = fwd ? best.b : best.a;
   const path = [s.pt].concat(best.l.slice(s.i + 1, e.i + 1), [e.pt]);
@@ -1204,6 +1273,8 @@ function updateToolButtons(){
   $("previewBtn").disabled = !has;
   $("clearBtn").disabled = !selectedTour;
   $("drawBtn").disabled = !selectedTour;
+  const own = selectedTour && ownLine(selectedTour), has2 = !!(own && own.geometry.coordinates.length);
+  $("undoBtn").disabled = !has2; $("clearRouteBtn").disabled = !has2;
 }
 
 /* Patch render to also update tool button state */

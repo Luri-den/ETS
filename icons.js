@@ -195,7 +195,17 @@ const ICONS = {
     <rect x="18" y="10" width="8" height="4" fill="#f5e6c8"/>
     <rect x="30" y="10" width="8" height="4" fill="#f5e6c8"/>
     <circle cx="16" cy="24" r="4" fill="#1c1c1c"/><circle cx="44" cy="24" r="4" fill="#1c1c1c"/>
-    <rect x="6" y="18" width="48" height="1.5" fill="#E47303"/>` }
+    <rect x="6" y="18" width="48" height="1.5" fill="#E47303"/>` },
+  walk: { label: "Walker", vb: "12 0 36 30", scene: "road", art: `
+    <circle cx="30" cy="6" r="3.6" fill="#3a3a3a"/>
+    <rect x="24.5" y="10" width="5" height="8" rx="1.5" fill="#E47303"/>
+    <g stroke="#3a3a3a" stroke-width="3" stroke-linecap="round" fill="none"><path d="M30 10 L29 19"/><path d="M30 12 L36 17"/><path d="M29 19 L35 27"/><path d="M29 19 L23 27"/></g>` },
+  bike: { label: "Bicycle", vb: "6 0 48 30", scene: "road", art: `
+    <g fill="none" stroke="#1c1c1c" stroke-width="2"><circle cx="14" cy="22" r="6"/><circle cx="46" cy="22" r="6"/></g>
+    <g fill="none" stroke="#8b1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 22 L22 13 L38 13 L28 22 Z"/><path d="M38 13 L46 22"/><path d="M38 13 L40 10 L43 10"/><path d="M22 13 L21 10"/></g>
+    <rect x="18.5" y="8.5" width="5.5" height="2" rx="1" fill="#3a3a3a"/>
+    <g stroke="#3a3a3a" stroke-width="2.6" stroke-linecap="round" fill="none"><path d="M23 9 L30 5"/><path d="M30 5 L40 10"/><path d="M24 10 L29 20"/></g>
+    <circle cx="32" cy="1.9" r="2.3" fill="#3a3a3a"/>` }
 };
 
 /* Turn an icon key into an image address usable as <img src="...">.
