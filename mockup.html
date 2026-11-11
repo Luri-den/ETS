@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Heritage-led Event Hub — Mockup</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+  :root{
+    --bar:#01796F;
+    --accent:#E47303;
+    --gold:#FFC20E;
+    --ink:#1a202c;
+    --muted:#6b7280;
+    --line:#e2e6ea;
+    --paper:#f7f5f0;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font:15px system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:var(--ink);background:var(--paper)}
+
+  /* ---------- Top event banner ---------- */
+  #eventBanner{
+    position:relative;z-index:30;
+    background:linear-gradient(135deg,#01796F,#015f57);
+    color:#fff;
+    padding:calc(12px + env(safe-area-inset-top)) 16px 12px;
+    box-shadow:0 2px 8px rgba(0,0,0,.15);
+  }
+  #eventBanner .row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  #eventBanner .live{
+    display:inline-flex;align-items:center;gap:6px;
+    background:#d4351c;color:#fff;font-size:11px;font-weight:700;
+    letter-spacing:.06em;text-transform:uppercase;
+    padding:3px 8px;border-radius:999px;
+  }
+  #eventBanner .live::before{
+    content:"";width:6px;height:6px;border-radius:50%;background:#fff;
+    animation:pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  #eventBanner h1{margin:0;font-size:20px;font-weight:700;line-height:1.2}
+  #eventBanner p{margin:4px 0 0;font-size:13px;opacity:.92;line-height:1.4}
+  #eventBanner .cta{
+    margin-left:auto;display:inline-flex;gap:8px;align-items:center;
+    background:#fff;color:#01796F;border:0;border-radius:10px;
+    padding:9px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;
+  }
+  #eventBanner .cta:hover{background:#f0fffe}
+
+  /* ---------- Time filter bar ---------- */
+  #timeBar{
+    position:sticky;top:0;z-index:25;
+    background:#fff;border-bottom:1px solid var(--line);
+    padding:10px 16px;
+    display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+  }
+  #timeBar .label{
+    font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--muted);font-weight:600;margin-right:4px;
+  }
+  .chip{
+    border:1.5px solid var(--line);background:#fff;color:var(--ink);
+    border-radius:999px;padding:7px 13px;font:inherit;font-size:13px;
+    cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+    transition:all .12s;
+  }
+  .chip:hover{border-color:var(--accent)}
+  .chip.on{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600}
+  .chip small{font-size:11px;opacity:.7;font-weight:400}
+  .chip.on small{opacity:.85}
+
+  /* ---------- Layout ---------- */
+  #layout{
+    display:grid;
+    grid-template-columns:340px 1fr;
+    height:calc(100vh - 132px);
+    min-height:520px;
+  }
+  #sidebar{
+    border-right:1px solid var(--line);background:#fff;overflow:auto;
+    padding-bottom:20px;
+  }
+  #map{position:relative}
+
+  /* ---------- Sidebar sections ---------- */
+  .sec{padding:14px 16px 4px}
+  .sec h2{
+    font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--muted);margin:0 0 8px;font-weight:700;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .sec h2 .count{
+    font-size:11px;font-weight:400;color:var(--muted);
+  }
+
+  /* Experience cards */
+  .exp{
+    display:block;width:100%;text-align:left;cursor:pointer;
+    background:#fff;border:1.5px solid var(--line);border-radius:12px;
+    padding:12px 14px;margin-bottom:8px;font:inherit;
+    transition:all .12s;
+  }
+  .exp:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  .exp.sel{border-color:var(--accent);background:#fff8ef;box-shadow:0 2px 8px rgba(228,115,3,.15)}
+  .exp .kind{
+    display:inline-block;font-size:10px;font-weight:700;
+    text-transform:uppercase;letter-spacing:.06em;
+    padding:2px 7px;border-radius:999px;margin-bottom:6px;
+  }
+  .exp .kind.tour{background:#fff3e0;color:#c05621}
+  .exp .kind.trail{background:#e6f5ec;color:#2f855a}
+  .exp h3{margin:0 0 4px;font-size:15px;font-weight:600;line-height:1.25}
+  .exp .meta{font-size:12px;color:var(--muted);line-height:1.4}
+  .exp .meta b{color:var(--ink);font-weight:600}
+
+  /* Reward toast area */
+  #rewards{
+    position:absolute;z-index:15;right:14px;bottom:14px;
+    display:flex;flex-direction:column;gap:8px;align-items:flex-end;
+    pointer-events:none;max-width:calc(100% - 28px);
+  }
+  .reward{
+    background:#222;color:#fff;border-radius:12px;
+    padding:10px 14px;font-size:13px;line-height:1.35;
+    box-shadow:0 4px 14px rgba(0,0,0,.3);
+    max-width:300px;
+    opacity:0;transform:translateY(10px);
+    transition:opacity .3s,transform .3s;
+  }
+  .reward.show{opacity:1;transform:translateY(0)}
+  .reward .ttl{font-weight:700;color:var(--gold);margin-bottom:2px;font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+
+  /* Detail drawer for an experience */
+  #detail{
+    position:absolute;z-index:20;left:0;right:0;bottom:0;
+    max-height:60vh;overflow:auto;
+    background:#fff;border-top:4px solid var(--accent);
+    border-radius:16px 16px 0 0;
+    box-shadow:0 -4px 20px rgba(0,0,0,.15);
+    padding:16px 18px calc(16px + env(safe-area-inset-bottom));
+    transform:translateY(100%);
+    transition:transform .3s ease;
+  }
+  #detail.open{transform:translateY(0)}
+  #detail h2{margin:0 0 4px;font-size:20px}
+  #detail .sub{color:var(--muted);font-size:13px;margin:0 0 12px;line-height:1.45}
+  #detail .close{
+    position:absolute;right:12px;top:10px;border:0;background:none;
+    font-size:26px;line-height:1;cursor:pointer;color:var(--muted);
+  }
+  #detail .stoplist{list-style:none;margin:0;padding:0}
+  #detail .stoplist li{
+    display:flex;gap:12px;align-items:flex-start;
+    padding:10px 0;border-bottom:1px solid var(--line);
+  }
+  #detail .stoplist li:last-child{border-bottom:0}
+  #detail .stoplist .num{
+    flex:none;width:28px;height:28px;border-radius:50%;
+    background:var(--accent);color:#fff;font-weight:700;font-size:13px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  #detail .stoplist .info{flex:1;min-width:0}
+  #detail .stoplist .name{font-weight:600;font-size:14px;margin:0 0 2px}
+  #detail .stoplist .desc{font-size:12px;color:var(--muted);line-height:1.45;margin:0}
+  #detail .stoplist .leg{
+    font-size:11px;color:var(--muted);margin-top:6px;
+    display:flex;gap:10px;flex-wrap:wrap;
+  }
+  #detail .stoplist .leg span{
+    display:inline-flex;align-items:center;gap:4px;
+    background:#f4f6f8;border-radius:6px;padding:2px 7px;
+  }
+  #detail .startWalk{
+    display:block;width:100%;margin-top:14px;
+    padding:12px;border:0;border-radius:10px;
+    background:var(--accent);color:#fff;font:inherit;font-size:15px;font-weight:700;
+    cursor:pointer;
+  }
+  #detail .startWalk:hover{background:#c96200}
+  #detail .trailHint{
+    margin-top:14px;padding:10px 12px;
+    background:#e6f5ec;border-radius:10px;
+    font-size:13px;color:#2f855a;line-height:1.5;
+  }
+  #detail .trailHint b{color:#1e5c3a}
+
+  /* Map marker styles */
+  .pin{
+    width:36px;height:36px;border-radius:50%;
+    border:3px solid #fff;background:var(--accent);
+    box-shadow:0 2px 6px rgba(0,0,0,.35);
+    padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:14px;font-weight:700;
+    transition:transform .15s;
+  }
+  .pin:hover{transform:scale(1.15)}
+  .pin.story{background:#8b1a1a}
+  .pin.spot{background:#01796F}
+  .pin.curated{outline:3px solid var(--gold);outline-offset:2px}
+
+  /* Event submit modal */
+  #submit{
+    position:fixed;inset:0;z-index:100;
+    background:rgba(0,0,0,.55);
+    display:none;align-items:center;justify-content:center;padding:20px;
+  }
+  #submit.open{display:flex}
+  #submit .card{
+    background:#fff;border-radius:16px;
+    max-width:480px;width:100%;max-height:90vh;overflow:auto;
+    padding:22px 24px;position:relative;
+  }
+  #submit h2{margin:0 0 4px;font-size:20px}
+  #submit .lede{color:var(--muted);font-size:13px;margin:0 0 16px;line-height:1.5}
+  #submit label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:12px 0 4px}
+  #submit input,#submit textarea,#submit select{
+    width:100%;padding:10px;border:1.5px solid var(--line);border-radius:8px;
+    font:inherit;font-size:14px;background:#fff;
+  }
+  #submit textarea{min-height:80px;resize:vertical}
+  #submit .actions{margin-top:18px;display:flex;gap:8px;justify-content:flex-end}
+  #submit .actions button{
+    padding:10px 16px;border-radius:8px;border:0;font:inherit;font-size:14px;
+    font-weight:700;cursor:pointer;
+  }
+  #submit .cancel{background:#f0f2f4;color:#333}
+  #submit .send{background:var(--accent);color:#fff}
+  #submit .note{
+    margin-top:10px;padding:8px 10px;
+    background:#fff8e0;border-radius:6px;
+    font-size:12px;color:#7a5c00;line-height:1.4;
+  }
+
+  /* Legend */
+  #legend{
+    position:absolute;z-index:10;left:12px;bottom:12px;
+    background:rgba(255,255,255,.95);
+    border-radius:8px;padding:8px 10px;
+    font-size:11px;line-height:1.6;
+    box-shadow:0 2px 6px rgba(0,0,0,.1);
+    display:flex;flex-direction:column;gap:3px;
+  }
+  #legend span{display:flex;align-items:center;gap:6px}
+  #legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+
+  @media(max-width:720px){
+    #layout{grid-template-columns:1fr;height:auto}
+    #sidebar{order:2;border-right:0;border-top:1px solid var(--line)}
+    #map{order:1;height:56vh;min-height:340px}
+    #detail{position:fixed;left:0;right:0;bottom:0;border-radius:16px 16px 0 0}
+    #eventBanner h1{font-size:17px}
+    #eventBanner .cta{margin-left:0;width:100%;justify-content:center}
+  }
+</style>
+</head>
+<body>
+
+<!-- =========================================================
+     EVENT BANNER — the front door
+     ========================================================= -->
+<header id="eventBanner">
+  <div class="row">
+    <div style="flex:1;min-width:200px">
+      <span class="live">Happening now</span>
+      <h1 style="margin-top:6px">Heritage Weekend on Mill Street</h1>
+      <p>Three museums open late, one walking trail, and a chicken dinner at the old depot. Ends Sunday.</p>
+    </div>
+    <button class="cta" onclick="openDetail('trail-mill')">See the trail →</button>
+  </div>
+</header>
+
+<!-- =========================================================
+     TIME FILTER — "what fits my afternoon?"
+     ========================================================= -->
+<div id="timeBar">
+  <span class="label">I have</span>
+  <button class="chip on" data-minutes="9999">Any time</button>
+  <button class="chip" data-minutes="30">30 min</button>
+  <button class="chip" data-minutes="60">1 hour</button>
+  <button class="chip" data-minutes="120">2 hours</button>
+  <button class="chip" data-minutes="240">Half a day</button>
+  <span style="flex:1"></span>
+  <button class="chip" onclick="openSubmit()">+ Add an event</button>
+</div>
+
+<!-- =========================================================
+     SIDEBAR + MAP
+     ========================================================= -->
+<div id="layout">
+  <aside id="sidebar">
+    <div class="sec">
+      <h2>What fits your time <span class="count" id="expCount"></span></h2>
+      <div id="expList"></div>
+    </div>
+    <div class="sec">
+      <h2>Places along the way</h2>
+      <div id="spotList" style="font-size:13px;color:var(--muted);line-height:1.5">
+        Tap a marker on the map to see what's there. When you're near, the story comes to you.
+      </div>
+    </div>
+  </aside>
+
+  <div id="map">
+    <div id="legend">
+      <span><i style="background:#E47303"></i> Tour stop</span>
+      <span><i style="background:#01796F"></i> Spot / story</span>
+      <span><i style="background:#8b1a1a"></i> Special exhibit</span>
+    </div>
+    <div id="rewards"></div>
+    <div id="detail"></div>
+  </div>
+</div>
+
+<!-- =========================================================
+     EVENT SUBMISSION MODAL
+     ========================================================= -->
+<div id="submit">
+  <div class="card">
+    <h2>Suggest an event</h2>
+    <p class="lede">You don't need to touch a spreadsheet. Tell us what's happening and we'll review it.</p>
+    <label>Event name</label>
+    <input id="s_name" placeholder="e.g. Fall Festival at the Courthouse">
+    <label>When</label>
+    <input id="s_when" type="date">
+    <label>Where</label>
+    <input id="s_where" placeholder="Address or place name">
+    <label>What should visitors know?</label>
+    <textarea id="s_what" placeholder="A sentence or two. Who is it for, what happens, and why it's worth the trip."></textarea>
+    <div class="note">
+      This is a mockup. In the real site, this form writes to a review queue, and an editor approves it
+      before it appears on the map. That's how a tourism site stays current without one person typing
+      every event.
+    </div>
+    <div class="actions">
+      <button class="cancel" onclick="closeSubmit()">Cancel</button>
+      <button class="send" onclick="fakeSubmit()">Send for review</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>
+/* ============================================================
+   Sample data — fictitious, but shaped like a real heritage town
+   ============================================================ */
+const SPOTS = [
+  { id:"s1", ll:[-86.902, 39.641], name:"The 1913 Flood Line", kind:"spot",
+    text:"A faded brass marker on the corner shows where the water reached. Look up at the second-story windows." },
+  { id:"s2", ll:[-86.899, 39.644], name:"Old Depot Clock", kind:"spot",
+    text:"Installed in 1902. The hands have not moved since the last train left in 1957." },
+  { id:"s3", ll:[-86.905, 39.639], name:"Mill Street Bakery", kind:"spot",
+    text:"Still using the original brick oven. The bread line starts before dawn." },
+  { id:"s4", ll:[-86.897, 39.647], name:"Pioneer Cemetery Gate", kind:"story",
+    text:"The wrought iron was made by a local blacksmith whose name is on the third headstone from the left." },
+  { id:"s5", ll:[-86.908, 39.643], name:"Foundry Ruins", kind:"story",
+    text:"Where the town's first industry stood. Only the foundation remains, but the story of the strike is on the plaque." },
+  { id:"s6", ll:[-86.900, 39.650], name:"Special exhibit: quilts of the 1890s", kind:"story",
+    text:"This weekend only at the Historical Society. Seven quilts, most never shown to the public." },
+];
+
+const EXPERIENCES = [
+  {
+    id:"tour-1", kind:"tour", title:"Founders' Walk",
+    minutes:45, miles:0.8, effort:"Easy, paved",
+    summary:"Six stops in the original plat. The story of the town, told by the people who built it.",
+    stops:[
+      {spot:"s1", leg:"Walk 2 min · 150 m", note:"Start here, at the flood line."},
+      {spot:"s2", leg:"Walk 3 min · 220 m", note:"The depot that defined the town."},
+      {spot:"s3", leg:"Walk 4 min · 320 m", note:"Where the town still feeds itself."},
+      {spot:"s4", leg:"Walk 6 min · 480 m", note:"The names on the stones match the street signs."},
+    ]
+  },
+  {
+    id:"trail-mill", kind:"trail", title:"Mill Street Heritage Trail",
+    minutes:90, miles:1.6, effort:"Easy, sidewalks and a short hill",
+    summary:"A trail you can join anywhere. Stops along the way, each its own small story. Good for a slow afternoon.",
+    stops:[
+      {spot:"s3", leg:"join anywhere", note:"The bakery is a good place to start."},
+      {spot:"s1", leg:"Walk 5 min · 400 m", note:"Look for the brass line at window height."},
+      {spot:"s5", leg:"Walk 8 min · 650 m", note:"The foundry ruins are behind the school."},
+      {spot:"s2", leg:"Walk 6 min · 500 m", note:"End at the depot, or turn around anytime."},
+    ]
+  },
+  {
+    id:"tour-2", kind:"tour", title:"Quilt Weekend Walk",
+    minutes:120, miles:1.2, effort:"Easy, mostly indoor",
+    summary:"Three stops, one special exhibition. A weekend-only tour for the Heritage Weekend event.",
+    stops:[
+      {spot:"s6", leg:"Start inside", note:"Begin at the Historical Society."},
+      {spot:"s4", leg:"Walk 4 min · 300 m", note:"Pass the cemetery gate on the way."},
+      {spot:"s3", leg:"Walk 5 min · 380 m", note:"End with a slice of pie."},
+    ]
+  },
+];
+
+/* ============================================================
+   MAP
+   ============================================================ */
+const map = new maplibregl.Map({
+  container:"map",
+  style:{
+    version:8,
+    sources:{ osm:{ type:"raster",
+      tiles:["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tileSize:256, maxzoom:19,
+      attribution:"&copy; OpenStreetMap" } },
+    layers:[{ id:"osm", type:"raster", source:"osm" }]
+  },
+  center:[-86.902, 39.643], zoom:15
+});
+map.addControl(new maplibregl.NavigationControl({ showCompass:false }), "bottom-right");
+
+let activeRouteLine = null;
+const spotMarkers = {};
+
+map.on("load", () => {
+  SPOTS.forEach(s => {
+    const el = document.createElement("button");
+    el.className = "pin " + (s.kind === "story" ? "story" : "spot");
+    el.textContent = s.kind === "story" ? "★" : "•";
+    el.title = s.name;
+    el.onclick = e => {
+      e.stopPropagation();
+      showSpotToast(s);
+      markExplored(s.id);
+    };
+    const m = new maplibregl.Marker({ element: el }).setLngLat(s.ll).addTo(map);
+    spotMarkers[s.id] = m;
+  });
+  renderExpList();
+});
+
+/* ============================================================
+   TIME FILTER
+   ============================================================ */
+let maxMinutes = 9999;
+document.querySelectorAll("#timeBar .chip[data-minutes]").forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll("#timeBar .chip[data-minutes]").forEach(b => b.classList.remove("on"));
+    btn.classList.add("on");
+    maxMinutes = +btn.dataset.minutes;
+    renderExpList();
+  };
+});
+
+/* ============================================================
+   SIDEBAR — experiences that fit the time available
+   ============================================================ */
+function renderExpList(){
+  const list = document.getElementById("expList");
+  const fits = EXPERIENCES.filter(e => e.minutes <= maxMinutes);
+  document.getElementById("expCount").textContent = fits.length + " of " + EXPERIENCES.length;
+  if (!fits.length){
+    list.innerHTML = '<p style="font-size:13px;color:var(--muted);margin:0 0 8px">Nothing fits that window. Try a longer time, or just wander — every marker on the map is its own small story.</p>';
+    return;
+  }
+  list.innerHTML = fits.map(e => `
+    <button class="exp" onclick="openDetail('${e.id}')">
+      <span class="kind ${e.kind}">${e.kind === "tour" ? "Guided tour" : "Trail"}</span>
+      <h3>${e.title}</h3>
+      <div class="meta">
+        <b>${e.minutes < 60 ? e.minutes + " min" : (e.minutes/60).toFixed(1).replace(/\.0$/,"") + " hr"}</b>
+        · ${e.miles} mi · ${e.effort}
+      </div>
+    </button>
+  `).join("");
+}
+
+/* ============================================================
+   EXPERIENCE DETAIL
+   ============================================================ */
+function openDetail(id){
+  const e = EXPERIENCES.find(x => x.id === id);
+  if (!e) return;
+  const detail = document.getElementById("detail");
+  const isTrail = e.kind === "trail";
+
+  const stopsHtml = e.stops.map((stop, i) => {
+    const s = SPOTS.find(x => x.id === stop.spot);
+    return `
+      <li>
+        <div class="num">${isTrail ? "•" : i+1}</div>
+        <div class="info">
+          <p class="name">${s.name}</p>
+          <p class="desc">${stop.note}</p>
+          <div class="leg"><span>${stop.leg}</span></div>
+        </div>
+      </li>
+    `;
+  }).join("");
+
+  detail.innerHTML = `
+    <button class="close" onclick="closeDetail()" aria-label="Close">&times;</button>
+    <h2>${e.title}</h2>
+    <p class="sub">
+      <b>${e.minutes < 60 ? e.minutes + " min" : (e.minutes/60).toFixed(1).replace(/\.0$/,"") + " hr"}</b>
+      · ${e.miles} mi · ${e.effort}
+    </p>
+    <p class="sub" style="font-size:14px;color:var(--ink)">${e.summary}</p>
+    ${isTrail ? `<div class="trailHint">
+      <b>This is a trail, not a tour.</b> You can join at any stop and leave at any stop. Tap any marker to hear its story as you pass.
+    </div>` : ""}
+    <ol class="stoplist">${stopsHtml}</ol>
+    <button class="startWalk" onclick="startExperience('${e.id}')">
+      ${isTrail ? "Show trail on the map" : "Start the tour"}
+    </button>
+  `;
+  detail.classList.add("open");
+  drawRoute(e);
+  requestReward("experience_view", { title: e.title, kind: e.kind });
+}
+
+function closeDetail(){
+  document.getElementById("detail").classList.remove("open");
+  if (activeRouteLine){
+    map.removeLayer("route");
+    map.removeSource("route");
+    activeRouteLine = null;
+  }
+}
+
+function drawRoute(e){
+  if (activeRouteLine){
+    map.removeLayer("route");
+    map.removeSource("route");
+  }
+  const coords = e.stops.map(s => SPOTS.find(x => x.id === s.spot).ll);
+  map.addSource("route", {
+    type:"geojson",
+    data:{ type:"Feature",
+      geometry:{ type:"LineString", coordinates: coords } }
+  });
+  map.addLayer({
+    id:"route", type:"line", source:"route",
+    layout:{ "line-cap":"round","line-join":"round" },
+    paint:{ "line-color": e.kind === "trail" ? "#2f855a" : "#E47303",
+            "line-width":5, "line-dasharray": e.kind === "trail" ? [2,2] : [1] }
+  });
+  activeRouteLine = true;
+  const bounds = new maplibregl.LngLatBounds();
+  coords.forEach(c => bounds.extend(c));
+  map.fitBounds(bounds, { padding:{ top:60, bottom:280, left:60, right:60 }, maxZoom:17, duration:600 });
+}
+
+/* ============================================================
+   SPOT TOASTS — "what's here?"
+   ============================================================ */
+function showSpotToast(s){
+  const reward = document.createElement("div");
+  reward.className = "reward";
+  reward.innerHTML = `<div class="ttl">${s.kind === "story" ? "Story" : "Spot"}</div><div>${s.name}<br><span style="opacity:.8;font-size:12px">${s.text}</span></div>`;
+  document.getElementById("rewards").appendChild(reward);
+  requestAnimationFrame(() => reward.classList.add("show"));
+  setTimeout(() => {
+    reward.classList.remove("show");
+    setTimeout(() => reward.remove(), 400);
+  }, 5000);
+}
+
+/* ============================================================
+   MICRO-REWARDS — exploration, not just completion
+   ============================================================ */
+const explored = new Set();
+const rewarded = new Set();
+
+function markExplored(spotId){
+  if (explored.has(spotId)) return;
+  explored.add(spotId);
+  if (explored.size === 1) requestReward("first_spot", {});
+  if (explored.size === 3) requestReward("three_spots", {});
+  if (explored.size === 5) requestReward("five_spots", {});
+}
+
+function requestReward(kind, data){
+  if (rewarded.has(kind)) return;
+  rewarded.add(kind);
+  let title = "", body = "";
+  if (kind === "first_spot"){ title = "Nice find"; body = "You found your first story. Most visitors walk past."; }
+  else if (kind === "three_spots"){ title = "Exploring"; body = "Three stories so far. You're starting to see the town the way locals do."; }
+  else if (kind === "five_spots"){ title = "Off the beaten path"; body = "Five stories. You've covered ground most visitors miss."; }
+  else if (kind === "experience_view"){
+    title = data.kind === "trail" ? "Trail opened" : "Tour opened";
+    body = "Tap a marker on the map to hear its story.";
+  }
+  if (!title) return;
+  const reward = document.createElement("div");
+  reward.className = "reward";
+  reward.innerHTML = `<div class="ttl">${title}</div><div>${body}</div>`;
+  document.getElementById("rewards").appendChild(reward);
+  requestAnimationFrame(() => reward.classList.add("show"));
+  setTimeout(() => {
+    reward.classList.remove("show");
+    setTimeout(() => reward.remove(), 400);
+  }, 5000);
+}
+
+/* ============================================================
+   "START" — simulated walk / proximity trigger
+   In the real site this is GPS or QR. Here we just say what
+   would happen.
+   ============================================================ */
+function startExperience(id){
+  const e = EXPERIENCES.find(x => x.id === id);
+  closeDetail();
+  requestReward("experience_start", { title: e.title });
+  const reward = document.createElement("div");
+  reward.className = "reward";
+  reward.innerHTML = `<div class="ttl">You're walking</div>
+    <div>In the real site, as you get within 30 meters of each stop, its story surfaces on your screen.
+    For this mockup, tap the markers on the map to see what each one says.</div>`;
+  document.getElementById("rewards").appendChild(reward);
+  requestAnimationFrame(() => reward.classList.add("show"));
+  setTimeout(() => {
+    reward.classList.remove("show");
+    setTimeout(() => reward.remove(), 400);
+  }, 7000);
+}
+
+/* ============================================================
+   EVENT SUBMISSION
+   ============================================================ */
+function openSubmit(){ document.getElementById("submit").classList.add("open"); }
+function closeSubmit(){ document.getElementById("submit").classList.remove("open"); }
+function fakeSubmit(){
+  closeSubmit();
+  const reward = document.createElement("div");
+  reward.className = "reward";
+  reward.innerHTML = `<div class="ttl">Sent for review</div>
+    <div>Your event will appear here once a heritage coordinator approves it.
+    That's the fast path — an organizer can submit, a curator can approve, and the site updates
+    in minutes, without anyone editing a CSV.</div>`;
+  document.getElementById("rewards").appendChild(reward);
+  requestAnimationFrame(() => reward.classList.add("show"));
+  setTimeout(() => {
+    reward.classList.remove("show");
+    setTimeout(() => reward.remove(), 400);
+  }, 8000);
+}
+
+document.getElementById("submit").addEventListener("click", e => {
+  if (e.target.id === "submit") closeSubmit();
+});
+</script>
+</body>
+</html>
