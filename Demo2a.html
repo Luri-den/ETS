@@ -2155,11 +2155,14 @@ $("res").onclick = e => {
     vis();
   };
 
+  const mapLineIds = new Set();   // lines that belong to plain Map Lines: always visible
   function lineVisibility(active, tries) {   // a tour's or trail's line shows only while it is open; map lines always show
     if (!map.getLayer("lines-solid")) { if ((tries || 0) < 40) setTimeout(() => lineVisibility(active, (tries || 0) + 1), 300); return; }   // the lines may still be loading
     const hide = new Set();
     tours.forEach(t => String(t.route || "").split(/[|;,]/).map(s => s.trim()).filter(Boolean).forEach(id => hide.add(id)));
+    ((window.LINES_DATA && window.LINES_DATA.features) || []).forEach(f => { const id = String((f.properties || {}).ID || ""); if (id.indexOf("R-") === 0) hide.add(id); });   // route lines, including any left behind by a deleted tour
     (active || []).forEach(id => hide.delete(id));
+    mapLineIds.forEach(id => hide.delete(id));
     ETSLines.setHidden(map, "lines", Array.from(hide));
   }
   function showRoute(T) {   // a trail with no stops: show its route and a short description
@@ -2227,7 +2230,8 @@ $("res").onclick = e => {
     });
     TR.forEach(r => {
       const id = (r.TOUR_ID || "").trim();
-      if (!id || String(r.TYPE || "").toLowerCase() === "line") return;   // map lines are drawn, not listed as tours
+      if (!id) return;
+      if (String(r.TYPE || "").toLowerCase() === "line") { String(r.ROUTE || "").split(/[|;,]/).map(s => s.trim()).filter(Boolean).forEach(x => mapLineIds.add(x)); return; }   // map lines are drawn, not listed as tours
       const stops = TS.filter(x => key(x.TOUR_ID) === key(id)).sort((a,b) => parseFloat(a.STEP) - parseFloat(b.STEP));
       tours.push({ id, title: r.TITLE || id, intro: r.INTRO || "", category: r.CATEGORY || null, route: r.ROUTE || "", type: String(r.TYPE || "tour").toLowerCase(), modes: r.MODES || "", length: parseFloat(r.LENGTH_MI) || 0, stops });
     });

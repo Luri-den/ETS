@@ -966,7 +966,7 @@ function ensureOwn(t){
 }
 function looseLines(){   // lines from the old Lines and Trails editor that no tour or trail owns
   const used = new Set(); tours.forEach(t => routeIds(t).forEach(id => used.add(id)));
-  return linesDoc.features.filter(f => f.geometry && f.geometry.coordinates.length >= 2 && !String(f.properties.ID || "").startsWith("R-") && !used.has(f.properties.ID));
+  return linesDoc.features.filter(f => f.geometry && f.geometry.coordinates.length >= 2 && !used.has(f.properties.ID) && !tours.some(t => ownId(t) === f.properties.ID));   // includes lines left behind by a deleted tour
 }
 function updateAdopt(){
   const b = document.getElementById("adoptBtn"); if (!b) return;
