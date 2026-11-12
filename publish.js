@@ -314,9 +314,11 @@
   }
 
   /* ---------- public: add the buttons to an editor ---------- */
+  const registry = [];   // every editor button set registered on this page, so the hub can collect their changes at once
   function attach(opts) {
     opts = opts || {};
     const ids = opts.buttons || [];
+    registry.push({ ids, opts });
     const anchor = ids.length ? document.getElementById(ids[0]) : null;
     const btn = document.createElement("button");
     btn.type = "button";
@@ -344,5 +346,19 @@
     return (await api("/git/trees/" + base + "?recursive=1")).tree.filter(x => x.type === "blob").map(x => x.path);
   }
 
-  window.GHPublish = { attach, publish, settingsDialog, listFiles, settings };
+  /* ---------- for the hub: gather everything this editor has changed, and tell it when it was published ---------- */
+  async function collect() {
+    const out = [];
+    for (const r of registry) {
+      if (!r.ids.length) continue;
+      const got = await capture(r.ids);
+      got.forEach(f => out.push({ name: f.name, blob: f.blob, path: prefixPath((r.opts.route || defaultRoute)(f.name) || defaultRoute(f.name)) }));
+    }
+    return out;
+  }
+  function finish(chosen) { registry.forEach(r => { try { if (r.opts.onPublished) r.opts.onPublished(chosen); } catch (e) {} }); }
+  function pending() { return registry.some(r => r.ids.some(id => { const b = document.getElementById(id); return !!b && !b.disabled; })); }
+  const hasToken = () => !!getToken() && !!settings().owner && !!settings().repo;
+
+  window.GHPublish = { attach, publish, settingsDialog, listFiles, settings, collect, finish, pending, hasToken, api, branchName };
 })();
